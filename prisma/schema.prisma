@@ -1,0 +1,68 @@
+// Prisma schema for the Campaign & Lead Management Dashboard.
+// Uses SQLite as a local cache for data scraped from Lead Manager (ליד מנג'ר).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A marketing campaign. Leads belong to a campaign.
+model Campaign {
+  id          String   @id @default(cuid())
+  // The campaign name exactly as it appears in Lead Manager. Used as the
+  // natural key when matching scraped rows to existing campaigns.
+  name        String   @unique
+  // Optional external identifier if Lead Manager exposes one.
+  externalId  String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leads       Lead[]
+
+  @@index([name])
+}
+
+// A single lead scraped from Lead Manager.
+model Lead {
+  id           String    @id @default(cuid())
+  // The Lead ID from Lead Manager. Unique per source system — used to
+  // de-duplicate during incremental syncs (upsert key).
+  externalId   String    @unique
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId   String
+  // When the lead was created in Lead Manager (the "Date/Time" column).
+  receivedAt   DateTime
+  status       String    @default("New")
+  source       String    @default("Unknown")
+  // Bookkeeping for incremental sync.
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([receivedAt])
+  @@index([campaignId])
+  @@index([status])
+  @@index([source])
+  @@index([campaignId, receivedAt])
+}
+
+// Audit log for each scraper/sync run.
+model SyncLog {
+  id           String    @id @default(cuid())
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  // "success" | "error" | "running"
+  status       String    @default("running")
+  // Counts captured during the run.
+  leadsFound   Int       @default(0)
+  leadsCreated Int       @default(0)
+  leadsUpdated Int       @default(0)
+  // Was a regression detected during this sync?
+  alertTriggered Boolean @default(false)
+  message      String?   // human-readable summary / error message
+
+  @@index([startedAt])
+}
