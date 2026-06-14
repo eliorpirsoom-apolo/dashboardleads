@@ -19,8 +19,9 @@ export async function GET(request: Request) {
     );
     const q = (searchParams.get("q") ?? "").trim();
 
+    // receivedAt is stored as an ISO-8601 UTC string — compare as strings.
     const where: Prisma.LeadWhereInput = {
-      receivedAt: { gte: new Date(range.from), lte: new Date(range.to) },
+      receivedAt: { gte: range.from, lte: range.to },
     };
     if (campaignId && campaignId !== "all") where.campaignId = campaignId;
     if (q) {
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
         id: l.id,
         externalId: l.externalId,
         campaign: l.campaign.name,
-        receivedAt: l.receivedAt.toISOString(),
+        receivedAt: l.receivedAt,
         status: l.status,
         source: l.source,
       })),

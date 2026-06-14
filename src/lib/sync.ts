@@ -54,13 +54,13 @@ async function persistLeads(leads: ScrapedLead[]) {
       create: {
         externalId: lead.externalId,
         campaignId,
-        receivedAt: lead.receivedAt,
+        receivedAt: lead.receivedAt.toISOString(),
         status: lead.status,
         source: lead.source,
       },
       update: {
         campaignId,
-        receivedAt: lead.receivedAt,
+        receivedAt: lead.receivedAt.toISOString(),
         status: lead.status,
         source: lead.source,
       },

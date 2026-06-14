@@ -14,7 +14,7 @@ import type {
   TrendPoint,
 } from "./types";
 import { Prisma } from "@prisma/client";
-import { format, startOfDay, subDays } from "date-fns";
+import { startOfDay, subDays } from "date-fns";
 
 // Statuses that count as a "conversion" for the conversion-rate KPI.
 // Matched case-insensitively as substrings (covers EN + common Hebrew terms).
@@ -43,8 +43,10 @@ export function alertThresholdPercent(): number {
 
 // Build the Prisma `where` clause for a range + optional campaign filter.
 function whereForRange(range: DateRange, campaignId?: string) {
+  // receivedAt is an ISO-8601 UTC string; range.from/to are already ISO, so
+  // we compare strings directly (chronologically correct, adapter-safe).
   const where: Prisma.LeadWhereInput = {
-    receivedAt: { gte: new Date(range.from), lte: new Date(range.to) },
+    receivedAt: { gte: range.from, lte: range.to },
   };
   if (campaignId && campaignId !== "all") {
     where.campaignId = campaignId;
@@ -89,8 +91,9 @@ async function leadsTrend(
   const counts = new Map<string, number>();
   for (const day of daysInRange(range)) counts.set(day, 0);
   for (const lead of leads) {
-    const key = format(lead.receivedAt, "yyyy-MM-dd");
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    // receivedAt is ISO-8601 UTC; the first 10 chars are the yyyy-MM-dd day.
+    const key = lead.receivedAt.slice(0, 10);
+    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
   return Array.from(counts.entries()).map(([date, leadsCount]) => ({

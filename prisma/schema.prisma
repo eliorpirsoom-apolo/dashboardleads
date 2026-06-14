@@ -2,7 +2,10 @@
 // Uses SQLite as a local cache for data scraped from Lead Manager (ליד מנג'ר).
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // Driver adapters let us talk to Turso (libSQL) in production while keeping
+  // the same `sqlite` provider for local development.
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -35,7 +38,11 @@ model Lead {
   campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   campaignId   String
   // When the lead was created in Lead Manager (the "Date/Time" column).
-  receivedAt   DateTime
+  // Stored as an ISO-8601 UTC string (e.g. 2026-06-14T20:30:00.000Z) so that
+  // lexical ordering == chronological ordering and range filters work
+  // identically across local SQLite and Turso/libSQL (the libSQL driver
+  // adapter mis-binds typed DateTime range filters).
+  receivedAt   String
   status       String    @default("New")
   source       String    @default("Unknown")
   // Bookkeeping for incremental sync.

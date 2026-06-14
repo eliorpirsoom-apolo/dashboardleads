@@ -25,7 +25,7 @@ week-over-week regression alerting (in-app + email).
 - **Next.js 14** (App Router) + **TypeScript**
 - **Tailwind CSS** + **Tremor** (charts, KPI cards, tables)
 - **Playwright** (headless/headed scraping)
-- **Prisma** + **SQLite** (local cache)
+- **Prisma** + **SQLite** locally / **Turso (libSQL)** in production — one code path via the libSQL driver adapter
 - **Nodemailer** (email alerts)
 - **date-fns** (date math)
 
@@ -56,6 +56,50 @@ npm run dev                 # http://localhost:3000
 > The seed generates ~60 days of realistic leads across 5 campaigns, **including a
 > deliberate week-over-week drop** on one campaign so you can immediately see the
 > regression alert (red glow + banner) in action.
+
+---
+
+## ☁️ Deploy to Vercel + Turso
+
+The dashboard runs great on **Vercel**. Because Vercel's filesystem is
+ephemeral and read-only, the local SQLite file is swapped for a hosted
+**Turso** database (libSQL — SQLite-compatible, so the same `provider = sqlite`
+and the same code path are used everywhere).
+
+> **Note:** the Playwright scraper **cannot** run on Vercel/Cloudflare
+> serverless functions. Deploy the dashboard to Vercel and run the scraper
+> separately (a cron job, a small VM, or a scheduled GitHub Action) writing to
+> the same Turso DB. To just see the dashboard live, seed demo data (below).
+
+### 1. Create the Turso database
+
+```bash
+# Install the Turso CLI: https://docs.turso.tech/cli/installation
+turso db create lead-dashboard
+
+# Apply the schema (generated DDL is committed at prisma/schema.sql)
+turso db shell lead-dashboard < prisma/schema.sql
+
+# Grab the connection details
+turso db show lead-dashboard --url        # -> TURSO_DATABASE_URL (libsql://…)
+turso db tokens create lead-dashboard     # -> TURSO_AUTH_TOKEN
+```
+
+### 2. Seed demo data into Turso (optional, for a live demo)
+
+```bash
+TURSO_DATABASE_URL="libsql://…" TURSO_AUTH_TOKEN="…" npm run db:seed
+```
+
+### 3. Deploy on Vercel
+
+1. Push this repo to GitHub and **Import Project** in Vercel.
+2. Add Environment Variables: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`
+   (and `ALERT_*` / `SMTP_*` / `EMAIL_ENABLED` if you want email alerts).
+3. Deploy. Vercel runs `npm run build` (which runs `prisma generate`) and
+   serves the app. Done — your dashboard is live. 🎉
+
+`vercel.json` pins the framework and build command; no extra config needed.
 
 ---
 

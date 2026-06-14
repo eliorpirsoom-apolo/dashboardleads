@@ -34,7 +34,7 @@ async function main() {
       create: {
         externalId: lead.externalId,
         campaignId,
-        receivedAt: lead.receivedAt,
+        receivedAt: lead.receivedAt.toISOString(),
         status: lead.status,
         source: lead.source,
       },
