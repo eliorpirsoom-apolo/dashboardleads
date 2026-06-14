@@ -1,5 +1,7 @@
 # Campaign & Lead Management Dashboard
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/eliorpirsoom-apolo/dashboardleads&env=TURSO_DATABASE_URL,TURSO_AUTH_TOKEN&envDescription=Turso%20libSQL%20connection%20for%20the%20lead%20cache&project-name=lead-dashboard&repository-name=lead-dashboard)
+
 A full-stack dashboard for **Lead Manager (ליד מנג'ר)**. Because the CRM has no
 API, data is extracted via **Playwright** browser automation, cached in a local
 **SQLite** database (via **Prisma**), and served through a modern **Next.js +
@@ -87,9 +89,16 @@ turso db tokens create lead-dashboard     # -> TURSO_AUTH_TOKEN
 
 ### 2. Seed demo data into Turso (optional, for a live demo)
 
+Two options — **no local setup required for the second one:**
+
 ```bash
+# Option A: seed from your machine
 TURSO_DATABASE_URL="libsql://…" TURSO_AUTH_TOKEN="…" npm run db:seed
 ```
+
+**Option B (easiest):** after deploying, just open the live site and click
+**“Sync now”**. With no Lead Manager credentials configured, the sync writes
+realistic demo data (including the built-in regression) straight into Turso.
 
 ### 3. Deploy on Vercel
 
