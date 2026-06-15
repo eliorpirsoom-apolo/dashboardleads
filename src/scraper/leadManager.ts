@@ -51,13 +51,18 @@ function loadConfig(): ScraperConfig {
     password: process.env.LEAD_MANAGER_PASSWORD ?? "",
     headless: process.env.HEADLESS !== "false",
     selectors: {
-      username:
-        process.env.SELECTOR_USERNAME ?? "input[name='username'], input[type='email']",
-      password:
-        process.env.SELECTOR_PASSWORD ?? "input[name='password'], input[type='password']",
-      loginButton: process.env.SELECTOR_LOGIN_BUTTON ?? "button[type='submit']",
-      loginSuccess: process.env.SELECTOR_LOGIN_SUCCESS ?? "nav",
-      leadsRow: process.env.SELECTOR_LEADS_TABLE ?? "table tbody tr",
+      // `strEnv` falls back on empty strings too (CI passes "" for unset vars).
+      username: strEnv(
+        "SELECTOR_USERNAME",
+        "input[name='username'], input[type='email']"
+      ),
+      password: strEnv(
+        "SELECTOR_PASSWORD",
+        "input[name='password'], input[type='password']"
+      ),
+      loginButton: strEnv("SELECTOR_LOGIN_BUTTON", "button[type='submit']"),
+      loginSuccess: strEnv("SELECTOR_LOGIN_SUCCESS", "nav"),
+      leadsRow: strEnv("SELECTOR_LEADS_TABLE", "table tbody tr"),
     },
     columns: {
       leadId: intEnv("COL_LEAD_ID", 0),
@@ -69,8 +74,17 @@ function loadConfig(): ScraperConfig {
   };
 }
 
+// Read a string env var, falling back when it's missing OR empty (CI sets
+// unset workflow vars to an empty string, which `??` would not catch).
+function strEnv(name: string, fallback: string): string {
+  const v = process.env[name];
+  return v === undefined || v.trim() === "" ? fallback : v;
+}
+
 function intEnv(name: string, fallback: number): number {
-  const v = Number(process.env[name]);
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const v = Number(raw);
   return Number.isInteger(v) ? v : fallback;
 }
 
