@@ -23,7 +23,7 @@ export function deltaLabel(c: MetricComparison): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
+  return new Date(iso).toLocaleDateString("he-IL", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -31,7 +31,7 @@ export function formatDate(iso: string): string {
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
+  return new Date(iso).toLocaleString("he-IL", {
     day: "2-digit",
     month: "short",
     year: "numeric",

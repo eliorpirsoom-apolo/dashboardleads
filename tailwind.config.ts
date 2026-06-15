@@ -3,6 +3,7 @@ import type { Config } from "tailwindcss";
 // Tremor requires its node_modules path in the content array so its utility
 // classes are not purged in production builds.
 const config: Config = {
+  darkMode: "class",
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
@@ -11,6 +12,18 @@ const config: Config = {
     transparent: "transparent",
     current: "currentColor",
     extend: {
+      fontFamily: {
+        sans: [
+          "Heebo",
+          "Rubik",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Arial",
+          "sans-serif",
+        ],
+      },
       colors: {
         // Tremor color tokens mapped to a neutral slate palette.
         tremor: {
@@ -41,25 +54,25 @@ const config: Config = {
         "dark-tremor": {
           brand: {
             faint: "#0B1229",
-            muted: "#172554",
-            subtle: "#1e40af",
-            DEFAULT: "#3b82f6",
-            emphasis: "#60a5fa",
+            muted: "#0e7490",
+            subtle: "#0891b2",
+            DEFAULT: "#22d3ee",
+            emphasis: "#67e8f9",
             inverted: "#030712",
           },
           background: {
-            muted: "#131A2B",
-            subtle: "#1f2937",
-            DEFAULT: "#111827",
-            emphasis: "#d1d5db",
+            muted: "#0b1120",
+            subtle: "#111a2e",
+            DEFAULT: "#0c1424",
+            emphasis: "#cbd5e1",
           },
-          border: { DEFAULT: "#1f2937" },
-          ring: { DEFAULT: "#1f2937" },
+          border: { DEFAULT: "#1e293b" },
+          ring: { DEFAULT: "#1e293b" },
           content: {
-            subtle: "#4b5563",
-            DEFAULT: "#6b7280",
-            emphasis: "#e5e7eb",
-            strong: "#f9fafb",
+            subtle: "#64748b",
+            DEFAULT: "#94a3b8",
+            emphasis: "#e2e8f0",
+            strong: "#f8fafc",
             inverted: "#000000",
           },
         },

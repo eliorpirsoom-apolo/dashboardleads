@@ -2,9 +2,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  Card,
-  Title,
-  Text,
   Table,
   TableHead,
   TableRow,
@@ -62,13 +59,16 @@ export default function LeadsTable({ baseQuery }: { baseQuery: string }) {
   }, [baseQuery, page, search]);
 
   return (
-    <Card>
+    <div className="glass rounded-2xl p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Title>Leads</Title>
-          <Text className="text-slate-400">
-            {data ? `${data.total.toLocaleString()} leads` : "Loading…"}
-          </Text>
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📋</span>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-100">לידים</h3>
+            <p className="text-sm text-slate-400">
+              {data ? `${data.total.toLocaleString("he-IL")} לידים` : "טוען…"}
+            </p>
+          </div>
         </div>
         <form
           onSubmit={(e) => {
@@ -78,13 +78,13 @@ export default function LeadsTable({ baseQuery }: { baseQuery: string }) {
           className="flex w-full gap-2 sm:w-auto"
         >
           <TextInput
-            placeholder="Search id, status, source, campaign…"
+            placeholder="חיפוש לפי מזהה, סטטוס, מקור, קמפיין…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="sm:w-72"
           />
           <Button type="submit" variant="secondary" loading={loading}>
-            Search
+            חיפוש
           </Button>
         </form>
       </div>
@@ -93,35 +93,39 @@ export default function LeadsTable({ baseQuery }: { baseQuery: string }) {
         <Table>
           <TableHead>
             <TableRow>
-              <TableHeaderCell>Lead ID</TableHeaderCell>
-              <TableHeaderCell>Campaign</TableHeaderCell>
-              <TableHeaderCell>Date / Time</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Source</TableHeaderCell>
+              <TableHeaderCell className="text-slate-300">מזהה ליד</TableHeaderCell>
+              <TableHeaderCell className="text-slate-300">קמפיין</TableHeaderCell>
+              <TableHeaderCell className="text-slate-300">תאריך / שעה</TableHeaderCell>
+              <TableHeaderCell className="text-slate-300">סטטוס</TableHeaderCell>
+              <TableHeaderCell className="text-slate-300">מקור</TableHeaderCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {data?.leads.map((lead) => (
-              <TableRow key={lead.id}>
-                <TableCell className="font-mono text-xs">
-                  {lead.externalId}
+              <TableRow key={lead.id} className="border-white/5">
+                <TableCell>
+                  <span className="ltr-embed inline-block font-mono text-xs text-cyan-300">
+                    {lead.externalId}
+                  </span>
                 </TableCell>
-                <TableCell>{lead.campaign}</TableCell>
-                <TableCell>{formatDateTime(lead.receivedAt)}</TableCell>
+                <TableCell className="text-slate-200">{lead.campaign}</TableCell>
+                <TableCell className="text-slate-300">
+                  {formatDateTime(lead.receivedAt)}
+                </TableCell>
                 <TableCell>
                   <Badge color={statusColor(lead.status)} size="xs">
                     {lead.status}
                   </Badge>
                 </TableCell>
-                <TableCell>{lead.source}</TableCell>
+                <TableCell className="text-slate-300">{lead.source}</TableCell>
               </TableRow>
             ))}
             {data && data.leads.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5}>
-                  <Text className="py-6 text-center text-slate-400">
-                    No leads match the current filters.
-                  </Text>
+                  <p className="py-6 text-center text-slate-500">
+                    אין לידים התואמים לסינון הנוכחי.
+                  </p>
                 </TableCell>
               </TableRow>
             )}
@@ -131,9 +135,9 @@ export default function LeadsTable({ baseQuery }: { baseQuery: string }) {
 
       {data && data.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
-          <Text className="text-sm text-slate-500">
-            Page {data.page} of {data.totalPages}
-          </Text>
+          <p className="text-sm text-slate-400">
+            עמוד {data.page} מתוך {data.totalPages}
+          </p>
           <div className="flex gap-2">
             <Button
               size="xs"
@@ -141,7 +145,7 @@ export default function LeadsTable({ baseQuery }: { baseQuery: string }) {
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              Previous
+              הקודם
             </Button>
             <Button
               size="xs"
@@ -149,11 +153,11 @@ export default function LeadsTable({ baseQuery }: { baseQuery: string }) {
               disabled={page >= data.totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Next
+              הבא
             </Button>
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 }

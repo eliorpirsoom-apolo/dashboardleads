@@ -136,10 +136,10 @@ export function rangeLengthDays(range: DateRange): number {
 }
 
 export const PRESET_LABELS: Record<DatePreset, string> = {
-  yesterday: "Yesterday",
-  last7: "Last 7 Days",
-  currentMonth: "Current Month",
-  previousMonth: "Previous Month",
-  lastYear: "Last Year",
-  custom: "Custom Range",
+  yesterday: "אתמול",
+  last7: "7 ימים אחרונים",
+  currentMonth: "החודש הנוכחי",
+  previousMonth: "החודש הקודם",
+  lastYear: "שנה אחרונה",
+  custom: "טווח מותאם",
 };

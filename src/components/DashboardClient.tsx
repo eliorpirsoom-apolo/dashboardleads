@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@tremor/react";
 import DateRangePicker, { type RangeSelection } from "./DateRangePicker";
 import CampaignSelector, { type CampaignOption } from "./CampaignSelector";
 import KpiCards from "./KpiCards";
@@ -13,8 +12,7 @@ import type { StatsResponse } from "@/lib/types";
 import { resolvePreset } from "@/lib/dates";
 import { format } from "date-fns";
 
-// Build the shared query string used by every API call from the current
-// filter selection.
+// Build the shared query string used by every API call from the current filters.
 function buildQuery(range: RangeSelection, campaign: string): string {
   const params = new URLSearchParams();
   params.set("preset", range.preset);
@@ -60,10 +58,10 @@ export default function DashboardClient() {
     setError(null);
     try {
       const res = await fetch(`/api/stats?${query}`);
-      if (!res.ok) throw new Error(`Stats request failed (${res.status})`);
+      if (!res.ok) throw new Error(`בקשת הנתונים נכשלה (${res.status})`);
       setStats(await res.json());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load stats");
+      setError(err instanceof Error ? err.message : "טעינת הנתונים נכשלה");
     } finally {
       setLoading(false);
     }
@@ -82,10 +80,10 @@ export default function DashboardClient() {
     try {
       const res = await fetch("/api/sync", { method: "POST" });
       const summary = await res.json();
-      setLastSync(summary.message ?? "Sync complete");
+      setLastSync(summary.message ?? "הסנכרון הושלם");
       await Promise.all([loadCampaigns(), loadStats()]);
     } catch {
-      setLastSync("Sync failed");
+      setLastSync("הסנכרון נכשל");
     } finally {
       setSyncing(false);
     }
@@ -93,11 +91,10 @@ export default function DashboardClient() {
 
   const campaignLabel =
     campaign === "all"
-      ? "All Campaigns"
-      : campaigns.find((c) => c.id === campaign)?.name ?? "Campaign";
+      ? "כל הקמפיינים"
+      : campaigns.find((c) => c.id === campaign)?.name ?? "קמפיין";
 
   const flagged = stats?.regressions.filter((r) => r.isRegression) ?? [];
-  // When a single campaign is selected, only glow if that campaign regressed.
   const hasRegressionForView =
     campaign === "all"
       ? flagged.length > 0
@@ -106,48 +103,51 @@ export default function DashboardClient() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Campaign &amp; Lead Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Live cache of Lead Manager (ליד מנג&apos;ר) data · KPIs, trends &amp;
-            regression alerts
-          </p>
+      <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400/20 to-violet-500/20 text-2xl ring-1 ring-white/10">
+            📡
+          </div>
+          <div>
+            <h1 className="text-gradient text-2xl font-extrabold tracking-tight">
+              דשבורד קמפיינים ולידים
+            </h1>
+            <p className="mt-0.5 text-sm text-slate-400">
+              מטמון חי של נתוני ליד מנג׳ר · מדדים, מגמות והתראות ירידה
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {lastSync && (
-            <span className="hidden text-xs text-slate-400 sm:inline">
-              {lastSync}
-            </span>
+            <span className="hidden text-xs text-slate-500 sm:inline">{lastSync}</span>
           )}
-          <Button onClick={handleSync} loading={syncing} variant="primary">
-            {syncing ? "Syncing…" : "Sync now"}
-          </Button>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="btn-neon inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-70"
+          >
+            {syncing && (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            )}
+            {syncing ? "מסנכרן…" : "סנכרן עכשיו"}
+          </button>
         </div>
       </header>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 lg:flex-row lg:items-start lg:justify-between">
+      <div className="glass flex flex-col gap-4 rounded-2xl p-4 lg:flex-row lg:items-start lg:justify-between">
         <DateRangePicker value={range} onChange={setRange} />
-        <CampaignSelector
-          campaigns={campaigns}
-          value={campaign}
-          onChange={setCampaign}
-        />
+        <CampaignSelector campaigns={campaigns} value={campaign} onChange={setCampaign} />
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 p-4 text-sm text-red-700 ring-1 ring-red-200">
-          {error}. Try running <code>npm run db:seed</code> or click “Sync now”.
+        <div className="rounded-xl border border-red-500/30 bg-red-950/40 p-4 text-sm text-red-200 backdrop-blur-xl">
+          {error}. נסה ללחוץ &quot;סנכרן עכשיו&quot; כדי למלא נתונים.
         </div>
       )}
 
       {/* Alert banner */}
-      {stats && (
-        <AlertBanner flagged={flagged} threshold={stats.alertThresholdPercent} />
-      )}
+      {stats && <AlertBanner flagged={flagged} threshold={stats.alertThresholdPercent} />}
 
       {/* KPIs */}
       {stats ? (
@@ -173,7 +173,7 @@ export default function DashboardClient() {
       <LeadsTable baseQuery={query} />
 
       {loading && !stats && (
-        <p className="text-center text-sm text-slate-400">Loading dashboard…</p>
+        <p className="text-center text-sm text-slate-500">טוען דשבורד…</p>
       )}
     </div>
   );
@@ -183,10 +183,7 @@ function LoadingGrid() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-28 animate-pulse rounded-xl bg-slate-100 ring-1 ring-slate-200"
-        />
+        <div key={i} className="glass h-28 animate-pulse rounded-2xl" />
       ))}
     </div>
   );

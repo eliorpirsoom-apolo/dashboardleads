@@ -3,28 +3,107 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html,
 body {
   padding: 0;
   margin: 0;
-  background: #f8fafc;
-  color: #0f172a;
+  min-height: 100%;
+  color: #e2e8f0;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------------------------------------------------------------------------
+   Dark "tech" background — layered radial glows over a deep navy base.
+--------------------------------------------------------------------------- */
+body {
+  background-color: #060912;
+  background-image:
+    radial-gradient(60rem 60rem at 100% -10%, rgba(34, 211, 238, 0.12), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 10%, rgba(139, 92, 246, 0.14), transparent 55%),
+    radial-gradient(40rem 40rem at 50% 120%, rgba(59, 130, 246, 0.1), transparent 60%);
+  background-attachment: fixed;
 }
 
 * {
   box-sizing: border-box;
 }
 
-/* Subtle scrollbar for the data table */
+@layer components {
+  /* Glassmorphism surface used across cards/panels. */
+  .glass {
+    background: linear-gradient(
+      180deg,
+      rgba(148, 163, 184, 0.08),
+      rgba(15, 23, 42, 0.5)
+    );
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+      0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  .glass-hover {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .glass-hover:hover {
+    border-color: rgba(34, 211, 238, 0.35);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+      0 0 0 1px rgba(34, 211, 238, 0.15),
+      0 14px 36px -14px rgba(0, 0, 0, 0.7);
+  }
+
+  /* Gradient text for headings / metrics. */
+  .text-gradient {
+    background-image: linear-gradient(95deg, #67e8f9 0%, #818cf8 55%, #c084fc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Primary action button with neon glow. */
+  .btn-neon {
+    background-image: linear-gradient(95deg, #06b6d4, #6366f1);
+    color: #f8fafc;
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.25), 0 8px 24px -8px rgba(34, 211, 238, 0.5);
+    transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+  }
+  .btn-neon:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.45), 0 10px 30px -8px rgba(99, 102, 241, 0.7);
+  }
+  .btn-neon:active {
+    transform: translateY(1px);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   RTL adjustments — keep numeric/time chart axes natural (LTR) inside RTL UI.
+--------------------------------------------------------------------------- */
+[dir="rtl"] .ltr-embed {
+  direction: ltr;
+}
+
+/* Thin neon scrollbar */
 .thin-scroll::-webkit-scrollbar {
   height: 8px;
   width: 8px;
 }
 .thin-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: linear-gradient(180deg, #22d3ee, #6366f1);
   border-radius: 9999px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.3);
+  color: #f8fafc;
 }

@@ -1,13 +1,17 @@
 "use client";
 
-import { Card, Metric, Text, BadgeDelta, Flex } from "@tremor/react";
+import { BadgeDelta } from "@tremor/react";
 import type { StatsResponse, MetricComparison } from "@/lib/types";
 import { formatNumber, formatPercent } from "@/lib/format";
 
-type DeltaType = "increase" | "moderateIncrease" | "unchanged" | "moderateDecrease" | "decrease";
+type DeltaType =
+  | "increase"
+  | "moderateIncrease"
+  | "unchanged"
+  | "moderateDecrease"
+  | "decrease";
 
-// Map a comparison to a Tremor BadgeDelta type. `higherIsBetter` controls the
-// color semantics (e.g. a drop in leads is bad/red, a drop in "Lost" is good).
+// Map a comparison to a Tremor BadgeDelta type.
 function deltaType(c: MetricComparison): DeltaType {
   if (c.direction === "flat" || c.deltaPercent === null) return "unchanged";
   if (c.direction === "up") {
@@ -19,38 +23,53 @@ function deltaType(c: MetricComparison): DeltaType {
 interface KpiDef {
   title: string;
   metric: string;
+  icon: string;
   comparison: MetricComparison;
-  // When true, render a red alert glow (regression detected).
   alert?: boolean;
 }
 
-function KpiCard({ title, metric, comparison, alert }: KpiDef) {
+function KpiCard({ title, metric, icon, comparison, alert }: KpiDef) {
   return (
-    <Card
-      className={`relative ${
-        alert ? "animate-pulse-glow ring-2 ring-red-500" : ""
+    <div
+      className={`glass glass-hover relative overflow-hidden rounded-2xl p-5 ${
+        alert ? "animate-pulse-glow !border-red-500/60" : ""
       }`}
-      decoration={alert ? "left" : undefined}
-      decorationColor={alert ? "red" : undefined}
     >
-      <Flex alignItems="start" justifyContent="between">
-        <Text className="font-medium">{title}</Text>
+      {/* top accent line */}
+      <div
+        className={`absolute inset-x-0 top-0 h-px ${
+          alert
+            ? "bg-gradient-to-r from-transparent via-red-500 to-transparent"
+            : "bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent"
+        }`}
+      />
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg opacity-80">{icon}</span>
+          <span className="text-sm font-medium text-slate-300">{title}</span>
+        </div>
         {alert && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-            ⚠ Drop
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-300 ring-1 ring-red-500/30">
+            ⚠ ירידה
           </span>
         )}
-      </Flex>
-      <Flex alignItems="baseline" justifyContent="between" className="mt-2">
-        <Metric>{metric}</Metric>
-        <BadgeDelta deltaType={deltaType(comparison)} size="xs">
-          {formatPercent(comparison.deltaPercent)}
-        </BadgeDelta>
-      </Flex>
-      <Text className="mt-1 text-xs text-slate-400">
-        vs previous period ({formatNumber(comparison.previousValue)})
-      </Text>
-    </Card>
+      </div>
+
+      <div className="mt-3 flex items-end justify-between">
+        <span className="text-gradient text-3xl font-extrabold tracking-tight">
+          {metric}
+        </span>
+        <span className="ltr-embed">
+          <BadgeDelta deltaType={deltaType(comparison)} size="xs">
+            {formatPercent(comparison.deltaPercent)}
+          </BadgeDelta>
+        </span>
+      </div>
+
+      <p className="mt-1 text-xs text-slate-500">
+        מול תקופה קודמת ({formatNumber(comparison.previousValue)})
+      </p>
+    </div>
   );
 }
 
@@ -65,23 +84,27 @@ export default function KpiCards({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <KpiCard
-        title="Total Leads"
+        title="סך הלידים"
+        icon="📊"
         metric={formatNumber(kpis.totalLeads.value)}
         comparison={kpis.totalLeads}
         alert={hasRegression}
       />
       <KpiCard
-        title="Active Campaigns"
+        title="קמפיינים פעילים"
+        icon="🎯"
         metric={formatNumber(kpis.activeCampaigns.value)}
         comparison={kpis.activeCampaigns}
       />
       <KpiCard
-        title="Avg Leads / Day"
-        metric={kpis.avgLeadsPerDay.value.toLocaleString("en-US")}
+        title="ממוצע לידים ליום"
+        icon="📈"
+        metric={kpis.avgLeadsPerDay.value.toLocaleString("he-IL")}
         comparison={kpis.avgLeadsPerDay}
       />
       <KpiCard
-        title="Conversion Rate"
+        title="אחוז המרה"
+        icon="⚡"
         metric={`${kpis.conversionRate.value.toFixed(1)}%`}
         comparison={kpis.conversionRate}
       />

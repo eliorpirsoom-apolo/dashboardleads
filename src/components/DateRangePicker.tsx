@@ -39,51 +39,43 @@ export default function DateRangePicker({
     }
   }
 
+  const pill = (active: boolean) =>
+    `rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all ${
+      active
+        ? "btn-neon"
+        : "bg-white/5 text-slate-300 ring-1 ring-white/10 hover:bg-white/10 hover:text-white"
+    }`;
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1.5">
         {PRESETS.map((p) => (
-          <button
-            key={p}
-            onClick={() => selectPreset(p)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              value.preset === p
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
+          <button key={p} onClick={() => selectPreset(p)} className={pill(value.preset === p)}>
             {PRESET_LABELS[p]}
           </button>
         ))}
-        <button
-          onClick={() => selectPreset("custom")}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            value.preset === "custom"
-              ? "bg-blue-600 text-white shadow-sm"
-              : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-          }`}
-        >
+        <button onClick={() => selectPreset("custom")} className={pill(value.preset === "custom")}>
           {PRESET_LABELS.custom}
         </button>
       </div>
 
       {value.preset === "custom" && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200">
-          <label className="text-xs font-medium text-slate-500">From</label>
+        <div className="glass flex flex-wrap items-center gap-2 rounded-lg p-2">
+          <label className="text-xs font-medium text-slate-400">מתאריך</label>
           <input
             type="date"
             value={value.from}
             max={value.to}
             onChange={(e) => onChange({ ...value, from: e.target.value })}
-            className="rounded-md border border-slate-200 px-2 py-1 text-sm"
+            className="rounded-md border border-white/10 bg-slate-900/60 px-2 py-1 text-sm text-slate-100 [color-scheme:dark]"
           />
-          <label className="text-xs font-medium text-slate-500">To</label>
+          <label className="text-xs font-medium text-slate-400">עד תאריך</label>
           <input
             type="date"
             value={value.to}
             min={value.from}
             onChange={(e) => onChange({ ...value, to: e.target.value })}
-            className="rounded-md border border-slate-200 px-2 py-1 text-sm"
+            className="rounded-md border border-white/10 bg-slate-900/60 px-2 py-1 text-sm text-slate-100 [color-scheme:dark]"
           />
         </div>
       )}

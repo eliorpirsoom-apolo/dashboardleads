@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Lead & Campaign Dashboard",
+  title: "דשבורד קמפיינים ולידים",
   description:
-    "Campaign & Lead Management Dashboard for Lead Manager (ליד מנג'ר) — KPIs, trends, regression alerts.",
+    "דשבורד לניהול קמפיינים ולידים עבור ליד מנג'ר — מדדים, מגמות והתראות ירידה.",
 };
 
 export default function RootLayout({
@@ -12,9 +12,23 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Hebrew UI, right-to-left, permanent dark "tech" theme.
   return (
-    <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+    <html lang="he" dir="rtl" className="dark">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        {/* Heebo: full Hebrew + Latin coverage. Falls back to system fonts. */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen font-sans antialiased">{children}</body>
     </html>
   );
 }
