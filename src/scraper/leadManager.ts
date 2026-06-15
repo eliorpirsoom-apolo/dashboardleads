@@ -1,4 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { promises as fs } from "fs";
+import path from "path";
 import { saveSession, sessionStateOption, clearSession } from "./session";
 import { generateMockLeads } from "./mock";
 import type { ScrapedLead, ScrapeResult } from "./types";
@@ -249,6 +251,75 @@ async function withRetry<T>(
   throw lastErr;
 }
 
+// ---------------------------------------------------------------------------
+// Diagnostics
+//
+// On the first runs we don't know Lead Manager's real DOM. These helpers dump a
+// screenshot, the page HTML, a summary of any <table>/grid structures, and any
+// JSON API responses seen — uploaded as CI artifacts so the scraper can be
+// tuned precisely without direct access to the site. Disable with
+// SCRAPER_DEBUG=false once selectors are dialled in.
+// ---------------------------------------------------------------------------
+
+interface JsonHit {
+  url: string;
+  status: number;
+  sample: string;
+}
+
+function debugEnabled(): boolean {
+  return process.env.SCRAPER_DEBUG !== "false";
+}
+
+async function dumpDiagnostics(page: Page, label: string, jsonHits: JsonHit[]) {
+  try {
+    const dir = path.resolve("debug");
+    await fs.mkdir(dir, { recursive: true });
+
+    await page
+      .screenshot({ path: path.join(dir, `${label}.png`), fullPage: true })
+      .catch(() => {});
+
+    const html = await page.content().catch(() => "");
+    await fs.writeFile(path.join(dir, `${label}.html`), html, "utf8");
+
+    // Summarise candidate data structures (tables + ARIA grids).
+    const summary = await page
+      .evaluate(() => {
+        const tables = Array.from(document.querySelectorAll("table")).map((t, i) => {
+          const rows = Array.from(t.querySelectorAll("tr"));
+          const cellsOf = (r: Element | undefined) =>
+            r ? Array.from(r.querySelectorAll("th,td")).map((c) => (c.textContent || "").trim()) : [];
+          return {
+            index: i,
+            rowCount: rows.length,
+            headerCells: cellsOf(rows[0]),
+            sampleRow: cellsOf(rows[1]),
+          };
+        });
+        return {
+          url: location.href,
+          title: document.title,
+          tables,
+          ariaGrids: document.querySelectorAll('[role="grid"],[role="table"]').length,
+          ariaRows: document.querySelectorAll('[role="row"]').length,
+        };
+      })
+      .catch(() => null);
+
+    await fs.writeFile(
+      path.join(dir, `${label}.summary.json`),
+      JSON.stringify({ summary, jsonEndpoints: jsonHits }, null, 2),
+      "utf8"
+    );
+    console.log(
+      `[scraper] Diagnostics written to debug/${label}.{png,html,summary.json}`
+    );
+  } catch (err) {
+    console.warn("[scraper] Failed to write diagnostics:", err);
+  }
+}
+
 /**
  * Scrape leads from Lead Manager. Returns mock data (live:false) when
  * credentials are not configured so the dashboard always has something to show.
@@ -278,6 +349,23 @@ export async function scrapeLeads(): Promise<ScrapeResult> {
     });
     const page = await context.newPage();
 
+    // Record JSON responses — reveals an internal API we could target instead
+    // of scraping the DOM (far more reliable). Captured into diagnostics.
+    const jsonHits: JsonHit[] = [];
+    if (debugEnabled()) {
+      page.on("response", async (res) => {
+        try {
+          const ct = res.headers()["content-type"] ?? "";
+          if (!ct.includes("application/json")) return;
+          const body = await res.text().catch(() => "");
+          if (body.length < 40) return; // skip tiny/ack responses
+          jsonHits.push({ url: res.url(), status: res.status(), sample: body.slice(0, 800) });
+        } catch {
+          /* ignore */
+        }
+      });
+    }
+
     // Verify the session by visiting the leads page; log in if needed.
     await page.goto(cfg.leadsUrl, { waitUntil: "domcontentloaded" });
     if (!(await isLoggedIn(page, cfg))) {
@@ -291,7 +379,13 @@ export async function scrapeLeads(): Promise<ScrapeResult> {
       console.log("[scraper] Reusing cached session.");
     }
 
-    const leads = await withRetry(() => extractLeads(page, cfg), 2, "extract");
+    let leads: ScrapedLead[] = [];
+    try {
+      leads = await withRetry(() => extractLeads(page, cfg), 2, "extract");
+    } finally {
+      // Always capture diagnostics during setup so selectors can be tuned.
+      if (debugEnabled()) await dumpDiagnostics(page, "leads-page", jsonHits);
+    }
     return { leads, live: true };
   } finally {
     await context?.close().catch(() => {});
