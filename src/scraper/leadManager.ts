@@ -169,6 +169,9 @@ async function login(page: Page, cfg: ScraperConfig): Promise<void> {
   console.log("[scraper] Logging in to Lead Manager…");
   await page.goto(cfg.loginUrl, { waitUntil: "domcontentloaded" });
 
+  // Capture the login form so its real field selectors can be verified.
+  if (debugEnabled()) await dumpDiagnostics(page, "login-page", []);
+
   await page.locator(cfg.selectors.username).first().fill(cfg.username);
   await page.locator(cfg.selectors.password).first().fill(cfg.password);
 
@@ -367,23 +370,24 @@ export async function scrapeLeads(): Promise<ScrapeResult> {
     }
 
     // Verify the session by visiting the leads page; log in if needed.
-    await page.goto(cfg.leadsUrl, { waitUntil: "domcontentloaded" });
-    if (!(await isLoggedIn(page, cfg))) {
-      if (storageState) {
-        console.log("[scraper] Cached session expired — re-authenticating.");
-        await clearSession();
-      }
-      await withRetry(() => login(page, cfg), 2, "login");
-      await saveSession(context);
-    } else {
-      console.log("[scraper] Reusing cached session.");
-    }
-
+    // The whole flow is wrapped so diagnostics are captured even if login fails.
     let leads: ScrapedLead[] = [];
     try {
+      await page.goto(cfg.leadsUrl, { waitUntil: "domcontentloaded" });
+      if (!(await isLoggedIn(page, cfg))) {
+        if (storageState) {
+          console.log("[scraper] Cached session expired — re-authenticating.");
+          await clearSession();
+        }
+        await withRetry(() => login(page, cfg), 2, "login");
+        await saveSession(context);
+      } else {
+        console.log("[scraper] Reusing cached session.");
+      }
       leads = await withRetry(() => extractLeads(page, cfg), 2, "extract");
     } finally {
-      // Always capture diagnostics during setup so selectors can be tuned.
+      // Always capture diagnostics during setup so selectors can be tuned —
+      // including the case where login itself failed.
       if (debugEnabled()) await dumpDiagnostics(page, "leads-page", jsonHits);
     }
     return { leads, live: true };
