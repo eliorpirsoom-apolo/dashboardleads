@@ -286,7 +286,9 @@ async function dumpDiagnostics(page: Page, label: string, jsonHits: JsonHit[]) {
     const html = await page.content().catch(() => "");
     await fs.writeFile(path.join(dir, `${label}.html`), html, "utf8");
 
-    // Summarise candidate data structures (tables + ARIA grids).
+    // Summarise candidate data structures (tables + ARIA grids) AND the
+    // interactive fields (inputs/buttons). This is also printed to the console
+    // so it can be read from CI logs without downloading the artifact.
     const summary = await page
       .evaluate(() => {
         const tables = Array.from(document.querySelectorAll("table")).map((t, i) => {
@@ -300,9 +302,34 @@ async function dumpDiagnostics(page: Page, label: string, jsonHits: JsonHit[]) {
             sampleRow: cellsOf(rows[1]),
           };
         });
+        // All form fields/buttons with the attributes we need for selectors.
+        const fields = Array.from(
+          document.querySelectorAll("input, select, textarea, button, [role='button'], a.btn")
+        )
+          .slice(0, 60)
+          .map((el) => ({
+            tag: el.tagName.toLowerCase(),
+            type: el.getAttribute("type"),
+            name: el.getAttribute("name"),
+            id: el.id || null,
+            placeholder: el.getAttribute("placeholder"),
+            autocomplete: el.getAttribute("autocomplete"),
+            text: (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 40) || null,
+          }));
+        const forms = Array.from(document.querySelectorAll("form")).map((f) => ({
+          action: f.getAttribute("action"),
+          method: f.getAttribute("method"),
+          id: f.id || null,
+        }));
+        const iframes = Array.from(document.querySelectorAll("iframe")).map((f) =>
+          f.getAttribute("src")
+        );
         return {
           url: location.href,
           title: document.title,
+          forms,
+          fields,
+          iframes,
           tables,
           ariaGrids: document.querySelectorAll('[role="grid"],[role="table"]').length,
           ariaRows: document.querySelectorAll('[role="row"]').length,
@@ -315,6 +342,8 @@ async function dumpDiagnostics(page: Page, label: string, jsonHits: JsonHit[]) {
       JSON.stringify({ summary, jsonEndpoints: jsonHits }, null, 2),
       "utf8"
     );
+    // Print to the log (readable via the Actions API) — bounded in size.
+    console.log(`[diag:${label}] ` + JSON.stringify({ summary, jsonEndpoints: jsonHits.map((j) => ({ url: j.url, status: j.status })) }).slice(0, 5000));
     console.log(
       `[scraper] Diagnostics written to debug/${label}.{png,html,summary.json}`
     );
