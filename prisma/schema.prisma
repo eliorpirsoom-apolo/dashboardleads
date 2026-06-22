@@ -56,6 +56,47 @@ model Lead {
   @@index([campaignId, receivedAt])
 }
 
+// ---------------------------------------------------------------------------
+// Organic SEO reporting (Search Console + Analytics) for agency clients.
+// ---------------------------------------------------------------------------
+
+// An agency client we produce an organic SEO report for. Holds the linkage to
+// the client's Google Search Console property and GA4 property so the report
+// can pull live data; when these are empty the report falls back to demo data.
+model Client {
+  id            String     @id @default(cuid())
+  name          String     @unique
+  // Google Search Console property, e.g. "sc-domain:example.com" or
+  // "https://example.com/". Empty -> demo data.
+  gscProperty   String?
+  // Google Analytics 4 numeric property id, e.g. "123456789". Empty -> demo data.
+  ga4PropertyId String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  tasks         SeoTask[]
+
+  @@index([name])
+}
+
+// A manually-entered SEO task shown in the client report: either work completed
+// this month or work planned for next month.
+model SeoTask {
+  id         String   @id @default(cuid())
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+  title      String
+  // "done" (already executed) | "planned" (scheduled).
+  status     String   @default("planned")
+  // The month the task belongs to, as "yyyy-MM" (e.g. "2026-06").
+  dueMonth   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([clientId, status, dueMonth])
+}
+
 // Audit log for each scraper/sync run.
 model SyncLog {
   id           String    @id @default(cuid())

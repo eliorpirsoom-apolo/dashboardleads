@@ -107,3 +107,38 @@ body {
   background: rgba(34, 211, 238, 0.3);
   color: #f8fafc;
 }
+
+/* ---------------------------------------------------------------------------
+   Print / "Export to PDF" — keep the dark theme, drop the toolbar, and let the
+   report flow across pages without cards breaking mid-content.
+--------------------------------------------------------------------------- */
+@media print {
+  /* Preserve the dark theme colors in the exported PDF. */
+  html,
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: #060912 !important;
+  }
+
+  /* Hide interactive controls (selectors, buttons, editors). */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Use the full page width. */
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* Avoid splitting a card across two pages. */
+  .glass {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}

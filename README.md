@@ -19,6 +19,41 @@ week-over-week regression alerting (in-app + email).
 | **Campaign granularity** | A campaign dropdown filters every KPI, chart, and table. Defaults to *All Campaigns*. |
 | **Monitoring & alerts** | Week-over-week regression detection. Configurable drop threshold (default 20%). Prominent red glowing UI badge + automated **Nodemailer** email on sync. |
 | **Period-over-period** | Every KPI shows `% change vs the previous period`, recomputed for whatever range is selected. |
+| **Organic SEO report** | Client-facing report at `/seo`: 60-day **Search Console** (clicks/impressions/position) and **Analytics** (sessions) trends vs the prior 60 days, keywords that climbed in ranking, and manually-managed task lists (done this month / planned next month). One-click **Export to PDF**. |
+
+---
+
+## 🌱 Organic SEO client report (`/seo`)
+
+A separate, client-facing report for organic SEO performance. Reachable from the
+main dashboard header ("🌱 דוח קידום אורגני") or directly at `/seo`.
+
+It presents, per client:
+
+- **Search Console** — clicks, impressions and average position over the last
+  **60 days vs the previous 60 days** (KPI cards + overlaid trend charts).
+- **Analytics (GA4)** — site traffic (sessions) over the same comparison window.
+- **Keywords that climbed** — search terms whose average Google position improved
+  the most between the two periods.
+- **Tasks** — work **completed this month** and work **planned for next month**,
+  entered manually in the dashboard (hidden from the printed report's controls).
+- **Export to PDF** — a print-optimised layout (the toolbar/editors are dropped,
+  the dark theme is preserved) for sending to clients; the same layout drops
+  cleanly into Canva.
+
+### Connecting real Google data
+
+Each client stores its own `gscProperty` (e.g. `sc-domain:example.co.il`) and
+`ga4PropertyId` (e.g. `123456789`). Authentication uses a **Google service
+account** — set `GOOGLE_SERVICE_ACCOUNT_JSON` (or `GOOGLE_CLIENT_EMAIL` +
+`GOOGLE_PRIVATE_KEY`) in `.env` and grant it access to each property:
+
+- **Search Console:** add the service-account email as a user on the property.
+- **GA4:** add it as a **Viewer** under *Admin → Property Access Management*.
+
+When credentials or a client's property are absent — or a Google API call fails —
+the report **falls back to realistic demo data** (per source), so the page is
+always demonstrable. A demo client + tasks are created by `npm run db:seed`.
 
 ---
 

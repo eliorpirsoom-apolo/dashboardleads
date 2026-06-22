@@ -21,6 +21,28 @@ CREATE TABLE "Lead" (
 );
 
 -- CreateTable
+CREATE TABLE "Client" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "gscProperty" TEXT,
+    "ga4PropertyId" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "SeoTask" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "clientId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'planned',
+    "dueMonth" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "SeoTask_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "SyncLog" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "startedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -59,6 +81,18 @@ CREATE INDEX "Lead_source_idx" ON "Lead"("source");
 
 -- CreateIndex
 CREATE INDEX "Lead_campaignId_receivedAt_idx" ON "Lead"("campaignId", "receivedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Client_name_key" ON "Client"("name");
+
+-- CreateIndex
+CREATE INDEX "Client_name_idx" ON "Client"("name");
+
+-- CreateIndex
+CREATE INDEX "SeoTask_clientId_idx" ON "SeoTask"("clientId");
+
+-- CreateIndex
+CREATE INDEX "SeoTask_clientId_status_dueMonth_idx" ON "SeoTask"("clientId", "status", "dueMonth");
 
 -- CreateIndex
 CREATE INDEX "SyncLog_startedAt_idx" ON "SyncLog"("startedAt");

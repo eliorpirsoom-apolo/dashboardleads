@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import DateRangePicker, { type RangeSelection } from "./DateRangePicker";
 import CampaignSelector, { type CampaignOption } from "./CampaignSelector";
 import KpiCards from "./KpiCards";
@@ -121,6 +122,12 @@ export default function DashboardClient() {
           {lastSync && (
             <span className="hidden text-xs text-slate-500 sm:inline">{lastSync}</span>
           )}
+          <Link
+            href="/seo"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-emerald-400/40 hover:text-emerald-200"
+          >
+            🌱 דוח קידום אורגני
+          </Link>
           <button
             onClick={handleSync}
             disabled={syncing}

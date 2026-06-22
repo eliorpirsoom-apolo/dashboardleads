@@ -53,8 +53,38 @@ async function main() {
     },
   });
 
+  // --- Demo SEO client + tasks (organic SEO report) -----------------------
+  console.log("[seed] Generating demo SEO client + tasks…");
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const thisMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const nextMonth = `${next.getFullYear()}-${pad(next.getMonth() + 1)}`;
+
+  const client = await prisma.client.upsert({
+    where: { name: "משרד עו״ד דוגמה" },
+    // No live Google properties -> the report renders demo Search Console/GA data.
+    create: { name: "משרד עו״ד דוגמה" },
+    update: {},
+  });
+
+  // Refresh the demo tasks so re-seeding stays idempotent.
+  await prisma.seoTask.deleteMany({ where: { clientId: client.id } });
+  await prisma.seoTask.createMany({
+    data: [
+      { clientId: client.id, status: "done", dueMonth: thisMonth, title: "אופטימיזציית תוכן לעמודי שירות מרכזיים" },
+      { clientId: client.id, status: "done", dueMonth: thisMonth, title: "בניית 8 קישורים נכנסים איכותיים" },
+      { clientId: client.id, status: "done", dueMonth: thisMonth, title: "שיפור מהירות טעינה ו-Core Web Vitals" },
+      { clientId: client.id, status: "done", dueMonth: thisMonth, title: "כתיבת 3 מאמרי בלוג ממוקדי ביטויים" },
+      { clientId: client.id, status: "planned", dueMonth: nextMonth, title: "הרחבת אשכול תוכן לתחום הגירושין" },
+      { clientId: client.id, status: "planned", dueMonth: nextMonth, title: "אופטימיזציה לכוונת חיפוש מקומית (Local SEO)" },
+      { clientId: client.id, status: "planned", dueMonth: nextMonth, title: "תיקון שגיאות סריקה וקישורים שבורים" },
+      { clientId: client.id, status: "planned", dueMonth: nextMonth, title: "בניית 10 קישורים נכנסים נוספים" },
+    ],
+  });
+
   console.log(
-    `[seed] Done — ${created} leads across ${campaignCache.size} campaigns.`
+    `[seed] Done — ${created} leads across ${campaignCache.size} campaigns; 1 SEO client + 8 tasks.`
   );
   await prisma.$disconnect();
 }
