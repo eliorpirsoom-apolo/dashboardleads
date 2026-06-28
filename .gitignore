@@ -35,5 +35,10 @@ yarn-error.log*
 /storage/
 /debug/
 
+# generated SEO reports + service-account keys
+/reports/
+*service-account*.json
+gsc-credentials*.json
+
 # typescript
 *.tsbuildinfo

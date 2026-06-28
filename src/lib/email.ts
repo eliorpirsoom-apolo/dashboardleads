@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import type { RegressionResult } from "./types";
+import type { RegressionResult, SeoReportData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Email alerting (Nodemailer)
@@ -90,6 +90,86 @@ export async function sendRegressionAlert(
     return true;
   } catch (err) {
     console.error("[email] Failed to send alert:", err);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SEO report delivery
+//
+// Emails the generated organic-search PDF report to the client. Like the alert
+// path, sending is gated behind EMAIL_ENABLED and never throws.
+// ---------------------------------------------------------------------------
+
+export interface SendSeoReportOptions {
+  to: string;
+  pdf: Buffer;
+  fileName: string;
+  data: SeoReportData;
+  // Optional override of the From header; defaults to ALERT_EMAIL_FROM.
+  from?: string;
+}
+
+function reportEmailBody(data: SeoReportData): string {
+  const period = `${new Date(data.range.from).toLocaleDateString(
+    "he-IL"
+  )} – ${new Date(data.range.to).toLocaleDateString("he-IL")}`;
+  const clicks = data.summary.find((m) => m.key === "clicks");
+  const headline = clicks
+    ? `<p style="margin:0 0 12px;">סך הקליקים האורגניים בתקופה: <strong>${new Intl.NumberFormat(
+        "he-IL"
+      ).format(Math.round(clicks.value))}</strong>.</p>`
+    : "";
+
+  return `
+  <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
+    <h2 style="color:#2563eb;">דוח קידום אורגני — ${data.clientName}</h2>
+    <p style="margin:0 0 12px;">שלום,</p>
+    <p style="margin:0 0 12px;">מצורף דוח הקידום האורגני בגוגל לתקופה <strong>${period}</strong>.</p>
+    ${headline}
+    <p style="margin:0 0 12px;">הדוח המלא, כולל ביטויי החיפוש המובילים ועמודי הנחיתה, מצורף כקובץ PDF.</p>
+    <p style="color:#6b7280;font-size:12px;margin-top:24px;">
+      הופק אוטומטית ממערכת ניהול הקמפיינים.
+    </p>
+  </div>`;
+}
+
+/**
+ * Send the SEO report PDF as an email attachment. Returns true if sent.
+ */
+export async function sendSeoReport(
+  opts: SendSeoReportOptions
+): Promise<boolean> {
+  if (!emailEnabled()) {
+    console.log(
+      `[email] EMAIL_ENABLED is false — skipping SEO report send to ${opts.to}.`
+    );
+    return false;
+  }
+
+  try {
+    const transport = buildTransport();
+    const period = new Date(opts.data.range.to).toLocaleDateString("he-IL", {
+      month: "long",
+      year: "numeric",
+    });
+    await transport.sendMail({
+      from: opts.from ?? process.env.ALERT_EMAIL_FROM,
+      to: opts.to,
+      subject: `דוח קידום אורגני — ${opts.data.clientName} — ${period}`,
+      html: reportEmailBody(opts.data),
+      attachments: [
+        {
+          filename: opts.fileName,
+          content: opts.pdf,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+    console.log(`[email] SEO report sent to ${opts.to}`);
+    return true;
+  } catch (err) {
+    console.error("[email] Failed to send SEO report:", err);
     return false;
   }
 }

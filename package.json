@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "scrape": "tsx scripts/sync.ts",
-    "scrape:headed": "HEADLESS=false tsx scripts/sync.ts"
+    "scrape:headed": "HEADLESS=false tsx scripts/sync.ts",
+    "report:seo": "tsx scripts/seo-report.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.8.1",
@@ -22,6 +23,7 @@
     "@tremor/react": "^3.18.0",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
+    "google-auth-library": "^10.9.0",
     "next": "14.2.5",
     "nodemailer": "^6.9.14",
     "react": "^18.3.1",

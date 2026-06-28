@@ -19,6 +19,7 @@ week-over-week regression alerting (in-app + email).
 | **Campaign granularity** | A campaign dropdown filters every KPI, chart, and table. Defaults to *All Campaigns*. |
 | **Monitoring & alerts** | Week-over-week regression detection. Configurable drop threshold (default 20%). Prominent red glowing UI badge + automated **Nodemailer** email on sync. |
 | **Period-over-period** | Every KPI shows `% change vs the previous period`, recomputed for whatever range is selected. |
+| **SEO PDF report** | One-command Hebrew (RTL) organic-search report pulled from **Google Search Console** (clicks, impressions, CTR, position, top queries & pages, movers), rendered to **PDF** via Playwright and emailed to the client. Falls back to mock data when GSC isn't configured. |
 
 ---
 
@@ -208,6 +209,8 @@ All filter-aware endpoints accept: `?preset=last7&campaign=<id|all>` plus
 | `GET` | `/api/sync` | Recent sync history |
 | `GET` | `/api/alerts` | Week-over-week regression results |
 | `POST` | `/api/alerts` | Send a test regression email |
+| `GET` | `/api/reports/seo` | Generate + download the organic-search PDF report |
+| `POST` | `/api/reports/seo` | Generate + email the report (`to_email`, `preset`, `client`) |
 
 ---
 
@@ -220,3 +223,61 @@ trigger:
 
 1. A pulsing **red glow + badge** on the affected KPI card and a banner in the UI.
 2. An **email** to `ALERT_EMAIL_TO` (when `EMAIL_ENABLED=true`).
+
+---
+
+## 📈 Google organic (SEO) report
+
+Generate a polished, client-ready **Hebrew PDF** of organic-search performance
+straight from **Google Search Console**.
+
+```bash
+npm run report:seo                         # PDF -> ./reports (previous month)
+npm run report:seo -- --send               # also email it (needs EMAIL_ENABLED)
+npm run report:seo -- --preset currentMonth
+npm run report:seo -- --client "אינסטלציה כהן" --to client@example.com
+```
+
+Or via the API (Node runtime — Playwright renders the PDF):
+
+```bash
+# Download the PDF
+curl -L "http://localhost:3000/api/reports/seo?preset=previousMonth" -o report.pdf
+
+# Generate + email it
+curl -X POST http://localhost:3000/api/reports/seo \
+  -H 'Content-Type: application/json' \
+  -d '{"preset":"previousMonth","client":"אינסטלציה כהן","to_email":"client@example.com"}'
+```
+
+**What's in the report:** executive summary (auto-generated), headline KPIs with
+period-over-period change (clicks, impressions, CTR, average position), top
+search queries, ranking movers (up/down), top landing pages, and an editable
+"what we did / next month" section.
+
+### Connecting Search Console
+
+The report works immediately with **mock data**. To pull real numbers:
+
+1. In **Google Cloud**, enable the *Google Search Console API*, create a
+   **service account**, and download its JSON key.
+2. In **Search Console** → *Settings → Users and permissions*, add the service
+   account email (`…@….iam.gserviceaccount.com`) as a user on the property.
+3. Set the env vars:
+
+| Variable | Purpose |
+| --- | --- |
+| `SC_SITE_URL` | Exact property string — `sc-domain:example.co.il` (domain) or `https://example.co.il/` (URL-prefix) |
+| `GOOGLE_SC_CREDENTIALS_JSON` | Service-account key as inline JSON, **or** … |
+| `GOOGLE_SC_CREDENTIALS_PATH` | … a path to the downloaded key file |
+| `SEO_CLIENT_NAME` | Default client name on the report |
+| `SEO_REPORT_EMAIL_TO` | Default recipient when emailing |
+
+> **PDF rendering** reuses the project's Playwright Chromium (`npx playwright
+> install chromium`). In containerized/serverless environments where Chromium
+> lives at a custom path, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
+
+> **Cron** (1st of every month, 08:00):
+> ```cron
+> 0 8 1 * * cd /path/to/dashboardleads && npm run report:seo -- --send >> report.log 2>&1
+> ```

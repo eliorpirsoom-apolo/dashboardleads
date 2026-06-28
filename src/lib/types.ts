@@ -74,3 +74,65 @@ export interface LeadRow {
   status: string;
   source: string;
 }
+
+// ---------------------------------------------------------------------------
+// Google organic (SEO) report
+//
+// Sourced from the Google Search Console "Search Analytics" API (with a mock
+// fallback when no service-account credentials are configured). Powers the
+// PDF report that gets emailed to the client.
+// ---------------------------------------------------------------------------
+
+// One headline metric (clicks, impressions, CTR, avg. position) with its
+// period-over-period comparison. `lowerIsBetter` flips the sentiment so that a
+// dropping average position is rendered as an improvement.
+export interface SeoMetric {
+  key: "clicks" | "impressions" | "ctr" | "position";
+  label: string; // Hebrew display label
+  value: number;
+  previousValue: number;
+  delta: number;
+  deltaPercent: number | null;
+  direction: "up" | "down" | "flat";
+  lowerIsBetter: boolean;
+}
+
+// A single search query (keyword) row from Search Analytics.
+export interface SeoQueryRow {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctr: number; // 0..1
+  position: number;
+  // Change in average position vs the comparison period (negative = improved).
+  positionDelta: number | null;
+}
+
+// A landing page row from Search Analytics.
+export interface SeoPageRow {
+  page: string;
+  clicks: number;
+  impressions: number;
+  ctr: number; // 0..1
+  position: number;
+  clicksDelta: number | null;
+}
+
+// Everything the report template needs to render one client report.
+export interface SeoReportData {
+  siteUrl: string;
+  clientName: string;
+  range: DateRange;
+  previousRange: DateRange;
+  presetLabel: string;
+  generatedAt: string; // ISO
+  // True when the figures are placeholder/mock data (no GSC credentials).
+  isMock: boolean;
+  summary: SeoMetric[];
+  topQueries: SeoQueryRow[];
+  risingQueries: SeoQueryRow[];
+  decliningQueries: SeoQueryRow[];
+  topPages: SeoPageRow[];
+  // Organic leads attributed in the dashboard for the same period (optional).
+  organicLeads?: MetricComparison;
+}
