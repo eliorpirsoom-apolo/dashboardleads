@@ -14,7 +14,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "scrape": "tsx scripts/sync.ts",
     "scrape:headed": "HEADLESS=false tsx scripts/sync.ts",
-    "report:seo": "tsx scripts/seo-report.ts"
+    "report:seo": "tsx scripts/seo-report.ts",
+    "report:seo:check": "tsx scripts/seo-check.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.8.1",

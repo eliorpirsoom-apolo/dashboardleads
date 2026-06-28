@@ -230,6 +230,63 @@ function toPageRows(
     });
 }
 
+// --- Connection check ------------------------------------------------------
+
+export interface ConnectionCheck {
+  ok: boolean;
+  // Reason for failure (when ok === false).
+  error?: string;
+  // The service-account email the key authenticates as (helps the user grant
+  // it access in Search Console).
+  serviceAccountEmail?: string;
+  // Properties this service account can read (sites.list).
+  sites?: { siteUrl: string; permissionLevel: string }[];
+  // True when the configured SC_SITE_URL is among the accessible sites.
+  configuredSiteAccessible?: boolean;
+}
+
+/**
+ * Verify that the configured service-account credentials work and report which
+ * Search Console properties they can read. Used by `npm run report:seo:check`
+ * so onboarding is a single command once credentials are pasted in.
+ */
+export async function verifyConnection(): Promise<ConnectionCheck> {
+  const creds = loadCredentials();
+  if (!creds) {
+    return {
+      ok: false,
+      error:
+        "No credentials found. Set GOOGLE_SC_CREDENTIALS_JSON or GOOGLE_SC_CREDENTIALS_PATH.",
+    };
+  }
+
+  try {
+    const client = authClient(creds);
+    const res = await client.request<{
+      siteEntry?: { siteUrl: string; permissionLevel: string }[];
+    }>({ url: `${API_BASE}` });
+    const sites = res.data.siteEntry ?? [];
+    const configured = siteUrl();
+    return {
+      ok: true,
+      serviceAccountEmail: creds.client_email,
+      sites: sites.map((s) => ({
+        siteUrl: s.siteUrl,
+        permissionLevel: s.permissionLevel,
+      })),
+      configuredSiteAccessible: configured
+        ? sites.some((s) => s.siteUrl === configured)
+        : undefined,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      serviceAccountEmail: creds.client_email,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // --- Public entrypoint -----------------------------------------------------
 
 export interface FetchSeoReportOptions {

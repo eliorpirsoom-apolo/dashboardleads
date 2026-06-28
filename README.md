@@ -273,6 +273,18 @@ The report works immediately with **mock data**. To pull real numbers:
 | `SEO_CLIENT_NAME` | Default client name on the report |
 | `SEO_REPORT_EMAIL_TO` | Default recipient when emailing |
 
+4. **Verify the connection** — one command confirms the credentials work and
+   prints the exact property strings you can use for `SC_SITE_URL`:
+
+   ```bash
+   npm run report:seo:check
+   ```
+
+   It reports the service-account email (add this as a user in Search Console
+   if you haven't), lists every property the account can read, and tells you
+   whether your `SC_SITE_URL` is among them. Once it shows ✅, run
+   `npm run report:seo` for real data.
+
 > **PDF rendering** reuses the project's Playwright Chromium (`npx playwright
 > install chromium`). In containerized/serverless environments where Chromium
 > lives at a custom path, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
