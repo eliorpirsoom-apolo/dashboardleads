@@ -1,52 +1,74 @@
-// Client-safe formatting helpers (no server/Prisma imports).
-import type { MetricComparison } from "./types";
+// Client-safe formatting helpers (no server imports). Hebrew locale.
 
-export function formatNumber(n: number): string {
-  return new Intl.NumberFormat("en-US").format(n);
+export function formatNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  return new Intl.NumberFormat("he-IL").format(n);
 }
 
-export function formatPercent(n: number | null, digits = 1): string {
-  if (n === null) return "—";
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(digits)}%`;
+export function formatCurrency(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  return new Intl.NumberFormat("he-IL", {
+    style: "currency",
+    currency: "ILS",
+    maximumFractionDigits: n % 1 === 0 ? 0 : 2,
+  }).format(n);
 }
 
-// Deltas where "up" is good (leads, conversions). Returns Tremor color tokens.
-export function deltaColor(c: MetricComparison): "emerald" | "red" | "gray" {
-  if (c.direction === "up") return "emerald";
-  if (c.direction === "down") return "red";
-  return "gray";
-}
-
-export function deltaLabel(c: MetricComparison): string {
-  return `${formatPercent(c.deltaPercent)} vs previous period`;
-}
-
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("he-IL", {
+export function formatDate(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("he-IL", {
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
   });
 }
 
-export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("he-IL", {
+export function formatDateTime(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("he-IL", {
     day: "2-digit",
-    month: "short",
-    year: "numeric",
+    month: "2-digit",
+    year: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-// Map a lead status to a Tremor badge color.
-export function statusColor(status: string): string {
-  const s = status.toLowerCase();
-  if (/(convert|won|sold|deal|נמכר|עסקה)/.test(s)) return "emerald";
-  if (/(qualified)/.test(s)) return "blue";
-  if (/(contact)/.test(s)) return "amber";
-  if (/(lost|no answer|נסגר)/.test(s)) return "red";
-  if (/(new)/.test(s)) return "indigo";
-  return "gray";
+export function formatTime(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleTimeString("he-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** "2026-07" → "יולי 2026" */
+export function formatMonthKey(month: string | null | undefined): string {
+  if (!month) return "—";
+  const [y, m] = month.split("-").map(Number);
+  if (!y || !m) return month;
+  return new Date(y, m - 1, 1).toLocaleDateString("he-IL", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+export function timeAgo(d: string | Date): string {
+  const diffMs = Date.now() - new Date(d).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "עכשיו";
+  if (min < 60) return `לפני ${min} דק׳`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `לפני ${hours} שע׳`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `לפני ${days} ימים`;
+  return formatDate(d);
+}
+
+/** Duration in seconds → "3:45" */
+export function formatDuration(sec: number | null | undefined): string {
+  if (sec === null || sec === undefined) return "—";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }

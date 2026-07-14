@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "דשבורד קמפיינים ולידים",
+  title: "מערכת CRM — ניהול לקוחות ולידים",
   description:
-    "דשבורד לניהול קמפיינים ולידים עבור ליד מנג'ר — מדדים, מגמות והתראות ירידה.",
+    "CRM דו-צדדי למשרד דיגיטל: ניהול לקוחות, לידים, קמפיינים, משימות ומסמכים.",
 };
 
 export default function RootLayout({

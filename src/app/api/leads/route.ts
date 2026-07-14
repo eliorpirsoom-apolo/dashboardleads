@@ -1,65 +1,84 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { parseQuery } from "@/lib/query";
-import type { Prisma } from "@prisma/client";
+import { handle, requireUser, scopeClientId, readJson } from "@/lib/api";
+import { createLeadNumbered, defaultStatusId, normalizeEmail, normalizePhone } from "@/lib/leads";
+import { buildLeadWhere } from "@/lib/leadFilters";
+import { onLeadCreated } from "@/lib/hooks";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/leads?preset=&campaign=&page=&pageSize=&q=
-// Paginated, filterable leads for the data table.
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const { range, campaignId } = parseQuery(searchParams);
+// GET /api/leads?clientId&statusId&channel&q&from&to&page — filtered table.
+export const GET = handle(async (req) => {
+  const user = await requireUser();
+  const p = new URL(req.url).searchParams;
+  const clientId = scopeClientId(user, p.get("clientId"));
 
-    const page = Math.max(1, Number(searchParams.get("page") ?? 1));
-    const pageSize = Math.min(
-      100,
-      Math.max(5, Number(searchParams.get("pageSize") ?? 25))
-    );
-    const q = (searchParams.get("q") ?? "").trim();
+  const page = Math.max(1, Number(p.get("page") || 1));
+  const pageSize = Math.min(100, Math.max(10, Number(p.get("pageSize") || 25)));
+  const where = buildLeadWhere(clientId, p);
 
-    // receivedAt is stored as an ISO-8601 UTC string — compare as strings.
-    const where: Prisma.LeadWhereInput = {
-      receivedAt: { gte: range.from, lte: range.to },
-    };
-    if (campaignId && campaignId !== "all") where.campaignId = campaignId;
-    if (q) {
-      where.OR = [
-        { externalId: { contains: q } },
-        { status: { contains: q } },
-        { source: { contains: q } },
-        { campaign: { name: { contains: q } } },
-      ];
-    }
+  const [total, rows] = await Promise.all([
+    prisma.lead.count({ where }),
+    prisma.lead.findMany({
+      where,
+      orderBy: { receivedAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        status: { select: { id: true, name: true, color: true, systemKind: true } },
+        campaign: { select: { id: true, name: true } },
+        unitType: { select: { id: true, name: true } },
+        _count: { select: { notes: true } },
+      },
+    }),
+  ]);
 
-    const [total, leads] = await Promise.all([
-      prisma.lead.count({ where }),
-      prisma.lead.findMany({
-        where,
-        orderBy: { receivedAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: { campaign: { select: { name: true } } },
-      }),
-    ]);
+  return NextResponse.json({ rows, total, page, pageSize });
+});
 
-    return NextResponse.json({
-      total,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
-      leads: leads.map((l) => ({
-        id: l.id,
-        externalId: l.externalId,
-        campaign: l.campaign.name,
-        receivedAt: l.receivedAt,
-        status: l.status,
-        source: l.source,
-      })),
-    });
-  } catch (err) {
-    console.error("[api/leads]", err);
-    return NextResponse.json({ error: "Failed to load leads" }, { status: 500 });
-  }
-}
+const CreateLead = z.object({
+  clientId: z.string().optional(),
+  fullName: z.string().max(120).optional().nullable(),
+  phone: z.string().max(30).optional().nullable(),
+  email: z.string().max(160).optional().nullable(),
+  city: z.string().max(80).optional().nullable(),
+  channel: z.string().max(40).optional().nullable(),
+  platform: z.string().max(40).optional().nullable(),
+  campaignId: z.string().optional().nullable(),
+  campaignLabel: z.string().max(160).optional().nullable(),
+  audience: z.string().max(160).optional().nullable(),
+  adName: z.string().max(160).optional().nullable(),
+  consent: z.boolean().default(false),
+  kind: z.enum(["form", "call", "whatsapp", "manual"]).default("manual"),
+  data: z.record(z.any()).optional(),
+});
+
+// POST /api/leads — manual lead creation from the UI.
+export const POST = handle(async (req) => {
+  const user = await requireUser();
+  const body = CreateLead.parse(await readJson(req));
+  const clientId = scopeClientId(user, body.clientId);
+
+  const lead = await createLeadNumbered({
+    clientId,
+    kind: body.kind,
+    statusId: await defaultStatusId(clientId),
+    fullName: body.fullName || null,
+    phone: normalizePhone(body.phone),
+    email: normalizeEmail(body.email),
+    city: body.city || null,
+    channel: body.channel || null,
+    platform: body.platform || null,
+    campaignId: body.campaignId || null,
+    campaignLabel: body.campaignLabel || null,
+    audience: body.audience || null,
+    adName: body.adName || null,
+    consent: body.consent,
+    receivedAt: new Date(),
+    data: body.data ? JSON.stringify(body.data) : null,
+  });
+
+  await onLeadCreated(lead.id);
+  return NextResponse.json({ lead }, { status: 201 });
+});

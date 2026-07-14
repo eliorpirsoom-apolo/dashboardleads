@@ -1,23 +1,26 @@
 {
   "name": "dashboardleads",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Campaign & Lead Management Dashboard for Lead Manager (ליד מנג'ר) with Playwright scraping, SQLite caching, and a Next.js dashboard.",
+  "description": "Two-sided agency CRM: agency side (clients, tasks, documents) + client side (leads, campaigns, projects, reports). Next.js + Prisma. PostgreSQL in production (Vercel), SQLite mirror for local dev.",
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
+    "dev": "npm run db:dev && next dev",
+    "build": "next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio",
+    "db:dev": "node scripts/gen-sqlite-schema.mjs && prisma db push --schema prisma/schema.sqlite.prisma --skip-generate && prisma generate --schema prisma/schema.sqlite.prisma",
+    "db:studio": "prisma studio --schema prisma/schema.sqlite.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "scrape": "tsx scripts/sync.ts",
-    "scrape:headed": "HEADLESS=false tsx scripts/sync.ts"
+    "db:migration:init": "node scripts/gen-postgres-migration.mjs",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "receipts:upload": "node scripts/receipts-uploader.mjs",
+    "import:legacy": "node --experimental-sqlite scripts/import-legacy.mjs"
   },
   "dependencies": {
-    "@libsql/client": "^0.8.1",
-    "@prisma/adapter-libsql": "^5.22.0",
+    "@aws-sdk/client-s3": "^3.620.0",
+    "@aws-sdk/s3-request-presigner": "^3.620.0",
     "@prisma/client": "^5.18.0",
     "@tremor/react": "^3.18.0",
     "date-fns": "^3.6.0",
@@ -25,7 +28,8 @@
     "next": "14.2.5",
     "nodemailer": "^6.9.14",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.46.0",

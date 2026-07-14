@@ -37,3 +37,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# local file storage (dev driver)
+/.uploads/
+
+# generated sqlite mirror schema
+/prisma/schema.sqlite.prisma

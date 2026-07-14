@@ -1,11 +1,11 @@
-import DashboardClient from "@/components/DashboardClient";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
 
-// The page itself is a thin server component; all interactivity (filters,
-// data fetching) lives in the client dashboard.
-export default function Page() {
-  return (
-    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <DashboardClient />
-    </main>
-  );
+export const dynamic = "force-dynamic";
+
+// Role router: each user lands on their own side of the system.
+export default async function Home() {
+  const user = await getSession();
+  if (!user) redirect("/login");
+  redirect(user.role === "ADMIN" ? "/admin" : "/app");
 }

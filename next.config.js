@@ -2,16 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    // Keep Playwright / Prisma out of the server bundle (Next 14 syntax).
-    serverComponentsExternalPackages: [
-      "playwright",
-      "playwright-core",
-      "@prisma/client",
-      "@prisma/adapter-libsql",
-      "@libsql/client",
-      "libsql",
-      "nodemailer",
-    ],
+    // Keep server-only packages out of the bundle (Next 14 syntax).
+    serverComponentsExternalPackages: ["@prisma/client", "nodemailer"],
   },
 };
 
