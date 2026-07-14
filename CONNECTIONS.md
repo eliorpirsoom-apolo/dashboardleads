@@ -10,10 +10,18 @@
 
 ## 1) העלאה ל-Vercel + בסיס נתונים (חובה)
 
-> ✅ **בוצע ב-13.07.2026** (הפרויקט `dashboard-leads` תחת צוות APOLLO):
-> הפרויקט מחובר לריפו (deploy אוטומטי על כל push לענף הפרודקשן), בסיס נתונים
-> Neon Postgres מחובר (`DATABASE_URL` + `DATABASE_URL_UNPOOLED` הוזרקו אוטומטית),
-> והסודות `AUTH_SECRET` / `CRON_SECRET` / `RECEIPTS_UPLOAD_TOKEN` הוגדרו.
+> ✅ **בוצע ב-13.07.2026** — המערכת חיה: **https://dashboard-leads-apollo13.vercel.app**
+> (פרויקט `dashboard-leads` תחת צוות APOLLO): מחובר לריפו, בסיס נתונים Neon Postgres
+> (`DATABASE_URL` + `DATABASE_URL_UNPOOLED` הוזרקו אוטומטית), הסודות
+> `AUTH_SECRET` / `CRON_SECRET` / `RECEIPTS_UPLOAD_TOKEN` הוגדרו, המיגרציות רצו,
+> ו-Vercel Authentication כובה (למערכת אימות משלה).
+>
+> ⚠️ שתי נקודות פתוחות: (א) פריסה אוטומטית מ-push טרם נדלקה — בינתיים פורסים עם
+> `npx vercel deploy --prod`; ייתכן שצריך להתקין את Vercel GitHub App בעמוד
+> Settings → Git. (ב) בתוכנית החינמית תזכורות רצות פעם ביום (05:00) — להחזרת
+> תדירות גבוהה: שדרוג ל-Vercel Pro, או שירות חינמי כמו cron-job.org שקורא ל-
+> `/api/cron/reminders` כל 5 דק׳ עם Header:‏ `Authorization: Bearer <CRON_SECRET>`
+> (את הערך מעתיקים מ-Settings → Environment Variables).
 >
 > ההוראות המקוריות נשמרות כאן למקרה של הקמה מחדש:
 
