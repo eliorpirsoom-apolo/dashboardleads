@@ -10,18 +10,21 @@
 
 ## 1) העלאה ל-Vercel + בסיס נתונים (חובה)
 
-1. נכנסים ל-[vercel.com](https://vercel.com) → **Add New → Project** → מייבאים את ריפו הגיט של הפרויקט.
-2. לפני Deploy, ב-**Storage** של הפרויקט: **Create Database → Postgres** (Neon).
-   Vercel יוסיף אוטומטית משתני `POSTGRES_*`.
-3. ב-Environment Variables מוסיפים שני משתנים שממפים אותם ל-Prisma:
-   - `DATABASE_URL` ⟵ הערך של `POSTGRES_PRISMA_URL`
-   - `DIRECT_URL` ⟵ הערך של `POSTGRES_URL_NON_POOLING`
-4. מוסיפים עוד שני משתנים:
-   - `AUTH_SECRET` ⟵ מחרוזת אקראית ארוכה. מייצרים במחשב:
+> ✅ **בוצע ב-13.07.2026** (הפרויקט `dashboard-leads` תחת צוות APOLLO):
+> הפרויקט מחובר לריפו (deploy אוטומטי על כל push לענף הפרודקשן), בסיס נתונים
+> Neon Postgres מחובר (`DATABASE_URL` + `DATABASE_URL_UNPOOLED` הוזרקו אוטומטית),
+> והסודות `AUTH_SECRET` / `CRON_SECRET` / `RECEIPTS_UPLOAD_TOKEN` הוגדרו.
+>
+> ההוראות המקוריות נשמרות כאן למקרה של הקמה מחדש:
+
+1. נכנסים ל-[vercel.com](https://vercel.com) → **Add New → Project** → מייבאים את ריפו הגיט.
+2. **Storage → Create Database → Neon Postgres** — משתני החיבור מוזרקים אוטומטית.
+3. מוסיפים ב-Environment Variables:
+   - `AUTH_SECRET` ⟵ מחרוזת אקראית ארוכה:
      `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
    - `CRON_SECRET` ⟵ עוד מחרוזת אקראית (אותה פקודה).
-5. **Deploy**. הבילד מריץ אוטומטית את המיגרציות (סקריפט `vercel-build`).
-6. נכנסים ל-`https://<הדומיין>/setup` — יצירת חשבון מנהל המשרד הראשון. ✅
+4. **Deploy**. הבילד מריץ אוטומטית את המיגרציות (סקריפט `vercel-build`).
+5. נכנסים ל-`https://<הדומיין>/setup` — יצירת חשבון מנהל המשרד הראשון. ✅
 
 > מרגע שקיים משתמש אחד, עמוד ה-setup ננעל לצמיתות.
 
