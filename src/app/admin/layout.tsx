@@ -21,7 +21,7 @@ export default async function AdminLayout({
       <Sidebar
         items={ADMIN_NAV}
         userName={user.name}
-        roleLabel="צד משרד"
+        roleLabel={user.adminRole === "staff" ? "צד משרד · עובד" : "צד משרד · מנהל"}
         homeHref="/admin"
       />
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">

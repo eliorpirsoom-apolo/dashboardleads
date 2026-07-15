@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson } from "@/lib/api";
+import { ilMonthKey } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export const GET = handle(async (req) => {
   const user = await requireUser();
   const p = new URL(req.url).searchParams;
   const clientId = scopeClientId(user, p.get("clientId"));
-  const month = p.get("month") ?? new Date().toISOString().slice(0, 7);
+  const month = p.get("month") ?? ilMonthKey();
 
   const ads = await prisma.topAd.findMany({
     where: { clientId, month },

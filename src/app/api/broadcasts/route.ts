@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 import { sendMessage, renderTemplate, type Channel } from "@/lib/messaging";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const maxDuration = 60;
 // GET /api/broadcasts?clientId — distribution report list.
 export const GET = handle(async (req) => {
   const user = await requireUser();
+  assertNotAgent(user, "צפייה בתפוצה");
   const p = new URL(req.url).searchParams;
   const clientId = scopeClientId(user, p.get("clientId"));
   const broadcasts = await prisma.broadcast.findMany({
@@ -35,6 +37,7 @@ const CreateBroadcast = z.object({
 // הסכמה לדיוור נאכפת כאן — לידים בלי consent לא נכללים לעולם.
 export const POST = handle(async (req) => {
   const user = await requireUser();
+  assertNotAgent(user);
   const body = CreateBroadcast.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
 

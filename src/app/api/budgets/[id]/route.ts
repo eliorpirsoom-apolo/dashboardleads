@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ const UpdateBudget = z.object({
 
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
   const user = await requireUser();
+  assertNotAgent(user);
   const existing = await prisma.budget.findUnique({ where: { id: params.id } });
   if (!existing) throw new ApiError(404, "תקציב לא נמצא");
   scopeClientId(user, existing.clientId);
@@ -24,6 +26,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 
 export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
   const user = await requireUser();
+  assertNotAgent(user);
   const existing = await prisma.budget.findUnique({ where: { id: params.id } });
   if (!existing) throw new ApiError(404, "תקציב לא נמצא");
   scopeClientId(user, existing.clientId);

@@ -55,6 +55,10 @@ export async function POST(req: Request) {
   });
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions);
+  res.cookies.set(
+    SESSION_COOKIE,
+    createSessionToken(user.id, user.tokenVersion),
+    sessionCookieOptions
+  );
   return res;
 }

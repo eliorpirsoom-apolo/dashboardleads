@@ -14,12 +14,17 @@ export const SESSION_COOKIE = "ld_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
 export type Role = "ADMIN" | "CLIENT";
+export type AdminRole = "manager" | "staff";
 
 export interface SessionUser {
   id: string;
   email: string;
   name: string;
   role: Role;
+  // For ADMIN users: "manager" (everything) | "staff" (daily work only).
+  adminRole: AdminRole;
+  // For CLIENT users: sales agents get a reduced permission set.
+  isAgent: boolean;
   clientId: string | null;
   clientName: string | null;
 }
@@ -48,23 +53,27 @@ function sign(value: string): string {
   return crypto.createHmac("sha256", SECRET).update(value).digest("hex");
 }
 
-export function createSessionToken(userId: string): string {
+// Token: userId.tokenVersion.expires.signature — bumping the user's
+// tokenVersion invalidates every outstanding session ("log out everywhere").
+export function createSessionToken(userId: string, tokenVersion = 0): string {
   const expires = Date.now() + SESSION_TTL_MS;
-  const payload = `${userId}.${expires}`;
+  const payload = `${userId}.${tokenVersion}.${expires}`;
   return `${payload}.${sign(payload)}`;
 }
 
-export function verifySessionToken(token: string): string | null {
+export function verifySessionToken(
+  token: string
+): { userId: string; tokenVersion: number } | null {
   const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [userId, expires, sig] = parts;
-  const payload = `${userId}.${expires}`;
+  if (parts.length !== 4) return null;
+  const [userId, version, expires, sig] = parts;
+  const payload = `${userId}.${version}.${expires}`;
   const expected = sign(payload);
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   if (Number(expires) < Date.now()) return null;
-  return userId;
+  return { userId, tokenVersion: Number(version) };
 }
 
 // --- Session lookup ---------------------------------------------------------
@@ -72,20 +81,23 @@ export function verifySessionToken(token: string): string | null {
 export async function getSession(): Promise<SessionUser | null> {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const userId = verifySessionToken(token);
-  if (!userId) return null;
+  const parsed = verifySessionToken(token);
+  if (!parsed) return null;
 
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: parsed.userId },
     include: { client: true },
   });
   if (!user || !user.active) return null;
+  if (user.tokenVersion !== parsed.tokenVersion) return null; // revoked
 
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role as Role,
+    adminRole: (user.adminRole as AdminRole) || "manager",
+    isAgent: user.isAgent,
     clientId: user.clientId,
     clientName: user.client?.name ?? null,
   };

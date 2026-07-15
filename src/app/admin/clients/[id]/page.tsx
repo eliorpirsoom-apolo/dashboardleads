@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { StatCard, Card, Chip } from "@/components/ui";
 import { formatDateTime, formatCurrency } from "@/lib/format";
+import { ilMonthKey, ilMonthStart } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function ClientOverview({
   if (!client) notFound();
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthKey = ilMonthKey();
 
   const [leadsWeek, leadsTotal, openTasks, wonThisMonth, budgets, statusDist, latest] =
     await Promise.all([
@@ -29,7 +30,7 @@ export default async function ClientOverview({
           clientId: client.id,
           archived: false,
           status: { systemKind: "won" },
-          receivedAt: { gte: new Date(`${monthKey}-01`) },
+          receivedAt: { gte: ilMonthStart() },
         },
       }),
       prisma.budget.findMany({
@@ -54,7 +55,7 @@ export default async function ClientOverview({
     where: {
       clientId: client.id,
       archived: false,
-      receivedAt: { gte: new Date(`${monthKey}-01`) },
+      receivedAt: { gte: ilMonthStart() },
     },
   });
   const cpl = monthLeads > 0 && monthSpend > 0 ? monthSpend / monthLeads : null;

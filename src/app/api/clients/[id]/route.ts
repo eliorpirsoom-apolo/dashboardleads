@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 import {
   handle,
   requireUser,
-  requireAdmin,
   readJson,
   ApiError,
 } from "@/lib/api";
+import { requireManager } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -47,13 +48,24 @@ const UpdateClient = z.object({
   active: z.boolean().optional(),
 });
 
-// PATCH /api/clients/[id] — admin only.
+// PATCH /api/clients/[id] — agency manager only (profile edits, deactivation).
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
-  await requireAdmin();
+  const actor = await requireManager();
   const body = UpdateClient.parse(await readJson(req));
   const client = await prisma.client.update({
     where: { id: params.id },
     data: { ...body, contactEmail: body.contactEmail === "" ? null : body.contactEmail },
   });
+  if (body.active !== undefined) {
+    await audit(
+      actor,
+      body.active ? "client_activated" : "client_deactivated",
+      "client",
+      client.id,
+      client.name
+    );
+  } else {
+    await audit(actor, "client_updated", "client", client.id, client.name);
+  }
   return NextResponse.json({ client });
 });

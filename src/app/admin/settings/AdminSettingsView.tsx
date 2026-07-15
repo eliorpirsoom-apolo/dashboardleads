@@ -12,6 +12,7 @@ interface AdminUser {
   email: string;
   name: string;
   active: boolean;
+  adminRole: string;
   lastLoginAt: string | null;
   googleId: string | null;
 }
@@ -95,6 +96,9 @@ export default function AdminSettingsView() {
               <Icon name="users" className="h-4 w-4 text-indigo-400" />
               <span className="text-sm font-medium text-slate-200">{u.name}</span>
               <span dir="ltr" className="text-xs text-slate-500">{u.email}</span>
+              <Chip color={u.adminRole === "staff" ? "#94a3b8" : "#818cf8"}>
+                {u.adminRole === "staff" ? "עובד משרד" : "מנהל משרד"}
+              </Chip>
               {u.googleId ? <Chip color="#38bdf8">Google</Chip> : null}
               {!u.active ? <Chip color="#f87171">מושבת</Chip> : null}
               <span className="mr-auto text-[11px] text-slate-600">
@@ -125,7 +129,13 @@ function CreateAdminModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+    adminRole: "staff",
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -152,6 +162,16 @@ function CreateAdminModal({
         </Field>
         <Field label="אימייל">
           <Input dir="ltr" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+        </Field>
+        <Field label="תפקיד" hint='עובד: עבודה שוטפת על לקוחות. מנהל: גם ניהול משתמשים, לקוחות וחיבורים'>
+          <select
+            value={form.adminRole}
+            onChange={(e) => setForm({ ...form, adminRole: e.target.value })}
+            className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
+          >
+            <option value="staff">עובד משרד</option>
+            <option value="manager">מנהל משרד</option>
+          </select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="סיסמה" hint="ריק = Google בלבד">

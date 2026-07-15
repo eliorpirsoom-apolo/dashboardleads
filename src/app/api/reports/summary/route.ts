@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId } from "@/lib/api";
+import { ilMonthStart } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export const GET = handle(async (req) => {
   const now = new Date();
   const from = p.get("from")
     ? new Date(p.get("from")!)
-    : new Date(now.getFullYear(), now.getMonth(), 1);
+    : ilMonthStart(now);
   const to = p.get("to") ? new Date(`${p.get("to")}T23:59:59`) : now;
   const projectId = p.get("projectId") || undefined;
 

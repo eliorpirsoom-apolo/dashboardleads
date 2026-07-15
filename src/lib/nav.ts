@@ -20,9 +20,10 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/documents", label: "מסמכים", icon: "folder" },
   { href: "/admin/messages", label: "הודעות", icon: "megaphone" },
   { href: "/admin/settings", label: "הגדרות", icon: "settings" },
+  { href: "/admin/profile", label: "החשבון שלי", icon: "users" },
 ];
 
-const CLIENT_NAV: NavItem[] = [
+const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app", label: "דשבורד", icon: "home" },
   { href: "/app/leads", label: "לידים", icon: "leads", module: "leads" },
   { href: "/app/projects", label: "פרויקטים", icon: "building", module: "realestate" },
@@ -31,13 +32,18 @@ const CLIENT_NAV: NavItem[] = [
   { href: "/app/calendar", label: "לוח שנה", icon: "calendar", module: "tasks" },
   { href: "/app/reports", label: "דוחות", icon: "chart", module: "budgets" },
   { href: "/app/seo", label: "SEO", icon: "search", module: "seo" },
-  { href: "/app/broadcasts", label: "הודעות תפוצה", icon: "megaphone", module: "broadcasts" },
+  { href: "/app/broadcasts", label: "הודעות תפוצה", icon: "megaphone", module: "broadcasts", agentBlocked: true },
   { href: "/app/documents", label: "מסמכים", icon: "folder", module: "documents" },
-  { href: "/app/settings", label: "הגדרות", icon: "settings" },
+  { href: "/app/settings", label: "הגדרות", icon: "settings", agentBlocked: true },
+  { href: "/app/profile", label: "החשבון שלי", icon: "users" },
 ];
 
-export function clientNavFor(clientType: string): NavItem[] {
+// Navigation reflects the permission model: sales agents don't see
+// configuration surfaces (settings, broadcasts) — "הבעלים מגדיר, הסוכן עובד".
+export function clientNavFor(clientType: string, isAgent = false): NavItem[] {
   return CLIENT_NAV.filter(
-    (item) => !item.module || hasModule(clientType, item.module)
+    (item) =>
+      (!item.module || hasModule(clientType, item.module)) &&
+      (!isAgent || !item.agentBlocked)
   );
 }

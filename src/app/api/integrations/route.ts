@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
+import { requireManager } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
 import { emailConfigured, smsConfigured, whatsappConfigured } from "@/lib/messaging";
 import { googleEnabled } from "@/lib/google";
 import { r2Configured } from "@/lib/storage";
@@ -45,9 +47,9 @@ const SaveIntegration = z.object({
   refreshToken: z.string().optional(),
 });
 
-// POST /api/integrations — save/connect a per-client integration.
+// POST /api/integrations — save/connect a per-client integration. Manager only.
 export const POST = handle(async (req) => {
-  await requireAdmin();
+  const actor = await requireManager();
   const body = SaveIntegration.parse(await readJson(req));
 
   const client = await prisma.client.findUnique({ where: { id: body.clientId } });
@@ -71,6 +73,7 @@ export const POST = handle(async (req) => {
       lastError: null,
     },
   });
+  await audit(actor, "integration_connected", "integration", integration.id, `${body.kind} (לקוח ${body.clientId})`);
   return NextResponse.json({
     integration: { id: integration.id, kind: integration.kind, status: integration.status },
   });

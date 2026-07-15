@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,7 @@ const CreateProject = z.object({
 // POST /api/projects — project setup (name + initial unit types/inventory).
 export const POST = handle(async (req) => {
   const user = await requireUser();
+  assertNotAgent(user);
   const body = CreateProject.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
 

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
+import { handle, readJson, ApiError } from "@/lib/api";
+import { requireManager } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
 import { hashPassword } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +19,7 @@ const CreateUser = z.object({
 // POST /api/clients/[id]/users — provision a client user (or sales agent).
 // Without a password the account is Google-login-only.
 export const POST = handle(async (req, { params }: { params: { id: string } }) => {
-  await requireAdmin();
+  const actor = await requireManager();
   const body = CreateUser.parse(await readJson(req));
 
   const client = await prisma.client.findUnique({ where: { id: params.id } });
@@ -40,5 +42,6 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
     select: { id: true, email: true, name: true, isAgent: true, active: true },
   });
 
+  await audit(actor, "user_created", "user", user.id, `${user.email} (לקוח: ${client.name})`);
   return NextResponse.json({ user }, { status: 201 });
 });

@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     const res = NextResponse.redirect(new URL("/", request.url));
     res.cookies.set(
       SESSION_COOKIE,
-      createSessionToken(user.id),
+      createSessionToken(user.id, user.tokenVersion),
       sessionCookieOptions
     );
     res.cookies.set("g_state", "", { path: "/", maxAge: 0 });

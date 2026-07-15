@@ -3,14 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, StatCard, Card, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/format";
+import { ilDayStart, ilDayEnd } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
 // Agency home — one morning glance: what's happening across all clients.
 export default async function AdminDashboard() {
   const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const dayStart = ilDayStart(now);
+  const dayEnd = ilDayEnd(now);
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const [activeClients, leadsWeek, leadsToday, openAgencyTasks, todayItems, recentLeads] =

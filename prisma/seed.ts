@@ -68,13 +68,23 @@ async function main() {
     prisma.client.deleteMany(),
   ]);
 
-  // --- Admin ---------------------------------------------------------------
+  // --- Agency users -----------------------------------------------------------
   await prisma.user.create({
     data: {
       email: "admin@agency.local",
       name: "מנהל המשרד",
       passwordHash: hashPassword("admin123"),
       role: "ADMIN",
+      adminRole: "manager",
+    },
+  });
+  await prisma.user.create({
+    data: {
+      email: "staff@agency.local",
+      name: "עובד המשרד",
+      passwordHash: hashPassword("staff123"),
+      role: "ADMIN",
+      adminRole: "staff",
     },
   });
 

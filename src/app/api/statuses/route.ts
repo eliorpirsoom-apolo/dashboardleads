@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ const CreateStatus = z.object({
 // POST /api/statuses — client-defined status (name + color + kind).
 export const POST = handle(async (req) => {
   const user = await requireUser();
+  assertNotAgent(user);
   const body = CreateStatus.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
 

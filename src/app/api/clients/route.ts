@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
+import { requireManager } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
 import { createDefaultStatuses } from "@/lib/defaults";
 
 export const dynamic = "force-dynamic";
@@ -58,9 +60,9 @@ const CreateClient = z.object({
   notes: z.string().max(2000).optional().nullable(),
 });
 
-// POST /api/clients — create a client + its default statuses.
+// POST /api/clients — create a client + its default statuses. Manager only.
 export const POST = handle(async (req) => {
-  await requireAdmin();
+  const actor = await requireManager();
   const body = CreateClient.parse(await readJson(req));
 
   const exists = await prisma.client.findUnique({ where: { name: body.name } });
@@ -74,5 +76,6 @@ export const POST = handle(async (req) => {
     return c;
   });
 
+  await audit(actor, "client_created", "client", client.id, client.name);
   return NextResponse.json({ client }, { status: 201 });
 });

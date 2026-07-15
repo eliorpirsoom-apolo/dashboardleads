@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ const CreateUnit = z.object({
 // POST /api/projects/[id]/units — add a unit type to the project.
 export const POST = handle(async (req, { params }: { params: { id: string } }) => {
   const user = await requireUser();
+  assertNotAgent(user);
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project) throw new ApiError(404, "פרויקט לא נמצא");
   scopeClientId(user, project.clientId);

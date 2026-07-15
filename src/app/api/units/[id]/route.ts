@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,18 @@ const UpdateUnit = z.object({
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
   const { user, unit } = await scopedUnit(params.id);
   const body = UpdateUnit.parse(await readJson(req));
+
+  // סוכן מכירות רשאי רק לעדכן מלאי ("נמכרה"/"חזרה") — לא מחיר, שם או כמות.
+  if (user.role === "CLIENT" && user.isAgent) {
+    const touchesConfig =
+      body.name !== undefined ||
+      body.rooms !== undefined ||
+      body.price !== undefined ||
+      body.totalUnits !== undefined;
+    if (touchesConfig || body.manualAdjust === undefined) {
+      throw new ApiError(403, "סוכן יכול לעדכן מלאי בלבד; שינויי מחיר והגדרות שמורים לבעלים");
+    }
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     // Price history
@@ -85,7 +98,8 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 });
 
 export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
-  const { unit } = await scopedUnit(params.id);
+  const { user, unit } = await scopedUnit(params.id);
+  assertNotAgent(user);
   const leads = await prisma.lead.count({ where: { unitTypeId: unit.id } });
   if (leads > 0) {
     throw new ApiError(409, `אי אפשר למחוק: ${leads} לידים מקושרים לטיפוס הזה`);

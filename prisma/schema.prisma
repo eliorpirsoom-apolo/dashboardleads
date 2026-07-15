@@ -34,6 +34,8 @@ model User {
   name         String
   passwordHash String?
   role         String    @default("CLIENT") // "ADMIN" | "CLIENT"
+  // For ADMIN users: "manager" (everything) | "staff" (daily work only).
+  adminRole    String    @default("manager")
   isAgent      Boolean   @default(false)
   googleId     String?   @unique
   phone        String?
@@ -41,6 +43,8 @@ model User {
   clientId     String?
   active       Boolean   @default(true)
   lastLoginAt  DateTime?
+  // Bumping invalidates all existing sessions ("log out everywhere").
+  tokenVersion Int       @default(0)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -48,9 +52,24 @@ model User {
   createdTasks  Task[]     @relation("TaskCreator")
   leadNotes     LeadNote[]
   documents     Document[]
+  assignedLeads Lead[]     @relation("LeadAssignee")
+  clientAssignments ClientAssignment[]
 
   @@index([clientId])
   @@index([role])
+}
+
+// Prepared for the future "account manager" model (agency staff scoped to
+// specific clients). Schema-ready now; enforcement comes later.
+model ClientAssignment {
+  id       String @id @default(cuid())
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@unique([userId, clientId])
+  @@index([clientId])
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +91,8 @@ model Client {
   notes        String?
   color        String?
   logoKey      String? // company logo file key in storage
+  // Round-robin new leads between the client's sales agents on intake.
+  autoAssignLeads Boolean @default(false)
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -97,6 +118,8 @@ model Client {
   seoKeywords      SeoKeyword[]
   intakeLogs       IntakeLog[]
   adInsights       AdInsight[]
+  messageTemplates MessageTemplate[]
+  clientAssignments ClientAssignment[]
 
   @@index([name])
   @@index([type])
@@ -198,6 +221,9 @@ model Lead {
   statusId   String?
   source     LeadSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   sourceId   String?
+  // מי מטפל בליד — סוכן/משתמש של הלקוח.
+  assignee   User?       @relation("LeadAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId String?
 
   fullName      String?
   phone         String?
@@ -225,6 +251,7 @@ model Lead {
   updatedAt DateTime @updatedAt
 
   notes            LeadNote[]
+  activities       LeadActivity[]
   purchaseRequests PurchaseRequest[]
   contracts        Contract[]
   inventoryEvents  InventoryEvent[]
@@ -234,10 +261,27 @@ model Lead {
   @@unique([clientId, number])
   @@index([clientId, receivedAt])
   @@index([clientId, statusId])
+  @@index([clientId, assigneeId])
   @@index([campaignId])
   @@index([phone])
   @@index([email])
   @@index([clientId, kind])
+}
+
+// ציר פעילות אוטומטי על ליד: מי שינה מה ומתי (בנוסף להערות הידניות).
+model LeadActivity {
+  id        String   @id @default(cuid())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    String
+  actorName String // denormalized — survives user deletion
+  // "create" | "status" | "assign" | "archive" | "restore" | "consent" | "merge" | "import"
+  kind      String
+  fromValue String?
+  toValue   String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
 }
 
 // Timeline of notes on a lead — who wrote what, when.
@@ -602,6 +646,35 @@ model Automation {
   updatedAt        DateTime    @updatedAt
 
   @@index([clientId, trigger])
+}
+
+// נוסח הודעה שמור לשימוש חוזר בתפוצה ובאוטומציות.
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  name      String
+  channel   String   @default("email") // "email" | "sms" | "whatsapp"
+  subject   String?
+  body      String
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, name])
+  @@index([clientId])
+}
+
+// יומן פעולות רגישות במערכת (משתמשים, לקוחות, הרשאות, חיבורים).
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorName  String
+  actorId    String?
+  action     String // "user_created" | "user_updated" | "user_deactivated" | "client_created" | "client_updated" | "client_deactivated" | "integration_connected" | ...
+  targetType String // "user" | "client" | "integration" | "status" | ...
+  targetId   String?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------

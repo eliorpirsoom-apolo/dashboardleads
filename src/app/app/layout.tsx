@@ -46,9 +46,9 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <Sidebar
-        items={clientNavFor(client.type)}
+        items={clientNavFor(client.type, user.isAgent)}
         userName={user.name}
-        roleLabel={client.name}
+        roleLabel={user.isAgent ? `${client.name} · סוכן` : client.name}
         homeHref="/app"
       />
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">

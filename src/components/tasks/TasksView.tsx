@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatDayHeader } from "@/lib/format";
 import { Button, Chip, EmptyState, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
@@ -85,11 +85,7 @@ export default function TasksView({
 
   // Group by day for a "daily tasks" feel.
   const groups = tasks.reduce<Record<string, TaskRow[]>>((acc, t) => {
-    const day = new Date(t.dueAt).toLocaleDateString("he-IL", {
-      weekday: "long",
-      day: "2-digit",
-      month: "2-digit",
-    });
+    const day = formatDayHeader(t.dueAt);
     (acc[day] ??= []).push(t);
     return acc;
   }, {});

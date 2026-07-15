@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, StatCard, Card, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { formatTime, formatDateTime, formatCurrency } from "@/lib/format";
+import { ilDayStart, ilDayEnd, ilMonthKey, ilMonthStart } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,11 @@ export default async function ClientDashboard() {
   const clientId = user.clientId!;
 
   const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const dayStart = ilDayStart(now);
+  const dayEnd = ilDayEnd(now);
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const monthKey = now.toISOString().slice(0, 7);
-  const monthStart = new Date(`${monthKey}-01`);
+  const monthKey = ilMonthKey(now);
+  const monthStart = ilMonthStart(now);
 
   const [leadsToday, leadsWeek, leadsMonth, wonMonth, budgets, todayTasks, recentLeads, statusDist] =
     await Promise.all([

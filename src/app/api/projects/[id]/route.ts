@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,8 @@ const UpdateProject = z.object({
 });
 
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
-  const { project } = await scopedProject(params.id);
+  const { user, project } = await scopedProject(params.id);
+  assertNotAgent(user);
   const body = UpdateProject.parse(await readJson(req));
   const updated = await prisma.project.update({
     where: { id: project.id },

@@ -1,4 +1,8 @@
 // Client-safe formatting helpers (no server imports). Hebrew locale.
+// All date/time output is pinned to Asia/Jerusalem so server-side rendering
+// (UTC on Vercel) and browsers show identical, correct Israeli times.
+
+const IL_TZ = "Asia/Jerusalem";
 
 export function formatNumber(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
@@ -17,6 +21,7 @@ export function formatCurrency(n: number | null | undefined): string {
 export function formatDate(d: string | Date | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("he-IL", {
+    timeZone: IL_TZ,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -26,6 +31,7 @@ export function formatDate(d: string | Date | null | undefined): string {
 export function formatDateTime(d: string | Date | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleString("he-IL", {
+    timeZone: IL_TZ,
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
@@ -37,6 +43,7 @@ export function formatDateTime(d: string | Date | null | undefined): string {
 export function formatTime(d: string | Date | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleTimeString("he-IL", {
+    timeZone: IL_TZ,
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -47,7 +54,8 @@ export function formatMonthKey(month: string | null | undefined): string {
   if (!month) return "—";
   const [y, m] = month.split("-").map(Number);
   if (!y || !m) return month;
-  return new Date(y, m - 1, 1).toLocaleDateString("he-IL", {
+  return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("he-IL", {
+    timeZone: IL_TZ,
     month: "long",
     year: "numeric",
   });
@@ -71,4 +79,14 @@ export function formatDuration(sec: number | null | undefined): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Weekday+date header used by task lists, in Israel time. */
+export function formatDayHeader(d: string | Date): string {
+  return new Date(d).toLocaleDateString("he-IL", {
+    timeZone: IL_TZ,
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+  });
 }

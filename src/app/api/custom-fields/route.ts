@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ const CreateField = z.object({
 // POST /api/custom-fields — client-defined lead field.
 export const POST = handle(async (req) => {
   const user = await requireUser();
+  assertNotAgent(user);
   const body = CreateField.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
 

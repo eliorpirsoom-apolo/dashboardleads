@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import StatusEditor from "@/components/settings/StatusEditor";
@@ -7,8 +8,10 @@ import AutomationsManager from "@/components/settings/AutomationsManager";
 export const dynamic = "force-dynamic";
 
 // Client self-service settings: statuses, custom fields, automations.
+// Owners only — sales agents work, owners configure.
 export default async function AppSettingsPage() {
   const user = (await getSession())!;
+  if (user.isAgent) redirect("/app");
   return (
     <>
       <PageHeader
