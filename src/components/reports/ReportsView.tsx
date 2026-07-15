@@ -24,6 +24,18 @@ interface Summary {
   byStatus: { name: string; color: string; count: number }[];
   byKind: { kind: string; count: number }[];
   inventory: { project: string; total: number; sold: number }[];
+  adInsights: {
+    totalWhatsapp: number;
+    totalSpend: number;
+    campaigns: {
+      month: string;
+      campaignName: string;
+      whatsappCount: number;
+      leadsCount: number;
+      spend: number;
+      impressions: number;
+    }[];
+  };
 }
 
 interface BudgetRow {
@@ -68,6 +80,7 @@ export default function ReportsView({
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [error, setError] = useState("");
   const [showBudget, setShowBudget] = useState(false);
+  const [editBudget, setEditBudget] = useState<BudgetRow | null>(null);
   const [editAd, setEditAd] = useState<1 | 2 | null>(null);
 
   const load = useCallback(async () => {
@@ -178,6 +191,49 @@ export default function ReportsView({
             </Card>
           </div>
 
+          {/* נתוני מנהל המודעות (Meta): וואטסאפים + ביצועים — מהאפיון המקורי */}
+          {summary!.adInsights.campaigns.length > 0 ? (
+            <Card>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-200">נתוני מנהל המודעות (Meta)</h3>
+                <div className="flex gap-4 text-xs">
+                  <span className="text-emerald-300">
+                    💬 {formatNumber(summary!.adInsights.totalWhatsapp)} שיחות וואטסאפ
+                  </span>
+                  <span className="text-amber-300">
+                    {formatCurrency(summary!.adInsights.totalSpend)} הוצאה
+                  </span>
+                </div>
+              </div>
+              <div className="thin-scroll overflow-x-auto">
+                <table className="w-full min-w-[560px] text-right text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700/60 text-xs text-slate-400">
+                      <th className="px-3 py-2 font-medium">חודש</th>
+                      <th className="px-3 py-2 font-medium">קמפיין</th>
+                      <th className="px-3 py-2 font-medium">וואטסאפים</th>
+                      <th className="px-3 py-2 font-medium">לידים</th>
+                      <th className="px-3 py-2 font-medium">הוצאה</th>
+                      <th className="px-3 py-2 font-medium">חשיפות</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {summary!.adInsights.campaigns.map((a, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 font-mono text-xs">{a.month}</td>
+                        <td className="max-w-[180px] truncate px-3 py-2">{a.campaignName}</td>
+                        <td className="px-3 py-2 font-bold text-emerald-300">{a.whatsappCount}</td>
+                        <td className="px-3 py-2">{a.leadsCount}</td>
+                        <td className="px-3 py-2">{formatCurrency(a.spend)}</td>
+                        <td className="px-3 py-2 text-xs text-slate-400">{formatNumber(a.impressions)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          ) : null}
+
           {isRealestate && summary!.inventory.length > 0 ? (
             <Card>
               <h3 className="mb-3 text-sm font-bold text-slate-200">מצב מלאי — פרויקטים</h3>
@@ -233,6 +289,7 @@ export default function ReportsView({
                   <th className="px-3 py-2 font-medium">הוצאה</th>
                   <th className="px-3 py-2 font-medium">לידים</th>
                   <th className="px-3 py-2 font-medium">עלות לליד</th>
+                  <th className="px-3 py-2 print:hidden"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -247,6 +304,32 @@ export default function ReportsView({
                     <td className="px-3 py-2">{b.leads}</td>
                     <td className="px-3 py-2 font-bold text-cyan-300">
                       {b.cpl ? formatCurrency(b.cpl) : "—"}
+                    </td>
+                    <td className="px-3 py-2 print:hidden">
+                      <span className="flex gap-1">
+                        <button
+                          onClick={() => setEditBudget(b)}
+                          className="rounded p-1 text-slate-500 hover:text-cyan-300"
+                          title="עריכה"
+                        >
+                          <Icon name="edit" className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm("למחוק את שורת התקציב?")) return;
+                            try {
+                              await api(`/api/budgets/${b.id}`, { method: "DELETE" });
+                              load();
+                            } catch (e: any) {
+                              alert(e.message);
+                            }
+                          }}
+                          className="rounded p-1 text-slate-500 hover:text-red-400"
+                          title="מחיקה"
+                        >
+                          <Icon name="trash" className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -313,6 +396,17 @@ export default function ReportsView({
           onClose={() => setShowBudget(false)}
           onSaved={() => {
             setShowBudget(false);
+            load();
+          }}
+        />
+      ) : null}
+
+      {editBudget ? (
+        <EditBudgetModal
+          budget={editBudget}
+          onClose={() => setEditBudget(null)}
+          onSaved={() => {
+            setEditBudget(null);
             load();
           }}
         />
@@ -460,6 +554,59 @@ function BudgetModal({
         <p className="text-[11px] text-slate-600">
           עלות לליד מחושבת אוטומטית: הוצאה ÷ לידים בתקופה.
         </p>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
+          <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// עריכת שורת תקציב קיימת (סכום/הוצאה).
+function EditBudgetModal({
+  budget,
+  onClose,
+  onSaved,
+}: {
+  budget: BudgetRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [amount, setAmount] = useState(String(budget.amount));
+  const [spend, setSpend] = useState(String(budget.spend));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/budgets/${budget.id}`, {
+        method: "PATCH",
+        json: { amount: Number(amount) || 0, spend: Number(spend) || 0 },
+      });
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`עריכת תקציב — ${budget.periodKey}`} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="תקציב (₪)">
+            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+          </Field>
+          <Field label="הוצאה בפועל (₪)">
+            <Input type="number" value={spend} onChange={(e) => setSpend(e.target.value)} />
+          </Field>
+        </div>
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
           <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>

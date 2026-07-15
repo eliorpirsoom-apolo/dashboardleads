@@ -109,6 +109,8 @@ export default function AdminSettingsView() {
         </div>
       </Card>
 
+      <AuditLogCard />
+
       {showCreate ? (
         <CreateAdminModal
           onClose={() => setShowCreate(false)}
@@ -119,6 +121,58 @@ export default function AdminSettingsView() {
         />
       ) : null}
     </div>
+  );
+}
+
+const AUDIT_LABELS: Record<string, string> = {
+  user_created: "משתמש נוצר",
+  user_updated: "משתמש עודכן",
+  user_deactivated: "משתמש הושבת",
+  user_password_reset: "איפוס סיסמה",
+  user_role_changed: "שינוי תפקיד",
+  client_created: "לקוח נוצר",
+  client_updated: "לקוח עודכן",
+  client_activated: "לקוח הופעל",
+  client_deactivated: "לקוח הושבת",
+  integration_connected: "חיבור הוגדר",
+  leads_imported: "ייבוא לידים",
+};
+
+function AuditLogCard() {
+  const [entries, setEntries] = useState<
+    { id: string; actorName: string; action: string; details: string | null; createdAt: string }[]
+  >([]);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    api<{ entries: typeof entries }>("/api/audit")
+      .then((d) => setEntries(d.entries))
+      .catch(() => setVisible(false)); // staff — הרשאה חסרה, מסתירים
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <Card>
+      <h3 className="mb-1 text-base font-bold text-slate-100">יומן פעולות רגישות</h3>
+      <p className="mb-3 text-xs text-slate-500">
+        מי יצר/השבית משתמשים ולקוחות, שינויי הרשאות וחיבורים — 30 האחרונות.
+      </p>
+      {entries.length === 0 ? (
+        <p className="py-3 text-center text-xs text-slate-600">אין רשומות עדיין.</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-slate-800/60">
+          {entries.map((e) => (
+            <div key={e.id} className="flex flex-wrap items-center gap-2 py-1.5 text-xs">
+              <span className="font-bold text-slate-300">{AUDIT_LABELS[e.action] ?? e.action}</span>
+              {e.details ? <span className="text-slate-500">{e.details}</span> : null}
+              <span className="text-slate-600">· {e.actorName}</span>
+              <span className="mr-auto text-slate-600">{formatDateTime(e.createdAt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 

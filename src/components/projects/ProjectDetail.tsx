@@ -37,7 +37,7 @@ interface RequestRow {
   notes: string | null;
   createdAt: string;
   lead: { id: string; fullName: string | null; number: number; phone: string | null } | null;
-  unitType: { name: string } | null;
+  unitType: { id: string; name: string } | null;
 }
 
 interface ProjectFull {
@@ -46,6 +46,7 @@ interface ProjectFull {
   description: string | null;
   status: string;
   clientId: string;
+  logoKey: string | null;
   unitTypes: Unit[];
   contracts: ContractRow[];
   purchaseRequests: RequestRow[];
@@ -83,6 +84,10 @@ export default function ProjectDetail({
   const [addUnit, setAddUnit] = useState(false);
   const [uploadPlanFor, setUploadPlanFor] = useState<Unit | null>(null);
   const [addContract, setAddContract] = useState(false);
+  const [editContract, setEditContract] = useState<ContractRow | null>(null);
+  const [convertRequest, setConvertRequest] = useState<RequestRow | null>(null);
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [showLogoUpload, setShowLogoUpload] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -108,6 +113,31 @@ export default function ProjectDetail({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Project header actions */}
+      <div className="flex flex-wrap items-center gap-3">
+        {project.logoKey ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/files/${project.logoKey}`}
+            alt=""
+            className="h-12 w-12 rounded-xl border border-slate-700 bg-white/5 object-contain p-1"
+          />
+        ) : null}
+        {project.status !== "active" ? (
+          <Chip color="#94a3b8">{project.status === "done" ? "פרויקט הסתיים" : "בארכיון"}</Chip>
+        ) : null}
+        <div className="mr-auto flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setShowLogoUpload(true)}>
+            <Icon name="upload" className="h-3.5 w-3.5" />
+            {project.logoKey ? "החלפת לוגו פרויקט" : "לוגו פרויקט"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowEditProject(true)}>
+            <Icon name="edit" className="h-3.5 w-3.5" />
+            עריכת פרויקט
+          </Button>
+        </div>
+      </div>
+
       {/* Inventory board */}
       <Card>
         <div className="mb-3 flex items-center justify-between">
@@ -224,7 +254,7 @@ export default function ProjectDetail({
                 <span className="text-xs text-slate-500">
                   {c.signedAt ? `נחתם ${formatDate(c.signedAt)}` : "טרם נחתם"}
                 </span>
-                <div className="mr-auto">
+                <div className="mr-auto flex items-center gap-1">
                   {c.document ? (
                     <a
                       href={`/api/files/${c.document.id}`}
@@ -237,6 +267,28 @@ export default function ProjectDetail({
                   ) : (
                     <span className="text-xs text-slate-600">אין קובץ</span>
                   )}
+                  <button
+                    onClick={() => setEditContract(c)}
+                    className="rounded p-1.5 text-slate-500 hover:text-cyan-300"
+                    title="עריכת חוזה"
+                  >
+                    <Icon name="edit" className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("למחוק את החוזה? (הקובץ נשאר במסמכים)")) return;
+                      try {
+                        await api(`/api/contracts/${c.id}`, { method: "DELETE" });
+                        load();
+                      } catch (e: any) {
+                        alert(e.message);
+                      }
+                    }}
+                    className="rounded p-1.5 text-slate-500 hover:text-red-400"
+                    title="מחיקת חוזה"
+                  >
+                    <Icon name="trash" className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -264,6 +316,12 @@ export default function ProjectDetail({
                   {REQ_STATUS[r.status]?.label ?? r.status}
                 </Chip>
                 <span className="mr-auto text-[11px] text-slate-600">{formatDate(r.createdAt)}</span>
+                {r.status === "approved" ? (
+                  <Button size="sm" variant="ghost" onClick={() => setConvertRequest(r)}>
+                    <Icon name="doc" className="h-3.5 w-3.5" />
+                    המר לחוזה
+                  </Button>
+                ) : null}
               </div>
             ))}
           </div>
@@ -352,7 +410,187 @@ export default function ProjectDetail({
           }}
         />
       ) : null}
+
+      {convertRequest ? (
+        <AddContractModal
+          clientId={clientId}
+          project={project}
+          fromRequest={convertRequest}
+          onClose={() => setConvertRequest(null)}
+          onSaved={() => {
+            setConvertRequest(null);
+            load();
+          }}
+        />
+      ) : null}
+
+      {editContract ? (
+        <EditContractModal
+          contract={editContract}
+          onClose={() => setEditContract(null)}
+          onSaved={() => {
+            setEditContract(null);
+            load();
+          }}
+        />
+      ) : null}
+
+      {showEditProject ? (
+        <EditProjectModal
+          project={project}
+          onClose={() => setShowEditProject(false)}
+          onSaved={() => {
+            setShowEditProject(false);
+            load();
+          }}
+        />
+      ) : null}
+
+      {showLogoUpload ? (
+        <UploadModal
+          clientId={clientId}
+          defaultCategory="logo"
+          projectId={project.id}
+          onClose={() => setShowLogoUpload(false)}
+          onUploaded={async (docId) => {
+            await api(`/api/projects/${project.id}`, {
+              method: "PATCH",
+              json: { logoKey: docId },
+            });
+            setShowLogoUpload(false);
+            load();
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+// עריכת פרטי פרויקט + סטטוס (פעיל / הסתיים / ארכיון).
+function EditProjectModal({
+  project,
+  onClose,
+  onSaved,
+}: {
+  project: ProjectFull;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: project.name,
+    description: project.description ?? "",
+    status: project.status,
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        json: {
+          name: form.name,
+          description: form.description || null,
+          status: form.status,
+        },
+      });
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="עריכת פרויקט" onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        <Field label="שם הפרויקט">
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </Field>
+        <Field label="תיאור">
+          <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        </Field>
+        <Field label="סטטוס פרויקט">
+          <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+            <option value="active">פעיל</option>
+            <option value="done">הסתיים</option>
+            <option value="archived">ארכיון</option>
+          </Select>
+        </Field>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
+          <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// עריכת חוזה קיים (ערך, תאריך, הערות).
+function EditContractModal({
+  contract,
+  onClose,
+  onSaved,
+}: {
+  contract: ContractRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    value: String(contract.value),
+    signedAt: contract.signedAt ? contract.signedAt.slice(0, 10) : "",
+    notes: contract.notes ?? "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/contracts/${contract.id}`, {
+        method: "PATCH",
+        json: {
+          value: Number(form.value) || 0,
+          signedAt: form.signedAt || null,
+          notes: form.notes || null,
+        },
+      });
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="עריכת חוזה" onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="ערך החוזה (₪)">
+            <Input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required />
+          </Field>
+          <Field label="תאריך חתימה">
+            <Input type="date" value={form.signedAt} onChange={(e) => setForm({ ...form, signedAt: e.target.value })} />
+          </Field>
+        </div>
+        <Field label="הערות">
+          <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        </Field>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
+          <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -428,8 +666,8 @@ function UnitEditModal({
         </div>
 
         {unit.priceChanges.length > 0 ? (
-          <div className="text-xs text-slate-500">
-            <p className="mb-1 font-medium text-slate-400">היסטוריית מחירים:</p>
+          <div className="thin-scroll max-h-32 overflow-y-auto text-xs text-slate-500">
+            <p className="mb-1 font-medium text-slate-400">היסטוריית מחירים מלאה:</p>
             {unit.priceChanges.map((pc) => (
               <p key={pc.id}>
                 {formatDate(pc.createdAt)}: {formatCurrency(pc.oldPrice)} ← {formatCurrency(pc.newPrice)}
@@ -438,11 +676,32 @@ function UnitEditModal({
           </div>
         ) : null}
 
-        <div className="mt-1 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>סגירה</Button>
-          <Button disabled={busy} onClick={() => save()}>
-            {busy ? "שומר…" : "שמירה"}
+        <div className="mt-1 flex justify-between gap-2">
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={busy || unit._count.leads > 0}
+            title={unit._count.leads > 0 ? `${unit._count.leads} לידים מקושרים — אי אפשר למחוק` : undefined}
+            onClick={async () => {
+              if (!confirm(`למחוק את הטיפוס "${unit.name}"?`)) return;
+              try {
+                setBusy(true);
+                await api(`/api/units/${unit.id}`, { method: "DELETE" });
+                onSaved();
+              } catch (e: any) {
+                setError(e.message);
+                setBusy(false);
+              }
+            }}
+          >
+            מחיקת טיפוס
           </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose}>סגירה</Button>
+            <Button disabled={busy} onClick={() => save()}>
+              {busy ? "שומר…" : "שמירה"}
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>
@@ -514,19 +773,21 @@ function AddUnitModal({
 function AddContractModal({
   clientId,
   project,
+  fromRequest,
   onClose,
   onSaved,
 }: {
   clientId: string;
   project: ProjectFull;
+  fromRequest?: RequestRow; // המרת בקשת רכישה מאושרת לחוזה
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState({
-    unitTypeId: "",
-    value: "",
+    unitTypeId: fromRequest?.unitType?.id ?? "",
+    value: fromRequest?.amount ? String(fromRequest.amount) : "",
     signedAt: new Date().toISOString().slice(0, 10),
-    notes: "",
+    notes: fromRequest ? `נוצר מבקשת רכישה` : "",
   });
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -543,6 +804,7 @@ function AddContractModal({
         json: {
           clientId,
           projectId: project.id,
+          leadId: fromRequest?.lead?.id ?? null,
           unitTypeId: form.unitTypeId || null,
           value: Number(form.value) || 0,
           signedAt: form.signedAt || null,
@@ -550,6 +812,13 @@ function AddContractModal({
           notes: form.notes || null,
         },
       });
+      // בקשה שהומרה מסומנת אוטומטית "הפכה לחוזה".
+      if (fromRequest) {
+        await api(`/api/purchase-requests/${fromRequest.id}`, {
+          method: "PATCH",
+          json: { status: "converted" },
+        });
+      }
       onSaved();
     } catch (e: any) {
       setError(e.message);

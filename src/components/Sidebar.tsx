@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "./Icon";
+import AdminSearch from "./AdminSearch";
 import type { NavItem } from "@/lib/nav";
 
 interface SidebarProps {
@@ -11,6 +12,7 @@ interface SidebarProps {
   userName: string;
   roleLabel: string; // "משרד" / client name
   homeHref: string;
+  logoUrl?: string | null; // client company logo (spec: לוגו חברה)
 }
 
 export default function Sidebar({
@@ -18,6 +20,7 @@ export default function Sidebar({
   userName,
   roleLabel,
   homeHref,
+  logoUrl,
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -77,9 +80,18 @@ export default function Sidebar({
 
   const brand = (
     <div className="flex items-center gap-2.5 px-5 py-5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-sm font-black text-white shadow-lg shadow-cyan-500/30">
-        C
-      </div>
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl}
+          alt=""
+          className="h-9 w-9 rounded-xl border border-slate-700 bg-white/5 object-contain p-0.5"
+        />
+      ) : (
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-sm font-black text-white shadow-lg shadow-cyan-500/30">
+          C
+        </div>
+      )}
       <div>
         <p className="text-sm font-bold leading-tight text-slate-100">
           מערכת CRM
@@ -131,6 +143,7 @@ export default function Sidebar({
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-screen w-60 flex-col border-l border-slate-800/70 bg-slate-950/40 backdrop-blur-xl md:flex">
         {brand}
+        {homeHref === "/admin" ? <AdminSearch /> : null}
         {nav}
         {userBlock}
       </aside>

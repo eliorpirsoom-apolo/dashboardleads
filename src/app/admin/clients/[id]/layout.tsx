@@ -37,12 +37,21 @@ export default async function ClientWorkspaceLayout({
   return (
     <>
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-black text-white"
-          style={{ backgroundColor: client.color ?? "#334155" }}
-        >
-          {client.name.slice(0, 2)}
-        </div>
+        {client.logoKey ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/files/${client.logoKey}`}
+            alt=""
+            className="h-11 w-11 rounded-xl border border-slate-700 bg-white/5 object-contain p-0.5"
+          />
+        ) : (
+          <div
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-black text-white"
+            style={{ backgroundColor: client.color ?? "#334155" }}
+          >
+            {client.name.slice(0, 2)}
+          </div>
+        )}
         <div>
           <h1 className="text-xl font-bold text-slate-100">{client.name}</h1>
           <p className="text-xs text-slate-500">

@@ -6,6 +6,7 @@ import { api } from "@/lib/fetcher";
 import { Button, Card } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { ClientFormModal } from "@/components/clients/ClientsGrid";
+import { UploadModal } from "@/components/documents/DocumentsView";
 
 export default function ClientEditCard({
   client,
@@ -22,10 +23,12 @@ export default function ClientEditCard({
     notes: string | null;
     active: boolean;
     autoAssignLeads: boolean;
+    logoKey: string | null;
   };
 }) {
   const router = useRouter();
   const [showEdit, setShowEdit] = useState(false);
+  const [showLogoUpload, setShowLogoUpload] = useState(false);
 
   async function toggleAutoAssign() {
     await api(`/api/clients/${client.id}`, {
@@ -50,14 +53,28 @@ export default function ClientEditCard({
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-100">פרטי הלקוח</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {client.company ?? client.name}
-            {client.contactEmail ? ` · ${client.contactEmail}` : ""}
-          </p>
+        <div className="flex items-center gap-3">
+          {client.logoKey ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/files/${client.logoKey}`}
+              alt="לוגו"
+              className="h-12 w-12 rounded-xl border border-slate-700 bg-white/5 object-contain p-1"
+            />
+          ) : null}
+          <div>
+            <h3 className="text-base font-bold text-slate-100">פרטי הלקוח</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {client.company ?? client.name}
+              {client.contactEmail ? ` · ${client.contactEmail}` : ""}
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setShowLogoUpload(true)}>
+            <Icon name="upload" className="h-4 w-4" />
+            {client.logoKey ? "החלפת לוגו" : "העלאת לוגו חברה"}
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowEdit(true)}>
             <Icon name="edit" className="h-4 w-4" />
             עריכת פרטים
@@ -71,6 +88,22 @@ export default function ClientEditCard({
           </Button>
         </div>
       </div>
+
+      {showLogoUpload ? (
+        <UploadModal
+          clientId={client.id}
+          defaultCategory="logo"
+          onClose={() => setShowLogoUpload(false)}
+          onUploaded={async (docId) => {
+            await api(`/api/clients/${client.id}`, {
+              method: "PATCH",
+              json: { logoKey: docId },
+            });
+            setShowLogoUpload(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       {/* Round-robin auto-assignment toggle */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">

@@ -75,9 +75,14 @@ export const GET = handle(async (req) => {
   const statusMap = Object.fromEntries(statuses.map((s) => [s.id, s]));
   const campaignMap = Object.fromEntries(campaigns.map((c) => [c.id, c.name]));
 
-  // Budgets overlapping the range (by periodKey month within range).
+  // Ad-platform insights (Meta) for months overlapping the range —
+  // fills the spec item "וואטסאפים ממנהל המודעות" in the client report.
   const fromKey = from.toISOString().slice(0, 7);
   const toKey = to.toISOString().slice(0, 7);
+  const adInsights = await prisma.adInsight.findMany({
+    where: { clientId, month: { gte: fromKey, lte: toKey } },
+    orderBy: [{ month: "desc" }, { leadsCount: "desc" }],
+  });
   const inRange = budgets.filter(
     (b) => b.period === "monthly" && b.periodKey >= fromKey && b.periodKey <= toKey
   );
@@ -124,5 +129,17 @@ export const GET = handle(async (req) => {
       total: pr.unitTypes.reduce((s, u) => s + u.totalUnits, 0),
       sold: pr.unitTypes.reduce((s, u) => s + u.soldUnits, 0),
     })),
+    adInsights: {
+      totalWhatsapp: adInsights.reduce((s, a) => s + a.whatsappCount, 0),
+      totalSpend: adInsights.reduce((s, a) => s + a.spend, 0),
+      campaigns: adInsights.map((a) => ({
+        month: a.month,
+        campaignName: a.campaignName,
+        whatsappCount: a.whatsappCount,
+        leadsCount: a.leadsCount,
+        spend: a.spend,
+        impressions: a.impressions,
+      })),
+    },
   });
 });

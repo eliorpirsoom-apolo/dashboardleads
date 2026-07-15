@@ -24,7 +24,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       unitTypes: {
         orderBy: { createdAt: "asc" },
         include: {
-          priceChanges: { orderBy: { createdAt: "desc" }, take: 5 },
+          priceChanges: { orderBy: { createdAt: "desc" }, take: 30 },
           documents: { where: { category: "floor_plan" } },
           _count: { select: { leads: true } },
         },
@@ -41,7 +41,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
         orderBy: { createdAt: "desc" },
         include: {
           lead: { select: { id: true, fullName: true, number: true, phone: true } },
-          unitType: { select: { name: true } },
+          unitType: { select: { id: true, name: true } },
         },
       },
     },
