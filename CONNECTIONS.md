@@ -16,12 +16,13 @@
 > `AUTH_SECRET` / `CRON_SECRET` / `RECEIPTS_UPLOAD_TOKEN` הוגדרו, המיגרציות רצו,
 > ו-Vercel Authentication כובה (למערכת אימות משלה).
 >
-> ⚠️ שתי נקודות פתוחות: (א) פריסה אוטומטית מ-push טרם נדלקה — בינתיים פורסים עם
-> `npx vercel deploy --prod`; ייתכן שצריך להתקין את Vercel GitHub App בעמוד
-> Settings → Git. (ב) בתוכנית החינמית תזכורות רצות פעם ביום (05:00) — להחזרת
+> ✅ פריסה אוטומטית פעילה (13.07): כל push לענף הפרודקשן נפרס לבד.
+> חשבון המנהל הראשון נוצר ב-/setup (העמוד נעול מעתה).
+>
+> ⚠️ נקודה פתוחה אחת: בתוכנית החינמית תזכורות רצות פעם ביום (05:00) — להחזרת
 > תדירות גבוהה: שדרוג ל-Vercel Pro, או שירות חינמי כמו cron-job.org שקורא ל-
 > `/api/cron/reminders` כל 5 דק׳ עם Header:‏ `Authorization: Bearer <CRON_SECRET>`
-> (את הערך מעתיקים מ-Settings → Environment Variables).
+> (את הערך מעתיקים מ-Settings → Environment Variables בפרויקט).
 >
 > ההוראות המקוריות נשמרות כאן למקרה של הקמה מחדש:
 
@@ -36,7 +37,14 @@
 
 > מרגע שקיים משתמש אחד, עמוד ה-setup ננעל לצמיתות.
 
-## 2) אחסון קבצים — Cloudflare R2 (חובה למסמכים)
+## 2) אחסון קבצים — Cloudflare R2 (חובה למסמכים) ✅ בוצע 13.07.2026
+
+> הופעל בחשבון `Eliorbucris@gmail.com`: bucket‏ `crm-files`, טוקן עם הרשאת
+> Object Read & Write מוגבל ל-bucket הזה. 4 המשתנים (`R2_ACCOUNT_ID`,
+> `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) הוגדרו ב-Vercel
+> (Production + Preview) ונבדקו מקצה לקצה (PUT/GET/DELETE). העלאת מסמכים חיה.
+>
+> ההוראות המקוריות נשמרות למקרה של הקמה מחדש:
 
 1. ב-[Cloudflare Dashboard](https://dash.cloudflare.com) → **R2 Object Storage** → **Create bucket** (שם: `crm-files`).
 2. **Manage R2 API Tokens → Create API Token** → הרשאת **Object Read & Write** על ה-bucket.
