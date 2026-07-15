@@ -9,6 +9,7 @@ import {
 } from "@/lib/leads";
 import { onLeadCreated } from "@/lib/hooks";
 import { rateLimit } from "@/lib/rateLimit";
+import { recordActivity, pickAutoAssignee } from "@/lib/leadActivity";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,7 @@ export async function POST(
 
   const source = await prisma.leadSource.findUnique({
     where: { token: params.token },
+    include: { client: { select: { autoAssignLeads: true } } },
   });
   if (!source || !source.active) {
     return NextResponse.json({ error: "מקור לא מוכר" }, { status: 404 });
@@ -166,11 +168,16 @@ export async function POST(
     }
 
     const duration = pick(payload, "callDurationSec");
+    // סבב אוטומטי בין סוכני הלקוח, אם הופעל בהגדרות הלקוח.
+    const assigneeId = source.client.autoAssignLeads
+      ? await pickAutoAssignee(source.clientId)
+      : null;
     const lead = await createLeadNumbered({
       clientId: source.clientId,
       sourceId: source.id,
       kind: source.kind,
       statusId: await defaultStatusId(source.clientId),
+      assigneeId,
       externalId: pick(payload, "externalId")
         ? String(pick(payload, "externalId"))
         : null,
@@ -221,6 +228,14 @@ export async function POST(
       }),
     ]);
 
+    await recordActivity(lead.id, "מערכת", "create", { note: `קליטה: ${source.name}` });
+    if (assigneeId) {
+      const agent = await prisma.user.findUnique({ where: { id: assigneeId } });
+      await recordActivity(lead.id, "מערכת", "assign", {
+        toValue: agent?.name ?? "",
+        note: "שיוך אוטומטי (סבב)",
+      });
+    }
     await onLeadCreated(lead.id);
 
     return NextResponse.json({ ok: true, leadId: lead.id, number: lead.number });

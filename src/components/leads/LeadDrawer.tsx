@@ -6,7 +6,35 @@ import { formatDateTime, formatDuration } from "@/lib/format";
 import { CHANNELS } from "@/lib/defaults";
 import { Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import type { StatusOpt } from "./LeadsView";
+import type { StatusOpt, UserOpt } from "./LeadsView";
+
+interface Activity {
+  id: string;
+  actorName: string;
+  kind: string;
+  fromValue: string | null;
+  toValue: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+interface DuplicateLead {
+  id: string;
+  number: number;
+  fullName: string | null;
+  receivedAt: string;
+}
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  create: "הליד נוצר",
+  status: "שינוי סטטוס",
+  assign: "שיוך מטפל",
+  archive: "הועבר לארכיון",
+  restore: "שוחזר מהארכיון",
+  consent: "הסרה מדיוור",
+  merge: "מיזוג כפילות",
+  import: "יובא מקובץ",
+};
 
 interface CustomField {
   id: string;
@@ -37,11 +65,15 @@ interface FullLead {
   adName: string | null;
   campaignLabel: string | null;
   consent: boolean;
+  archived: boolean;
   receivedAt: string;
   data: string | null;
   statusId: string | null;
   unitTypeId: string | null;
   projectId: string | null;
+  assigneeId: string | null;
+  assignee: { id: string; name: string } | null;
+  activities: Activity[];
   callDurationSec: number | null;
   callRecordingUrl: string | null;
   callStatus: string | null;
@@ -58,16 +90,19 @@ interface FullLead {
 export default function LeadDrawer({
   leadId,
   statuses,
+  users = [],
   onClose,
   onChanged,
 }: {
   leadId: string;
   statuses: StatusOpt[];
+  users?: UserOpt[];
   onClose: () => void;
   onChanged: () => void;
 }) {
   const [lead, setLead] = useState<FullLead | null>(null);
   const [fields, setFields] = useState<CustomField[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicateLead[]>([]);
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
   const [edit, setEdit] = useState<Record<string, any>>({});
   const [customEdit, setCustomEdit] = useState<Record<string, any>>({});
@@ -77,11 +112,14 @@ export default function LeadDrawer({
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ lead: FullLead; customFields: CustomField[] }>(
-        `/api/leads/${leadId}`
-      );
+      const d = await api<{
+        lead: FullLead;
+        customFields: CustomField[];
+        duplicates: DuplicateLead[];
+      }>(`/api/leads/${leadId}`);
       setLead(d.lead);
       setFields(d.customFields);
+      setDuplicates(d.duplicates ?? []);
       setEdit({});
       setCustomEdit({});
       // Real-estate: offer unit-type linking (empty for other client types).
@@ -173,6 +211,9 @@ export default function LeadDrawer({
                   {lead.status ? (
                     <Chip color={lead.status.color}>{lead.status.name}</Chip>
                   ) : null}
+                  {lead.assignee ? (
+                    <Chip color="#818cf8">מטפל: {lead.assignee.name}</Chip>
+                  ) : null}
                   {lead.kind === "call" ? (
                     <Chip color="#34d399">ליד טלפוני</Chip>
                   ) : null}
@@ -180,6 +221,7 @@ export default function LeadDrawer({
                   {lead.contracts.length > 0 ? (
                     <Chip color="#fbbf24">חוזה חתום</Chip>
                   ) : null}
+                  {lead.archived ? <Chip color="#f87171">בארכיון</Chip> : null}
                 </div>
               </div>
               <div className="flex gap-1">
@@ -201,6 +243,65 @@ export default function LeadDrawer({
 
             {error ? (
               <div className="mb-3 rounded-xl border border-red-800/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</div>
+            ) : null}
+
+            {/* Archived banner */}
+            {lead.archived ? (
+              <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-amber-800/50 bg-amber-950/30 px-3 py-2">
+                <span className="text-sm text-amber-300">הליד נמצא בארכיון</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={async () => {
+                    await api(`/api/leads/${leadId}`, { method: "PATCH", json: { archived: false } });
+                    await load();
+                    onChanged();
+                  }}
+                >
+                  שחזור
+                </Button>
+              </div>
+            ) : null}
+
+            {/* Duplicates alert */}
+            {duplicates.length > 0 ? (
+              <div className="mb-4 rounded-xl border border-orange-800/50 bg-orange-950/25 p-3">
+                <p className="mb-2 text-xs font-bold text-orange-300">
+                  ⚠️ נמצאו {duplicates.length} לידים נוספים עם אותו טלפון/אימייל
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {duplicates.map((d) => (
+                    <div key={d.id} className="flex items-center gap-2 text-xs text-slate-300">
+                      <span className="font-mono text-slate-500">#{d.number}</span>
+                      <span>{d.fullName ?? "ללא שם"}</span>
+                      <span className="text-slate-600">{formatDateTime(d.receivedAt)}</span>
+                      <button
+                        className="mr-auto font-bold text-cyan-400 hover:underline"
+                        disabled={busy}
+                        onClick={async () => {
+                          if (!confirm(`למזג את ליד #${d.number} לתוך הליד הנוכחי? ההערות והמשימות יעברו לכאן והכפול יועבר לארכיון.`)) return;
+                          try {
+                            setBusy(true);
+                            await api(`/api/leads/${leadId}/merge`, {
+                              method: "POST",
+                              json: { otherId: d.id },
+                            });
+                            await load();
+                            onChanged();
+                          } catch (e: any) {
+                            setError(e.message);
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        מזג לכאן ←
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : null}
 
             {/* Call lead info */}
@@ -234,6 +335,17 @@ export default function LeadDrawer({
                 >
                   {statuses.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="מטפל בליד">
+                <Select
+                  value={edit.assigneeId !== undefined ? edit.assigneeId ?? "" : lead.assigneeId ?? ""}
+                  onChange={(e) => setEdit({ ...edit, assigneeId: e.target.value || null })}
+                >
+                  <option value="">ללא מטפל</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </Select>
               </Field>
@@ -421,9 +533,9 @@ export default function LeadDrawer({
               </>
             ) : null}
 
-            {/* Notes timeline */}
+            {/* Unified timeline: notes + activity trail */}
             <h3 className="mb-2 mt-6 text-sm font-bold text-slate-300">
-              הערות ({lead.notes.length})
+              ציר פעילות והערות
             </h3>
             <form onSubmit={addNote} className="mb-3 flex gap-2">
               <Input
@@ -436,17 +548,43 @@ export default function LeadDrawer({
               </Button>
             </form>
             <div className="flex flex-col gap-2">
-              {lead.notes.map((n) => (
-                <div key={n.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-                  <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-medium text-slate-400">{n.authorName}</span>
-                    <span>{formatDateTime(n.createdAt)}</span>
-                  </div>
-                  <p className="whitespace-pre-line text-sm text-slate-200">{n.body}</p>
-                </div>
-              ))}
-              {lead.notes.length === 0 ? (
-                <p className="text-xs text-slate-600">אין הערות עדיין.</p>
+              {[
+                ...lead.notes.map((n) => ({ type: "note" as const, at: n.createdAt, note: n })),
+                ...lead.activities.map((a) => ({ type: "activity" as const, at: a.createdAt, activity: a })),
+              ]
+                .sort((a, b) => b.at.localeCompare(a.at))
+                .map((item, i) =>
+                  item.type === "note" ? (
+                    <div key={`n${i}`} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                      <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                        <span className="font-medium text-slate-400">💬 {item.note.authorName}</span>
+                        <span>{formatDateTime(item.note.createdAt)}</span>
+                      </div>
+                      <p className="whitespace-pre-line text-sm text-slate-200">{item.note.body}</p>
+                    </div>
+                  ) : (
+                    <div key={`a${i}`} className="flex items-center gap-2 px-3 py-1 text-xs">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-500/60" />
+                      <span className="text-slate-400">
+                        <b className="text-slate-300">{ACTIVITY_LABELS[item.activity.kind] ?? item.activity.kind}</b>
+                        {item.activity.fromValue || item.activity.toValue ? (
+                          <>
+                            {": "}
+                            {item.activity.fromValue ? `${item.activity.fromValue} ← ` : ""}
+                            <b className="text-slate-300">{item.activity.toValue ?? ""}</b>
+                          </>
+                        ) : null}
+                        {item.activity.note ? ` · ${item.activity.note}` : ""}
+                        {` · ${item.activity.actorName}`}
+                      </span>
+                      <span className="mr-auto whitespace-nowrap text-slate-600">
+                        {formatDateTime(item.activity.createdAt)}
+                      </span>
+                    </div>
+                  )
+                )}
+              {lead.notes.length === 0 && lead.activities.length === 0 ? (
+                <p className="text-xs text-slate-600">אין פעילות עדיין.</p>
               ) : null}
             </div>
           </>

@@ -126,7 +126,7 @@ async function fireAutomations(
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    include: { status: true, campaign: true, client: true },
+    include: { status: true, campaign: true, client: true, assignee: true },
   });
   if (!lead) return;
 
@@ -139,15 +139,26 @@ async function fireAutomations(
     campaign: lead.campaign?.name ?? lead.campaignLabel ?? "",
     client: lead.client.name,
     channel: lead.channel ?? "",
+    assignee: lead.assignee?.name ?? "",
   };
 
   for (const auto of automations) {
-    const recipients = await resolveRecipients(
-      clientId,
-      auto.recipientType,
-      auto.customRecipients,
-      auto.channel as Channel
-    );
+    // "assignee" — ההודעה הולכת למטפל בליד עצמו.
+    const recipients =
+      auto.recipientType === "assignee"
+        ? lead.assignee
+          ? [
+              auto.channel === "email"
+                ? lead.assignee.email
+                : lead.assignee.phone ?? "",
+            ].filter(Boolean)
+          : []
+        : await resolveRecipients(
+            clientId,
+            auto.recipientType,
+            auto.customRecipients,
+            auto.channel as Channel
+          );
     const body = renderTemplate(auto.template, vars);
     for (const to of recipients) {
       await sendMessage({

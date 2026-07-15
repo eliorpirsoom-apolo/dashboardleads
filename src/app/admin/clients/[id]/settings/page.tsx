@@ -44,6 +44,7 @@ export default async function ClientSettingsPage({
           color: client.color,
           notes: client.notes,
           active: client.active,
+          autoAssignLeads: client.autoAssignLeads,
         }}
       />
       <UsersManager clientId={client.id} users={client.users} />

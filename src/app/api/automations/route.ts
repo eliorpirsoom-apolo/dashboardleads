@@ -25,7 +25,7 @@ const CreateAutomation = z.object({
   trigger: z.enum(["lead_created", "status_changed"]),
   statusId: z.string().nullable().optional(),
   channel: z.enum(["email", "sms", "whatsapp"]),
-  recipientType: z.enum(["client_users", "agents", "custom"]),
+  recipientType: z.enum(["client_users", "agents", "assignee", "custom"]),
   customRecipients: z.array(z.string().min(1)).max(20).optional(),
   template: z.string().min(1, "חסרה תבנית הודעה").max(2000),
 });

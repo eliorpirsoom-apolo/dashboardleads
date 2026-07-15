@@ -21,10 +21,19 @@ export default function ClientEditCard({
     color: string | null;
     notes: string | null;
     active: boolean;
+    autoAssignLeads: boolean;
   };
 }) {
   const router = useRouter();
   const [showEdit, setShowEdit] = useState(false);
+
+  async function toggleAutoAssign() {
+    await api(`/api/clients/${client.id}`, {
+      method: "PATCH",
+      json: { autoAssignLeads: !client.autoAssignLeads },
+    });
+    router.refresh();
+  }
 
   async function toggleActive() {
     const msg = client.active
@@ -61,6 +70,25 @@ export default function ClientEditCard({
             {client.active ? "השבתת לקוח" : "הפעלת לקוח"}
           </Button>
         </div>
+      </div>
+
+      {/* Round-robin auto-assignment toggle */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+        <div>
+          <p className="text-sm font-medium text-slate-200">שיוך לידים אוטומטי לסוכנים</p>
+          <p className="text-[11px] text-slate-500">
+            ליד חדש מהקליטה משויך אוטומטית בסבב לסוכן המכירות עם הכי מעט לידים פעילים.
+          </p>
+        </div>
+        <button
+          onClick={toggleAutoAssign}
+          className={`relative h-6 w-11 rounded-full transition ${client.autoAssignLeads ? "bg-cyan-500" : "bg-slate-700"}`}
+          title={client.autoAssignLeads ? "כיבוי" : "הפעלה"}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${client.autoAssignLeads ? "right-0.5" : "right-[22px]"}`}
+          />
+        </button>
       </div>
 
       {showEdit ? (

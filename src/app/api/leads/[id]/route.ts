@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { normalizeEmail, normalizePhone } from "@/lib/leads";
 import { onLeadStatusChanged } from "@/lib/hooks";
+import { recordActivity } from "@/lib/leadActivity";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,9 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       project: { select: { id: true, name: true } },
       unitType: { select: { id: true, name: true } },
       source: { select: { id: true, name: true } },
+      assignee: { select: { id: true, name: true } },
       notes: { orderBy: { createdAt: "desc" } },
+      activities: { orderBy: { createdAt: "desc" }, take: 50 },
       contracts: { select: { id: true, value: true, signedAt: true } },
       tasks: {
         where: { status: "open" },
@@ -39,7 +42,24 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
     where: { clientId: lead.clientId, active: true },
     orderBy: { order: "asc" },
   });
-  return NextResponse.json({ lead: full, customFields: fields });
+  // Duplicate signal: other non-archived leads sharing phone or email.
+  const dupWhere = [];
+  if (lead.phone) dupWhere.push({ phone: lead.phone });
+  if (lead.email) dupWhere.push({ email: lead.email });
+  const duplicates =
+    dupWhere.length > 0
+      ? await prisma.lead.findMany({
+          where: {
+            clientId: lead.clientId,
+            archived: false,
+            id: { not: lead.id },
+            OR: dupWhere,
+          },
+          select: { id: true, number: true, fullName: true, receivedAt: true },
+          take: 5,
+        })
+      : [];
+  return NextResponse.json({ lead: full, customFields: fields, duplicates });
 });
 
 const UpdateLead = z.object({
@@ -56,7 +76,9 @@ const UpdateLead = z.object({
   statusId: z.string().nullable().optional(),
   unitTypeId: z.string().nullable().optional(),
   projectId: z.string().nullable().optional(),
+  assigneeId: z.string().nullable().optional(),
   consent: z.boolean().optional(),
+  archived: z.boolean().optional(), // restore from archive
   data: z.record(z.any()).optional(),
 });
 
@@ -84,8 +106,15 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
       throw new ApiError(400, "טיפוס דירה לא תקין");
     }
   }
+  if (body.assigneeId) {
+    const assignee = await prisma.user.findUnique({ where: { id: body.assigneeId } });
+    if (!assignee || assignee.clientId !== lead.clientId) {
+      throw new ApiError(400, "המטפל חייב להיות משתמש של הלקוח");
+    }
+  }
 
   const prevStatusId = lead.statusId;
+  const prevAssigneeId = lead.assigneeId;
 
   // Merge custom-field data instead of overwriting blindly.
   let mergedData: string | undefined;
@@ -110,13 +139,37 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
       statusId: body.statusId,
       unitTypeId: body.unitTypeId,
       projectId: body.projectId,
+      assigneeId: body.assigneeId,
       consent: body.consent,
+      archived: body.archived,
       ...(mergedData !== undefined ? { data: mergedData } : {}),
     },
   });
 
+  // --- Activity trail -------------------------------------------------------
   if (body.statusId !== undefined && body.statusId !== prevStatusId) {
+    const [prev, next] = await Promise.all([
+      prevStatusId ? prisma.leadStatus.findUnique({ where: { id: prevStatusId } }) : null,
+      body.statusId ? prisma.leadStatus.findUnique({ where: { id: body.statusId } }) : null,
+    ]);
+    await recordActivity(lead.id, user.name, "status", {
+      fromValue: prev?.name ?? null,
+      toValue: next?.name ?? null,
+    });
     await onLeadStatusChanged(lead.id, prevStatusId, body.statusId, user.name);
+  }
+  if (body.assigneeId !== undefined && body.assigneeId !== prevAssigneeId) {
+    const [prev, next] = await Promise.all([
+      prevAssigneeId ? prisma.user.findUnique({ where: { id: prevAssigneeId } }) : null,
+      body.assigneeId ? prisma.user.findUnique({ where: { id: body.assigneeId } }) : null,
+    ]);
+    await recordActivity(lead.id, user.name, "assign", {
+      fromValue: prev?.name ?? null,
+      toValue: next?.name ?? "ללא מטפל",
+    });
+  }
+  if (body.archived === false && lead.archived) {
+    await recordActivity(lead.id, user.name, "restore");
   }
 
   return NextResponse.json({ lead: updated });
@@ -124,7 +177,8 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 
 // DELETE — archive (never hard-delete lead history).
 export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
-  const { lead } = await scopedLead(params);
+  const { user, lead } = await scopedLead(params);
   await prisma.lead.update({ where: { id: lead.id }, data: { archived: true } });
+  await recordActivity(lead.id, user.name, "archive");
   return NextResponse.json({ ok: true });
 });

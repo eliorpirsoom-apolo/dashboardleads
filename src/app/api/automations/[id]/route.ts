@@ -10,7 +10,7 @@ const UpdateAutomation = z.object({
   name: z.string().min(1).max(120).optional(),
   template: z.string().min(1).max(2000).optional(),
   channel: z.enum(["email", "sms", "whatsapp"]).optional(),
-  recipientType: z.enum(["client_users", "agents", "custom"]).optional(),
+  recipientType: z.enum(["client_users", "agents", "assignee", "custom"]).optional(),
   customRecipients: z.array(z.string().min(1)).max(20).optional(),
   active: z.boolean().optional(),
 });

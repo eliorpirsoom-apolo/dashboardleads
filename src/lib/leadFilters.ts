@@ -3,10 +3,18 @@ import { Prisma } from "@prisma/client";
 /** Translate leads-table query params into a scoped Prisma where clause. */
 export function buildLeadWhere(
   clientId: string,
-  p: URLSearchParams
+  p: URLSearchParams,
+  currentUserId?: string
 ): Prisma.LeadWhereInput {
-  const where: Prisma.LeadWhereInput = { clientId, archived: false };
+  const where: Prisma.LeadWhereInput = {
+    clientId,
+    archived: p.get("archived") === "true",
+  };
   if (p.get("statusId")) where.statusId = p.get("statusId")!;
+  const assignee = p.get("assigneeId");
+  if (assignee === "me" && currentUserId) where.assigneeId = currentUserId;
+  else if (assignee === "none") where.assigneeId = null;
+  else if (assignee) where.assigneeId = assignee;
   if (p.get("campaignId")) where.campaignId = p.get("campaignId")!;
   if (p.get("projectId")) where.projectId = p.get("projectId")!;
   if (p.get("channel")) where.channel = p.get("channel")!;

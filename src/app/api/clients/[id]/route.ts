@@ -45,6 +45,7 @@ const UpdateClient = z.object({
   color: z.string().max(20).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   logoKey: z.string().max(300).nullable().optional(),
+  autoAssignLeads: z.boolean().optional(),
   active: z.boolean().optional(),
 });
 

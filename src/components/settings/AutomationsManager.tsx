@@ -32,6 +32,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 const RECIPIENT_LABELS: Record<string, string> = {
   client_users: "כל משתמשי הלקוח",
   agents: "סוכני מכירות",
+  assignee: "המטפל בליד",
   custom: "רשימה מותאמת",
 };
 
@@ -220,6 +221,7 @@ function AutomationModal({
             <Select value={form.recipientType} onChange={(e) => setForm({ ...form, recipientType: e.target.value })}>
               <option value="client_users">כל משתמשי הלקוח</option>
               <option value="agents">סוכני מכירות בלבד</option>
+              <option value="assignee">המטפל בליד</option>
               <option value="custom">רשימה מותאמת</option>
             </Select>
           </Field>

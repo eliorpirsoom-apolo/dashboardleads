@@ -5,6 +5,7 @@ import { handle, requireUser, scopeClientId, readJson } from "@/lib/api";
 import { createLeadNumbered, defaultStatusId, normalizeEmail, normalizePhone } from "@/lib/leads";
 import { buildLeadWhere } from "@/lib/leadFilters";
 import { onLeadCreated } from "@/lib/hooks";
+import { recordActivity } from "@/lib/leadActivity";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export const GET = handle(async (req) => {
 
   const page = Math.max(1, Number(p.get("page") || 1));
   const pageSize = Math.min(100, Math.max(10, Number(p.get("pageSize") || 25)));
-  const where = buildLeadWhere(clientId, p);
+  const where = buildLeadWhere(clientId, p, user.id);
 
   const [total, rows] = await Promise.all([
     prisma.lead.count({ where }),
@@ -29,6 +30,7 @@ export const GET = handle(async (req) => {
         status: { select: { id: true, name: true, color: true, systemKind: true } },
         campaign: { select: { id: true, name: true } },
         unitType: { select: { id: true, name: true } },
+        assignee: { select: { id: true, name: true } },
         _count: { select: { notes: true } },
       },
     }),
@@ -64,6 +66,7 @@ export const POST = handle(async (req) => {
     clientId,
     kind: body.kind,
     statusId: await defaultStatusId(clientId),
+    assigneeId: user.role === "CLIENT" && user.isAgent ? user.id : null,
     fullName: body.fullName || null,
     phone: normalizePhone(body.phone),
     email: normalizeEmail(body.email),
@@ -79,6 +82,7 @@ export const POST = handle(async (req) => {
     data: body.data ? JSON.stringify(body.data) : null,
   });
 
+  await recordActivity(lead.id, user.name, "create", { note: "נוצר ידנית" });
   await onLeadCreated(lead.id);
   return NextResponse.json({ lead }, { status: 201 });
 });
