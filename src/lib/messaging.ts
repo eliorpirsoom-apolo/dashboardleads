@@ -139,14 +139,23 @@ export async function sendMessage(msg: OutgoingMessage): Promise<{
 
   let status: "sent" | "failed" | "skipped" = "sent";
   let error: string | null = null;
+
+  const dispatch = async () => {
+    if (msg.channel === "email") {
+      return sendEmail(msg.to, msg.subject ?? "עדכון מהמערכת", msg.body);
+    }
+    if (msg.channel === "sms") return sendSms(msg.to, msg.body);
+    return sendWhatsapp(msg.to, msg.body);
+  };
+
   try {
     let result: { skipped: boolean };
-    if (msg.channel === "email") {
-      result = await sendEmail(msg.to, msg.subject ?? "עדכון מהמערכת", msg.body);
-    } else if (msg.channel === "sms") {
-      result = await sendSms(msg.to, msg.body);
-    } else {
-      result = await sendWhatsapp(msg.to, msg.body);
+    try {
+      result = await dispatch();
+    } catch (firstErr) {
+      // ניסיון חוזר אוטומטי אחד לכשל רגעי (רשת/ספק).
+      await new Promise((r) => setTimeout(r, 1500));
+      result = await dispatch();
     }
     if (result.skipped) status = "skipped";
   } catch (err: any) {

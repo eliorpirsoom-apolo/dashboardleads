@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
@@ -146,6 +147,47 @@ function BroadcastModal({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [count, setCount] = useState<number | null>(null);
+  const [templates, setTemplates] = useState<
+    { id: string; name: string; channel: string; subject: string | null; body: string }[]
+  >([]);
+
+  // ספירת נמענים חיה — מתעדכנת עם כל שינוי סינון/ערוץ.
+  useEffect(() => {
+    const p = new URLSearchParams({ clientId, channel: form.channel });
+    if (form.statusId) p.set("statusId", form.statusId);
+    if (form.fromDate) p.set("fromDate", form.fromDate);
+    api<{ count: number }>(`/api/broadcasts/preview?${p}`)
+      .then((d) => setCount(d.count))
+      .catch(() => setCount(null));
+  }, [clientId, form.channel, form.statusId, form.fromDate]);
+
+  useEffect(() => {
+    api<{ templates: typeof templates }>(`/api/templates?clientId=${clientId}`)
+      .then((d) => setTemplates(d.templates))
+      .catch(() => {});
+  }, [clientId]);
+
+  async function saveAsTemplate() {
+    const name = prompt("שם התבנית:");
+    if (!name) return;
+    try {
+      await api("/api/templates", {
+        method: "POST",
+        json: {
+          clientId,
+          name,
+          channel: form.channel,
+          subject: form.subject || null,
+          body: form.body,
+        },
+      });
+      const d = await api<{ templates: typeof templates }>(`/api/templates?clientId=${clientId}`);
+      setTemplates(d.templates);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -178,9 +220,39 @@ function BroadcastModal({
       <form onSubmit={submit} className="flex flex-col gap-3">
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-        <div className="rounded-xl border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-300">
-          נשלח אך ורק ללידים שסימנו הסכמה לדיוור ✓
+        <div className="flex items-center justify-between rounded-xl border border-amber-800/40 bg-amber-950/20 px-3 py-2">
+          <span className="text-xs text-amber-300">
+            נשלח אך ורק ללידים עם הסכמה לדיוור ✓ (מייל כולל קישור הסרה אוטומטי)
+          </span>
+          <span className="text-sm font-bold text-amber-200">
+            {count === null ? "…" : `${count} נמענים`}
+          </span>
         </div>
+
+        {templates.length > 0 ? (
+          <Field label="טעינת תבנית שמורה">
+            <Select
+              defaultValue=""
+              onChange={(e) => {
+                const t = templates.find((x) => x.id === e.target.value);
+                if (t) {
+                  setForm({
+                    ...form,
+                    channel: t.channel,
+                    subject: t.subject ?? "",
+                    body: t.body,
+                  });
+                }
+                e.target.value = "";
+              }}
+            >
+              <option value="">בחרו תבנית…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
 
         <Field label="שם התפוצה (פנימי)">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder='"עדכון חודשי — יולי"' required />
@@ -218,11 +290,16 @@ function BroadcastModal({
           <Textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required />
         </Field>
 
-        <div className="mt-2 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
-          <Button type="submit" disabled={busy}>
-            {busy ? "שולח…" : "שליחת התפוצה"}
+        <div className="mt-2 flex justify-between gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={saveAsTemplate}>
+            שמור כתבנית
           </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
+            <Button type="submit" disabled={busy || count === 0}>
+              {busy ? "שולח…" : count ? `שליחה ל-${count} נמענים` : "שליחת התפוצה"}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { assertNotAgent } from "@/lib/permissions";
 import { sendMessage, renderTemplate, type Channel } from "@/lib/messaging";
+import { emailUnsubFooter } from "@/lib/unsubscribe";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -86,15 +87,20 @@ export const POST = handle(async (req) => {
   let sent = 0;
   let failed = 0;
   for (const lead of targets) {
+    const rendered = renderTemplate(body.body, {
+      name: lead.fullName ?? "",
+      phone: lead.phone ?? "",
+      status: lead.status?.name ?? "",
+    });
     const res = await sendMessage({
       channel: body.channel as Channel,
       to: body.channel === "email" ? lead.email! : lead.phone!,
       subject: body.subject ?? body.name,
-      body: renderTemplate(body.body, {
-        name: lead.fullName ?? "",
-        phone: lead.phone ?? "",
-        status: lead.status?.name ?? "",
-      }),
+      // חוק הספאם: קישור הסרה מצורף אוטומטית לכל מייל תפוצה.
+      body:
+        body.channel === "email"
+          ? rendered + emailUnsubFooter(lead.id)
+          : rendered + "\n\nלהסרה השיבו: הסר",
       kind: "broadcast",
       clientId,
       leadId: lead.id,

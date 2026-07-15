@@ -152,6 +152,17 @@ function AutomationModal({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [savedTemplates, setSavedTemplates] = useState<
+    { id: string; name: string; body: string }[]
+  >([]);
+
+  useEffect(() => {
+    api<{ templates: { id: string; name: string; body: string }[] }>(
+      `/api/templates?clientId=${clientId}`
+    )
+      .then((d) => setSavedTemplates(d.templates))
+      .catch(() => {});
+  }, [clientId]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -231,9 +242,26 @@ function AutomationModal({
             <Input dir="ltr" value={form.customRecipients} onChange={(e) => setForm({ ...form, customRecipients: e.target.value })} />
           </Field>
         ) : null}
+        {savedTemplates.length > 0 ? (
+          <Field label="טעינת תבנית שמורה">
+            <Select
+              defaultValue=""
+              onChange={(e) => {
+                const t = savedTemplates.find((x) => x.id === e.target.value);
+                if (t) setForm({ ...form, template: t.body });
+                e.target.value = "";
+              }}
+            >
+              <option value="">בחרו תבנית…</option>
+              {savedTemplates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         <Field
           label="תוכן ההודעה"
-          hint="משתנים: {{name}} {{phone}} {{email}} {{number}} {{status}} {{campaign}} {{client}} {{channel}}"
+          hint="משתנים: {{name}} {{phone}} {{email}} {{number}} {{status}} {{campaign}} {{client}} {{channel}} {{assignee}}"
         >
           <Textarea value={form.template} onChange={(e) => setForm({ ...form, template: e.target.value })} required />
         </Field>

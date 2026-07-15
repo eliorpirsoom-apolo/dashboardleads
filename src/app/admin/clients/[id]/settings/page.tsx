@@ -6,6 +6,7 @@ import StatusEditor from "@/components/settings/StatusEditor";
 import CustomFieldsEditor from "@/components/settings/CustomFieldsEditor";
 import AutomationsManager from "@/components/settings/AutomationsManager";
 import IntegrationsCard from "@/components/settings/IntegrationsCard";
+import IntakeLogCard from "@/components/settings/IntakeLogCard";
 import ClientEditCard from "./ClientEditCard";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ export default async function ClientSettingsPage({
       />
       <UsersManager clientId={client.id} users={client.users} />
       <SourcesManager clientId={client.id} />
+      <IntakeLogCard clientId={client.id} />
       <StatusEditor clientId={client.id} />
       <CustomFieldsEditor clientId={client.id} />
       <AutomationsManager clientId={client.id} />

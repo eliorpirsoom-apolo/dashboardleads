@@ -149,6 +149,24 @@ export default function MessagesLog({
                   {m.subject ? <p className="mb-1 font-bold">{m.subject}</p> : null}
                   {m.body}
                   {m.error ? <p className="mt-2 text-red-400">שגיאה: {m.error}</p> : null}
+                  {m.status === "failed" || m.status === "skipped" ? (
+                    <span
+                      role="button"
+                      className="mt-2 inline-block cursor-pointer rounded-lg border border-cyan-700/60 px-3 py-1 font-bold text-cyan-300 hover:border-cyan-400"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          const r = await api<{ status: string }>(`/api/messages/${m.id}/resend`, { method: "POST" });
+                          alert(r.status === "sent" ? "נשלח מחדש ✓" : r.status === "skipped" ? "נרשם — ימתין לחיבור ספק" : "נכשל שוב");
+                          load();
+                        } catch (err: any) {
+                          alert(err.message);
+                        }
+                      }}
+                    >
+                      ↻ שליחה חוזרת
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
             </button>

@@ -10,6 +10,51 @@ import {
 import { onLeadCreated } from "@/lib/hooks";
 import { rateLimit } from "@/lib/rateLimit";
 import { recordActivity, pickAutoAssignee } from "@/lib/leadActivity";
+import { sendMessage } from "@/lib/messaging";
+
+// התראה למשרד כשמקור צובר כשלונות רצופים (5+), לכל היותר פעם ב-24 שעות.
+async function alertOnRepeatedFailures(sourceId: string, sourceName: string) {
+  try {
+    const recent = await prisma.intakeLog.findMany({
+      where: { sourceId },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { status: true },
+    });
+    const allFailing =
+      recent.length === 5 &&
+      recent.every((l) => l.status === "error" || l.status === "rejected");
+    if (!allFailing) return;
+
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const alreadyAlerted = await prisma.message.findFirst({
+      where: {
+        kind: "system",
+        subject: { contains: `מקור קליטה תקול: ${sourceName}` },
+        createdAt: { gte: dayAgo },
+      },
+    });
+    if (alreadyAlerted) return;
+
+    const admins = await prisma.user.findMany({
+      where: { role: "ADMIN", active: true },
+    });
+    for (const admin of admins) {
+      await sendMessage({
+        channel: "email",
+        to: admin.email,
+        subject: `⚠️ מקור קליטה תקול: ${sourceName}`,
+        body:
+          `5 הקליטות האחרונות במקור "${sourceName}" נכשלו.\n` +
+          `בדקו את מיפוי השדות ב-Make/Zapier או בטופס.\n` +
+          `פירוט מלא: יומן הקליטה בהגדרות הלקוח.`,
+        kind: "system",
+      });
+    }
+  } catch (err) {
+    console.error("[intake alert]", err);
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +176,7 @@ export async function POST(
           payload: rawPayload,
         },
       });
+      await alertOnRepeatedFailures(source.id, source.name);
       return NextResponse.json(
         { error: "חסרים פרטי ליד (שם/טלפון/אימייל)" },
         { status: 422 }
@@ -250,6 +296,7 @@ export async function POST(
         payload: rawPayload,
       },
     });
+    await alertOnRepeatedFailures(source.id, source.name);
     return NextResponse.json({ error: "שגיאה בקליטת הליד" }, { status: 500 });
   }
 }
