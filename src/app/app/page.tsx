@@ -5,6 +5,9 @@ import { PageHeader, StatCard, Card, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { formatTime, formatDateTime, formatCurrency } from "@/lib/format";
 import { ilDayStart, ilDayEnd, ilMonthKey, ilMonthStart } from "@/lib/time";
+import { leadTrend } from "@/lib/trend";
+import TrendChart from "@/components/TrendChart";
+import OnboardingChecklist from "@/components/OnboardingChecklist";
 
 export const dynamic = "force-dynamic";
 
@@ -51,12 +54,28 @@ export default async function ClientDashboard() {
   const monthSpend = budgets.reduce((s, b) => s + b.spend, 0);
   const cpl = leadsMonth > 0 && monthSpend > 0 ? monthSpend / leadsMonth : null;
 
+  // Trend + onboarding signals
+  const [trend, totalLeads, sourcesCount, agentsCount] = await Promise.all([
+    leadTrend(clientId),
+    prisma.lead.count({ where: { clientId } }),
+    prisma.leadSource.count({ where: { clientId, active: true } }),
+    prisma.user.count({ where: { clientId, isAgent: true, active: true } }),
+  ]);
+
   return (
     <>
       <PageHeader
         title={`שלום, ${user.name.split(" ")[0]} 👋`}
         subtitle="תמונת מצב הפעילות הדיגיטלית שלך"
       />
+
+      {totalLeads < 3 && !user.isAgent ? (
+        <OnboardingChecklist
+          hasSource={sourcesCount > 0}
+          hasAgent={agentsCount > 0}
+          hasLead={totalLeads > 0}
+        />
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="לידים היום" value={leadsToday} icon="leads" />
@@ -125,6 +144,10 @@ export default async function ClientDashboard() {
             </div>
           )}
         </Card>
+      </div>
+
+      <div className="mt-4">
+        <TrendChart data={trend} />
       </div>
 
       <div className="mt-4">

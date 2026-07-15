@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { StatCard, Card, Chip } from "@/components/ui";
 import { formatDateTime, formatCurrency } from "@/lib/format";
 import { ilMonthKey, ilMonthStart } from "@/lib/time";
+import { leadTrend } from "@/lib/trend";
+import TrendChart from "@/components/TrendChart";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +61,7 @@ export default async function ClientOverview({
     },
   });
   const cpl = monthLeads > 0 && monthSpend > 0 ? monthSpend / monthLeads : null;
+  const trend = await leadTrend(client.id);
 
   return (
     <div className="flex flex-col gap-4">
@@ -73,6 +76,8 @@ export default async function ClientOverview({
           icon="money"
         />
       </div>
+
+      <TrendChart data={trend} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ToasterProvider from "@/components/Toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,7 +29,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen font-sans antialiased">{children}</body>
+      <body className="min-h-screen font-sans antialiased">
+        <ToasterProvider>{children}</ToasterProvider>
+      </body>
     </html>
   );
 }

@@ -415,8 +415,8 @@ export default function LeadsView({
                     <span className="text-slate-600">—</span>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-xs text-slate-400">{channelLabel(l.channel)}</td>
-                <td className="max-w-[130px] truncate px-3 py-2.5 text-xs text-slate-400">
+                <td className="hidden px-3 py-2.5 text-xs text-slate-400 md:table-cell">{channelLabel(l.channel)}</td>
+                <td className="hidden max-w-[130px] truncate px-3 py-2.5 text-xs text-slate-400 lg:table-cell">
                   {l.campaign?.name ?? l.campaignLabel ?? "—"}
                 </td>
                 <td className="px-3 py-2.5 text-xs text-slate-500">

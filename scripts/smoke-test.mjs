@@ -169,6 +169,96 @@ const cronRes = await fetch(`${BASE}/api/cron/reminders`, {
 });
 ok("reminders cron runs", cronRes.ok);
 
+// --- 7. Roles & permissions (logic-closure round 1) -------------------------------
+console.log("7. תפקידים והרשאות");
+const staff = new Session();
+ok("staff login", (await staff.login("staff@agency.local", "staff123")).ok);
+ok(
+  "staff blocked from admin-users",
+  (await staff.api("/api/admin-users", { method: "POST", body: JSON.stringify({ email: "x@x.co", name: "x", password: "123456" }) })).res.status === 403
+);
+ok(
+  "staff blocked from client create",
+  (await staff.api("/api/clients", { method: "POST", body: JSON.stringify({ name: "smoke-x" }) })).res.status === 403
+);
+
+const agent = new Session();
+ok("agent login", (await agent.login("agent@demo.local", "agent123")).ok);
+ok(
+  "agent blocked from status create",
+  (await agent.api("/api/statuses", { method: "POST", body: JSON.stringify({ name: "x", color: "#ff0000", systemKind: "new" }) })).res.status === 403
+);
+ok(
+  "agent blocked from broadcasts",
+  (await agent.api("/api/broadcasts")).res.status === 403
+);
+
+// --- 8. Lead CRM (round 2): assignee, activity, bulk, archive ---------------------
+console.log("8. מטפל, ציר פעילות ופעולות מרובות");
+const { data: cu } = await client.api("/api/client-users");
+const agentId = cu.users.find((u) => u.isAgent)?.id;
+const { data: leadPage } = await client.api("/api/leads?pageSize=100");
+const workLead = leadPage.rows.find((r) => r.number === 4);
+await client.api(`/api/leads/${workLead.id}`, {
+  method: "PATCH",
+  body: JSON.stringify({ assigneeId: agentId }),
+});
+const { data: afterAssign } = await client.api(`/api/leads/${workLead.id}`);
+ok("assignee set + activity recorded",
+  afterAssign.lead.assigneeId === agentId &&
+  afterAssign.lead.activities.some((a) => a.kind === "assign"));
+
+const { data: mine } = await agent.api("/api/leads?assigneeId=me");
+ok("agent sees lead in 'my leads'", mine.rows.some((r) => r.id === workLead.id));
+
+const bulkTargets = leadPage.rows.filter((r) => [5, 6].includes(r.number)).map((r) => r.id);
+const { res: bulkRes } = await client.api("/api/leads/bulk", {
+  method: "POST",
+  body: JSON.stringify({ ids: bulkTargets, action: "archive" }),
+});
+const { data: archived } = await client.api("/api/leads?archived=true&pageSize=100");
+ok("bulk archive", bulkRes.ok && bulkTargets.every((id) => archived.rows.some((r) => r.id === id)));
+await client.api("/api/leads/bulk", {
+  method: "POST",
+  body: JSON.stringify({ ids: bulkTargets, action: "restore" }),
+});
+const { data: restored } = await client.api("/api/leads?pageSize=100");
+ok("bulk restore", bulkTargets.every((id) => restored.rows.some((r) => r.id === id)));
+
+// --- 9. Unsubscribe (round 3) — token computed with the dev AUTH_SECRET -----------
+console.log("9. הסרה מדיוור");
+const { readFileSync } = await import("node:fs");
+const crypto = await import("node:crypto");
+const envText = readFileSync(new URL("../.env", import.meta.url), "utf8");
+const secret = envText.match(/AUTH_SECRET="?([^"\r\n]+)"?/)?.[1] ?? "";
+const consentLead = restored.rows.find((r) => r.consent);
+if (consentLead && secret) {
+  const sig = crypto.createHmac("sha256", secret).update(`unsub.${consentLead.id}`).digest("hex").slice(0, 32);
+  const token = Buffer.from(`${consentLead.id}.${sig}`).toString("base64url");
+  const unsubRes = await fetch(`${BASE}/api/unsubscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ t: token }),
+  });
+  const { data: afterUnsub } = await client.api(`/api/leads/${consentLead.id}`);
+  ok("unsubscribe flips consent", unsubRes.ok && afterUnsub.lead.consent === false);
+} else {
+  ok("unsubscribe flips consent", false, "(no consenting lead or secret)");
+}
+const badUnsub = await fetch(`${BASE}/api/unsubscribe`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ t: "garbage" }),
+});
+ok("bad unsubscribe token rejected", badUnsub.status === 400);
+
+// --- 10. Search & audit (round 4) --------------------------------------------------
+console.log("10. חיפוש ויומן פעולות");
+const { data: search } = await admin.api(`/api/search?q=${encodeURIComponent("נופי")}`);
+ok("global search finds client", search.clients.length > 0);
+ok("audit visible to manager", (await admin.api("/api/audit")).res.ok);
+ok("audit blocked for staff", (await staff.api("/api/audit")).res.status === 403);
+
 // --- Summary --------------------------------------------------------------------
 console.log(`\n${passes} עברו, ${failures} נכשלו`);
 process.exit(failures > 0 ? 1 : 0);
