@@ -19,10 +19,10 @@
 > ✅ פריסה אוטומטית פעילה (13.07): כל push לענף הפרודקשן נפרס לבד.
 > חשבון המנהל הראשון נוצר ב-/setup (העמוד נעול מעתה).
 >
-> ⚠️ נקודה פתוחה אחת: בתוכנית החינמית תזכורות רצות פעם ביום (05:00) — להחזרת
-> תדירות גבוהה: שדרוג ל-Vercel Pro, או שירות חינמי כמו cron-job.org שקורא ל-
-> `/api/cron/reminders` כל 5 דק׳ עם Header:‏ `Authorization: Bearer <CRON_SECRET>`
-> (את הערך מעתיקים מ-Settings → Environment Variables בפרויקט).
+> ✅ תזכורות בזמן אמת (19.07.2026): job בשם "CRM Reminders" ב-cron-job.org
+> (חשבון Google של המשרד) קורא ל-`/api/cron/reminders` כל 5 דקות עם
+> Header:‏ `Authorization: Bearer <CRON_SECRET>`. ה-cron היומי של Vercel (05:00)
+> נשאר כגיבוי. אם מחליפים את CRON_SECRET ב-Vercel — לעדכן גם את ה-Header ב-job.
 >
 > ההוראות המקוריות נשמרות כאן למקרה של הקמה מחדש:
 
