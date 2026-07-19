@@ -23,9 +23,9 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
-        {/* Heebo: full Hebrew + Latin coverage. Falls back to system fonts. */}
+        {/* Rubik: full Hebrew + Latin coverage. Falls back to system fonts. */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
       </head>

@@ -14,7 +14,6 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
-          "Heebo",
           "Rubik",
           "ui-sans-serif",
           "system-ui",
