@@ -71,17 +71,23 @@
 
 > בלי SMTP המערכת עדיין עובדת — הודעות מייל נרשמות ביומן כ"ממתינה לחיבור ספק".
 
-## 4) כניסה עם Google (מומלץ)
+## 4) כניסה עם Google (מומלץ) — ✅ בוצע (19.07.2026)
 
-1. [Google Cloud Console](https://console.cloud.google.com) → פרויקט חדש → **APIs & Services → OAuth consent screen** (External, מוסיפים לוגו ושם).
-2. **Credentials → Create Credentials → OAuth client ID → Web application**:
-   - Authorized redirect URIs — מוסיפים **את שניהם**:
-     - `https://<הדומיין>/api/auth/google/callback` (כניסה)
-     - `https://<הדומיין>/api/integrations/google/callback` (חיבורי SEO)
-3. משתני סביבה: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-4. Redeploy — כפתור "התחברות עם Google" יופיע אוטומטית במסך הכניסה.
+הוגדר ואומת מקצה לקצה:
+
+- פרויקט Google Cloud: **Apollo CRM** (`apollo-crm-502908`, תחת eliorbucris@gmail.com).
+- מסך הסכמה: שם "Apollo CRM", קהל External, סטטוס **In production** (כל חשבון Google).
+  מייל תמיכה: eliorbucris@gmail.com (Google מגביל לחשבון המחובר בלבד); מייל עדכונים: marketing@apolloadv.co.il.
+- OAuth Client‏ "Apollo CRM Web" עם 4 redirect URIs (פרודקשן + localhost, כניסה + SEO).
+- `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` הוגדרו ב-Vercel (Production + Preview) ונפרסו.
+- אומת: כפתור Google מופיע במסך הכניסה, והזרימה מגיעה למסך בחירת חשבון של Google ללא שגיאות.
 
 > משתמש מתחבר עם Google רק אם הוזמן קודם במערכת (לפי אותו אימייל). אין הרשמה עצמית.
+> כלומר: כדי להיכנס עם Google, האימייל של המשתמש במערכת חייב להיות זהה לאימייל חשבון ה-Google.
+
+הוראות ההקמה המקוריות (לשחזור/דומיין חדש): קונסולה → פרויקט → OAuth consent (External) →
+Client ID (Web) עם `/api/auth/google/callback` + `/api/integrations/google/callback` →
+משתני סביבה → Redeploy. בהחלפת דומיין: להוסיף את ה-URIs החדשים ב-Client הקיים.
 
 ## 5) קליטת לידים — Make / Zapier / אלמנטור (לב המערכת)
 
@@ -171,10 +177,10 @@ npm run import:legacy -- "שם הלקוח בדיוק כמו במערכת"
 
 | # | חיבור | סטטוס עד אז |
 |---|---|---|
-| 1 | Vercel + Postgres + סודות | חובה — בלעדיו אין מערכת |
-| 2 | R2 | קבצים נשמרים רק מקומית |
-| 3 | SMTP | מיילים נרשמים ביומן בלבד |
-| 4 | Google Login | כניסה עם סיסמה בלבד |
+| 1 | Vercel + Postgres + סודות | ✅ מחובר |
+| 2 | R2 | ✅ מחובר |
+| 3 | SMTP | ✅ מחובר |
+| 4 | Google Login | ✅ מחובר (19.07.2026) |
 | 5 | Make/Zapier/אלמנטור | קליטה ידנית בלבד |
 | 6 | Search Console/GA4 | דשבורד SEO ריק |
 | 7 | Meta | וואטסאפים ומודעות — ידני |
