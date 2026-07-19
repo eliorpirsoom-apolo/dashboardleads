@@ -68,9 +68,9 @@ export const dynamic = "force-dynamic";
 // ---------------------------------------------------------------------------
 
 const ALIASES: Record<string, string[]> = {
-  fullName: ["fullname", "full_name", "name", "שם", "שם מלא", "first_name", "your-name", "field_name"],
-  phone: ["phone", "טלפון", "phone_number", "tel", "mobile", "your-phone", "caller", "caller_number", "from"],
-  email: ["email", "מייל", "אימייל", "your-email", "e-mail", "mail"],
+  fullName: ["fullname", "full_name", "full-name", "name", "שם", "שם מלא", "שם פרטי", "שם ומשפחה", "first_name", "your-name", "field_name"],
+  phone: ["phone", "טלפון", "טלפון נייד", "נייד", "מספר טלפון", "מס' טלפון", "phone_number", "phone-number", "phone number", "tel", "mobile", "your-phone", "caller", "caller_number", "from"],
+  email: ["email", "מייל", "אימייל", "כתובת מייל", "דוא\"ל", "email address", "your-email", "e-mail", "mail"],
   city: ["city", "עיר", "location"],
   campaignLabel: ["campaign", "campaign_name", "קמפיין", "utm_campaign"],
   audience: ["audience", "adset", "adset_name", "קהל", "utm_medium"],
@@ -83,6 +83,69 @@ const ALIASES: Record<string, string[]> = {
   callStatus: ["call_status", "סטטוס שיחה", "disposition"],
   externalId: ["id", "lead_id", "external_id", "call_id", "entry_id"],
 };
+
+// "fields[email][value]=x" → { fields: { email: { value: "x" } } }.
+// Elementor's "Advanced Data" webhook sends urlencoded bodies with bracket
+// keys; plain "name=x" pairs pass through flat.
+function expandBracketKeys(params: URLSearchParams): Record<string, any> {
+  const root: Record<string, any> = {};
+  for (const [rawKey, value] of params.entries()) {
+    const path = rawKey.includes("[")
+      ? rawKey.replace(/\]/g, "").split("[").filter(Boolean)
+      : [rawKey];
+    let node = root;
+    for (let i = 0; i < path.length - 1; i++) {
+      if (typeof node[path[i]] !== "object" || node[path[i]] === null) {
+        node[path[i]] = {};
+      }
+      node = node[path[i]];
+    }
+    node[path[path.length - 1]] = value;
+  }
+  return root;
+}
+
+// Elementor webhooks arrive in two shapes — flatten both to key→value so the
+// alias mapping can work:
+//   basic:    form_fields[<field id>] = value
+//   advanced: fields[<field id>] = { title, value, raw_value } + form/meta
+// The field label (title) is added as a key too, so Hebrew labels like
+// "טלפון" match the aliases even when the field id is a random field_xxxxx.
+function flattenFormShapes(payload: Record<string, any>): Record<string, any> {
+  if (
+    payload.form_fields &&
+    typeof payload.form_fields === "object" &&
+    !Array.isArray(payload.form_fields)
+  ) {
+    const { form_fields, ...rest } = payload;
+    return { ...rest, ...form_fields };
+  }
+  if (
+    payload.fields &&
+    typeof payload.fields === "object" &&
+    !Array.isArray(payload.fields)
+  ) {
+    const out: Record<string, any> = {};
+    for (const [id, f] of Object.entries<any>(payload.fields)) {
+      if (f && typeof f === "object") {
+        const v = f.value ?? f.raw_value;
+        if (v !== undefined) {
+          out[id] = v;
+          const title = typeof f.title === "string" ? f.title.trim() : "";
+          if (title) out[title] = v;
+        }
+      } else if (f !== undefined) {
+        out[id] = f;
+      }
+    }
+    const pageUrl = payload.meta?.page_url;
+    if (pageUrl) {
+      out.page_url = typeof pageUrl === "object" ? pageUrl.value : pageUrl;
+    }
+    return out;
+  }
+  return payload;
+}
 
 function pick(payload: Record<string, any>, target: string): any {
   const keys = Object.keys(payload);
@@ -144,7 +207,7 @@ export async function POST(
     if (text.trim().startsWith("{") || text.trim().startsWith("[")) {
       payload = JSON.parse(text);
     } else {
-      payload = Object.fromEntries(new URLSearchParams(text));
+      payload = expandBracketKeys(new URLSearchParams(text));
     }
     if (Array.isArray(payload)) payload = payload[0] ?? {};
   } catch {
@@ -160,6 +223,7 @@ export async function POST(
   }
 
   const rawPayload = JSON.stringify(payload).slice(0, 4000);
+  payload = flattenFormShapes(payload);
 
   try {
     const phone = normalizePhone(pick(payload, "phone"));
