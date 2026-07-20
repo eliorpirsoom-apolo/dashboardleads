@@ -14,6 +14,8 @@ const SECRET =
 export const GOOGLE_SCOPES: Record<string, string> = {
   search_console: "https://www.googleapis.com/auth/webmasters.readonly",
   ga4: "https://www.googleapis.com/auth/analytics.readonly",
+  // יומן אישי של עובד משרד — קריאת כל היומנים + כתיבת אירועים (דו-כיווני).
+  calendar: "https://www.googleapis.com/auth/calendar",
 };
 
 /** Signed state for the connect flow: clientId + kind, tamper-proof. */

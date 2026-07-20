@@ -55,9 +55,27 @@ model User {
   assignedLeads Lead[]     @relation("LeadAssignee")
   clientAssignments ClientAssignment[]
   projectAssignments ProjectAssignment[]
+  calendarConnection CalendarConnection?
 
   @@index([clientId])
   @@index([role])
+}
+
+// חיבור יומן Google אישי (עובד משרד): הלוח המשותף קורא את כל היומנים,
+// ופגישות שנוצרות במערכת נכתבות ליומן של המשתמש (דו-כיווני).
+model CalendarConnection {
+  id           String    @id @default(cuid())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String    @unique
+  googleEmail  String
+  refreshToken String
+  accessToken  String?
+  expiresAt    DateTime?
+  color        String    @default("#f59e0b") // צבע האירועים של העובד בלוח
+  active       Boolean   @default(true)
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 // שיוך אנשי מכירות לפרויקטים. סוכן משויך רואה רק את הפרויקטים שלו;
@@ -379,6 +397,9 @@ model Task {
   location    String? // meetings: place / video link
   status      String    @default("open") // "open" | "done" | "canceled"
   completedAt DateTime?
+  // סנכרון ליומן Google: האירוע שנוצר + המשתמש שביומנו הוא יושב.
+  googleEventId String?
+  googleEventOwnerId String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

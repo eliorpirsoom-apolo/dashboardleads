@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, readJson, ApiError } from "@/lib/api";
 import { allowedProjectIds } from "@/lib/projectScope";
+import { createTaskEvent } from "@/lib/gcal";
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +138,11 @@ export const POST = handle(async (req) => {
     },
     include: { reminders: true },
   });
+
+  // דו-כיווני: משימות צד-משרד נכתבות ליומן Google של המטפל/היוצר (אם מחובר).
+  if (ownerSide === "agency") {
+    await createTaskEvent({ ...task, createdById: user.id });
+  }
 
   return NextResponse.json({ task }, { status: 201 });
 });

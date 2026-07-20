@@ -40,6 +40,47 @@ export async function GET(request: Request) {
       expires_in: number;
     };
 
+    // יומן אישי: נשמר על המשתמש המחובר (לא על לקוח).
+    if (parsed.kind === "calendar") {
+      if (parsed.clientId !== user.id) {
+        return NextResponse.redirect(new URL("/admin/calendar?gcal=error", request.url));
+      }
+      if (!tokens.refresh_token) {
+        return NextResponse.redirect(new URL("/admin/calendar?gcal=error", request.url));
+      }
+      // כתובת ה-Gmail של היומן — המזהה של יומן ה-primary.
+      const calRes = await fetch(
+        "https://www.googleapis.com/calendar/v3/calendars/primary?fields=id",
+        { headers: { Authorization: `Bearer ${tokens.access_token}` } }
+      );
+      const googleEmail = calRes.ok
+        ? String(((await calRes.json()) as { id: string }).id)
+        : "";
+
+      const { CONNECTION_COLORS } = await import("@/lib/gcal");
+      const existingCount = await prisma.calendarConnection.count();
+      await prisma.calendarConnection.upsert({
+        where: { userId: user.id },
+        create: {
+          userId: user.id,
+          googleEmail,
+          refreshToken: tokens.refresh_token,
+          accessToken: tokens.access_token,
+          expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+          color: CONNECTION_COLORS[existingCount % CONNECTION_COLORS.length],
+        },
+        update: {
+          googleEmail,
+          refreshToken: tokens.refresh_token,
+          accessToken: tokens.access_token,
+          expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+          active: true,
+          lastError: null,
+        },
+      });
+      return NextResponse.redirect(new URL("/admin/calendar?gcal=connected", request.url));
+    }
+
     await prisma.integration.upsert({
       where: {
         clientId_kind: { clientId: parsed.clientId, kind: parsed.kind },
@@ -67,7 +108,9 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[google data callback]", err);
     return NextResponse.redirect(
-      new URL(`/admin/clients/${parsed.clientId}/seo?error=google_data`, request.url)
+      parsed.kind === "calendar"
+        ? new URL("/admin/calendar?gcal=error", request.url)
+        : new URL(`/admin/clients/${parsed.clientId}/seo?error=google_data`, request.url)
     );
   }
 }

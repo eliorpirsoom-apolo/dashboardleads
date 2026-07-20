@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, readJson, ApiError } from "@/lib/api";
+import { syncTaskEvent, deleteTaskEvent } from "@/lib/gcal";
 
 export const dynamic = "force-dynamic";
 
@@ -89,11 +90,15 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     return t;
   });
 
+  // דו-כיווני: עדכון/מחיקת האירוע המקושר ביומן Google.
+  await syncTaskEvent(task.id);
+
   return NextResponse.json({ task: updated });
 });
 
 export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
   const { task } = await scopedTask(params.id);
   await prisma.task.delete({ where: { id: task.id } });
+  await deleteTaskEvent(task);
   return NextResponse.json({ ok: true });
 });
