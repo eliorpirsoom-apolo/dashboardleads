@@ -26,7 +26,7 @@ export const ADMIN_NAV: NavItem[] = [
 const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app", label: "דשבורד", icon: "home" },
   { href: "/app/leads", label: "לידים", icon: "leads", module: "leads" },
-  { href: "/app/projects", label: "פרויקטים", icon: "building", module: "realestate" },
+  { href: "/app/projects", label: "פרויקטים", icon: "building", module: "projects" },
   { href: "/app/purchases", label: "בקשות רכישה", icon: "money", module: "purchases" },
   { href: "/app/tasks", label: "משימות", icon: "tasks", module: "tasks" },
   { href: "/app/calendar", label: "לוח שנה", icon: "calendar", module: "tasks" },

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { recordActivity } from "@/lib/leadActivity";
+import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,10 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   if (!target || !other) throw new ApiError(404, "ליד לא נמצא");
   scopeClientId(user, target.clientId);
   if (other.clientId !== target.clientId) throw new ApiError(400, "לידים של לקוחות שונים");
+  const allowed = await allowedProjectIds(user);
+  if (!projectAllowed(allowed, target.projectId) || !projectAllowed(allowed, other.projectId)) {
+    throw new ApiError(403, "אחד הלידים לא שייך לפרויקטים שלך");
+  }
 
   await prisma.$transaction([
     prisma.leadNote.updateMany({

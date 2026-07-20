@@ -259,6 +259,68 @@ ok("global search finds client", search.clients.length > 0);
 ok("audit visible to manager", (await admin.api("/api/audit")).res.ok);
 ok("audit blocked for staff", (await staff.api("/api/audit")).res.status === 403);
 
+// --- 11. Projects layer (round 6): source→project, agent scoping ------------------
+console.log("11. שכבת פרויקטים");
+{
+  // Admin creates: project, agent, project-source; assigns the agent as primary.
+  const projName = `smoke-proj-${stamp}`;
+  const { data: projRes } = await admin.api("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({ clientId: nofey.id, name: projName }),
+  });
+  const projId = projRes.project.id;
+
+  const agentEmail = `smoke-agent-${stamp}@test.local`;
+  const { data: agentRes } = await admin.api(`/api/clients/${nofey.id}/users`, {
+    method: "POST",
+    body: JSON.stringify({ email: agentEmail, name: `סוכן עשן ${stamp}`, password: "smoke123", isAgent: true }),
+  });
+  const { res: assignRes } = await admin.api(`/api/projects/${projId}/agents`, {
+    method: "POST",
+    body: JSON.stringify({ userId: agentRes.user.id, isPrimary: true }),
+  });
+  ok("agent assigned to project", assignRes.ok);
+
+  const { data: srcRes } = await admin.api("/api/sources", {
+    method: "POST",
+    body: JSON.stringify({ clientId: nofey.id, name: `מקור עשן ${stamp}`, kind: "form", projectId: projId }),
+  });
+
+  const projIntake = await fetch(`${BASE}/api/intake/${srcRes.source.token}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "ליד פרויקט", phone: `052${stamp}` }),
+  });
+  const projLead = await projIntake.json();
+  const { data: projLeadFull } = await admin.api(`/api/leads/${projLead.leadId}`);
+  ok(
+    "intake routes lead to project + primary agent",
+    projLeadFull.lead.projectId === projId && projLeadFull.lead.assigneeId === agentRes.user.id
+  );
+
+  const projAgent = new Session();
+  ok("project agent login", (await projAgent.login(agentEmail, "smoke123")).ok);
+  const { data: agentLeads } = await projAgent.api("/api/leads?pageSize=100");
+  ok(
+    "project agent sees ONLY project leads",
+    agentLeads.rows.length >= 1 && agentLeads.rows.every((r) => r.id === projLead.leadId)
+  );
+  const { res: crossLead } = await projAgent.api(`/api/leads/${lead1.leadId}`);
+  ok("project agent blocked from other leads", crossLead.status === 403);
+  const { data: agentProjects } = await projAgent.api("/api/projects");
+  ok(
+    "project agent sees only own projects",
+    agentProjects.projects.length === 1 && agentProjects.projects[0].id === projId
+  );
+
+  // Cleanup: keep dev DB tidy-ish (archive the lead, deactivate source+agent).
+  await admin.api("/api/leads/bulk", {
+    method: "POST",
+    body: JSON.stringify({ clientId: nofey.id, ids: [projLead.leadId], action: "archive" }),
+  });
+  await admin.api(`/api/sources/${srcRes.source.id}`, { method: "PATCH", body: JSON.stringify({ active: false }) });
+}
+
 // --- Summary --------------------------------------------------------------------
 console.log(`\n${passes} עברו, ${failures} נכשלו`);
 process.exit(failures > 0 ? 1 : 0);

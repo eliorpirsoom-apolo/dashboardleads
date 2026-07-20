@@ -1,10 +1,13 @@
 import { Prisma } from "@prisma/client";
 
-/** Translate leads-table query params into a scoped Prisma where clause. */
+/** Translate leads-table query params into a scoped Prisma where clause.
+ *  allowedProjects (from projectScope) hard-limits agents to their projects,
+ *  regardless of the requested filters. */
 export function buildLeadWhere(
   clientId: string,
   p: URLSearchParams,
-  currentUserId?: string
+  currentUserId?: string,
+  allowedProjects?: string[] | null
 ): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {
     clientId,
@@ -16,7 +19,15 @@ export function buildLeadWhere(
   else if (assignee === "none") where.assigneeId = null;
   else if (assignee) where.assigneeId = assignee;
   if (p.get("campaignId")) where.campaignId = p.get("campaignId")!;
-  if (p.get("projectId")) where.projectId = p.get("projectId")!;
+  const proj = p.get("projectId");
+  if (proj === "none") where.projectId = null;
+  else if (proj) where.projectId = proj;
+  if (allowedProjects) {
+    where.projectId =
+      proj && proj !== "none" && allowedProjects.includes(proj)
+        ? proj
+        : { in: allowedProjects };
+  }
   if (p.get("channel")) where.channel = p.get("channel")!;
   if (p.get("kind")) where.kind = p.get("kind")!;
   if (p.get("consent") === "true") where.consent = true;

@@ -194,7 +194,15 @@ export async function POST(
 
   const source = await prisma.leadSource.findUnique({
     where: { token: params.token },
-    include: { client: { select: { autoAssignLeads: true } } },
+    include: {
+      client: { select: { autoAssignLeads: true } },
+      project: {
+        select: {
+          id: true,
+          assignments: { select: { userId: true, isPrimary: true } },
+        },
+      },
+    },
   });
   if (!source || !source.active) {
     return NextResponse.json({ error: "מקור לא מוכר" }, { status: 404 });
@@ -278,12 +286,24 @@ export async function POST(
     }
 
     const duration = pick(payload, "callDurationSec");
-    // סבב אוטומטי בין סוכני הלקוח, אם הופעל בהגדרות הלקוח.
-    const assigneeId = source.client.autoAssignLeads
-      ? await pickAutoAssignee(source.clientId)
-      : null;
+    // שיוך מטפל: מקור של פרויקט → הסוכן הראשי של הפרויקט (או סבב בין סוכני
+    // הפרויקט אם הלקוח הפעיל שיוך אוטומטי). מקור בלי פרויקט → סבב כלל-לקוחי.
+    let assigneeId: string | null = null;
+    const projectAgents = source.project?.assignments ?? [];
+    if (projectAgents.length > 0) {
+      assigneeId = source.client.autoAssignLeads
+        ? await pickAutoAssignee(
+            source.clientId,
+            projectAgents.map((a) => a.userId)
+          )
+        : projectAgents.find((a) => a.isPrimary)?.userId ??
+          projectAgents[0].userId;
+    } else if (source.client.autoAssignLeads) {
+      assigneeId = await pickAutoAssignee(source.clientId);
+    }
     const lead = await createLeadNumbered({
       clientId: source.clientId,
+      projectId: source.projectId,
       sourceId: source.id,
       kind: source.kind,
       statusId: await defaultStatusId(source.clientId),

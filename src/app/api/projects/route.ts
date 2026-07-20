@@ -3,22 +3,28 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { assertNotAgent } from "@/lib/permissions";
+import { allowedProjectIds } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/projects?clientId — projects with inventory + sales summary.
+// סוכן-פרויקטים מקבל רק את הפרויקטים שהוא משויך אליהם.
 export const GET = handle(async (req) => {
   const user = await requireUser();
   const p = new URL(req.url).searchParams;
   const clientId = scopeClientId(user, p.get("clientId"));
+  const allowed = await allowedProjectIds(user);
 
   const projects = await prisma.project.findMany({
-    where: { clientId },
+    where: { clientId, ...(allowed ? { id: { in: allowed } } : {}) },
     orderBy: { createdAt: "desc" },
     include: {
       unitTypes: true,
       _count: { select: { leads: true, contracts: true } },
       contracts: { select: { value: true } },
+      assignments: {
+        include: { user: { select: { id: true, name: true, active: true } } },
+      },
     },
   });
 
@@ -40,6 +46,12 @@ export const GET = handle(async (req) => {
         id: u.id,
         name: u.name,
         available: u.totalUnits - u.soldUnits,
+      })),
+      agents: pr.assignments.map((a) => ({
+        userId: a.userId,
+        name: a.user.name,
+        active: a.user.active,
+        isPrimary: a.isPrimary,
       })),
     })),
   });

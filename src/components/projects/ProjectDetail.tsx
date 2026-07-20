@@ -50,6 +50,12 @@ interface ProjectFull {
   unitTypes: Unit[];
   contracts: ContractRow[];
   purchaseRequests: RequestRow[];
+  assignments: {
+    id: string;
+    userId: string;
+    isPrimary: boolean;
+    user: { id: string; name: string; email: string; active: boolean };
+  }[];
 }
 
 interface InvEvent {
@@ -73,9 +79,11 @@ const REQ_STATUS: Record<string, { label: string; color: string }> = {
 export default function ProjectDetail({
   projectId,
   clientId,
+  isRealestate = true,
 }: {
   projectId: string;
   clientId: string;
+  isRealestate?: boolean; // false → כללי: בלי מלאי, חוזים ובקשות רכישה
 }) {
   const [project, setProject] = useState<ProjectFull | null>(null);
   const [events, setEvents] = useState<InvEvent[]>([]);
@@ -138,6 +146,11 @@ export default function ProjectDetail({
         </div>
       </div>
 
+      {/* Sales agents — לכל פרויקט המשתמש והלידים שלו */}
+      <AgentsCard project={project} clientId={clientId} onChanged={load} />
+
+      {isRealestate ? (
+      <>
       {/* Inventory board */}
       <Card>
         <div className="mb-3 flex items-center justify-between">
@@ -361,6 +374,8 @@ export default function ProjectDetail({
           </div>
         )}
       </Card>
+      </>
+      ) : null}
 
       {/* Modals */}
       {editUnit ? (
@@ -879,5 +894,145 @@ function AddContractModal({
         />
       ) : null}
     </>
+  );
+}
+
+// --- Sales agents of the project -------------------------------------------
+// שיוך אנשי מכירות: הראשי (★) מקבל את הלידים הנכנסים ממקורות הפרויקט,
+// וסוכן משויך רואה במערכת רק את הפרויקטים שלו.
+
+function AgentsCard({
+  project,
+  clientId,
+  onChanged,
+}: {
+  project: ProjectFull;
+  clientId: string;
+  onChanged: () => void;
+}) {
+  const [agents, setAgents] = useState<{ id: string; name: string; isAgent: boolean }[]>([]);
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api<{ users: { id: string; name: string; isAgent: boolean }[] }>(
+      `/api/client-users?clientId=${clientId}`
+    )
+      .then((d) => setAgents(d.users.filter((u) => u.isAgent)))
+      .catch(() => setAgents([]));
+  }, [clientId]);
+
+  const assignedIds = new Set(project.assignments.map((a) => a.userId));
+  const options = agents.filter((a) => !assignedIds.has(a.id));
+
+  async function add(isPrimary: boolean) {
+    if (!selected) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/projects/${project.id}/agents`, {
+        method: "POST",
+        json: { userId: selected, isPrimary },
+      });
+      setSelected("");
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setPrimary(userId: string) {
+    try {
+      await api(`/api/projects/${project.id}/agents`, {
+        method: "POST",
+        json: { userId, isPrimary: true },
+      });
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function remove(userId: string) {
+    try {
+      await api(`/api/projects/${project.id}/agents?userId=${userId}`, { method: "DELETE" });
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="mb-3">
+        <h3 className="text-base font-bold text-slate-100">אנשי המכירות של הפרויקט</h3>
+        <p className="mt-0.5 text-xs text-slate-500">
+          הראשי (★) מקבל אוטומטית את הלידים הנכנסים ממקורות הפרויקט. סוכן משויך רואה רק את
+          הפרויקטים שלו.
+        </p>
+      </div>
+
+      {error ? <p className="mb-2 text-sm text-red-400">{error}</p> : null}
+
+      {project.assignments.length === 0 ? (
+        <p className="py-3 text-center text-xs text-slate-600">
+          אין אנשי מכירות משויכים — לידים ממקורות הפרויקט ייכנסו ללא מטפל.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {project.assignments.map((a) => (
+            <div
+              key={a.id}
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 px-3 py-2"
+            >
+              <Icon name="users" className="h-4 w-4 text-cyan-300" />
+              <span className="text-sm font-medium text-slate-200">{a.user.name}</span>
+              <span className="text-xs text-slate-500">{a.user.email}</span>
+              {a.isPrimary ? (
+                <Chip color="#22d3ee">★ ראשי</Chip>
+              ) : (
+                <button
+                  onClick={() => setPrimary(a.userId)}
+                  className="text-xs text-slate-500 hover:text-cyan-300"
+                >
+                  קבע כראשי
+                </button>
+              )}
+              {!a.user.active ? <Chip color="#f87171">לא פעיל</Chip> : null}
+              <button
+                onClick={() => remove(a.userId)}
+                className="mr-auto rounded p-1.5 text-slate-500 hover:text-red-400"
+                title="הסרת שיוך"
+              >
+                <Icon name="trash" className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Select value={selected} onChange={(e) => setSelected(e.target.value)} className="w-56">
+          <option value="">בחירת סוכן מכירות…</option>
+          {options.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </Select>
+        <Button size="sm" disabled={!selected || busy} onClick={() => add(project.assignments.length === 0)}>
+          <Icon name="plus" className="h-3.5 w-3.5" />
+          שיוך לפרויקט
+        </Button>
+        {options.length === 0 && agents.length === 0 ? (
+          <span className="text-[11px] text-slate-600">
+            אין סוכני מכירות ללקוח — מוסיפים משתמש עם סימון &quot;סוכן מכירות&quot; בהגדרות.
+          </span>
+        ) : null}
+      </div>
+    </Card>
   );
 }

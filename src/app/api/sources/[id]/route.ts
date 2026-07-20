@@ -10,11 +10,20 @@ const UpdateSource = z.object({
   channel: z.string().max(40).nullable().optional(),
   platform: z.string().max(40).nullable().optional(),
   active: z.boolean().optional(),
+  projectId: z.string().nullable().optional(),
 });
 
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
   await requireAdmin();
   const body = UpdateSource.parse(await readJson(req));
+  if (body.projectId) {
+    const existing = await prisma.leadSource.findUnique({ where: { id: params.id } });
+    if (!existing) throw new ApiError(404, "מקור לא נמצא");
+    const project = await prisma.project.findUnique({ where: { id: body.projectId } });
+    if (!project || project.clientId !== existing.clientId) {
+      throw new ApiError(400, "פרויקט לא תקין");
+    }
+  }
   const source = await prisma.leadSource.update({
     where: { id: params.id },
     data: body,

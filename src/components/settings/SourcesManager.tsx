@@ -17,14 +17,23 @@ interface Source {
   active: boolean;
   lastSeenAt: string | null;
   _count: { leads: number };
+  project: { id: string; name: string } | null;
+}
+
+interface ProjectOpt {
+  id: string;
+  name: string;
+  status: string;
 }
 
 // Agency-side: manage intake endpoints (webhook URLs for Make/Zapier/Elementor).
 export default function SourcesManager({ clientId }: { clientId: string }) {
   const [sources, setSources] = useState<Source[]>([]);
+  const [projects, setProjects] = useState<ProjectOpt[]>([]);
   const [name, setName] = useState("");
   const [channel, setChannel] = useState("");
   const [kind, setKind] = useState("form");
+  const [projectId, setProjectId] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
@@ -40,7 +49,10 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+    api<{ projects: ProjectOpt[] }>(`/api/projects?clientId=${clientId}`)
+      .then((d) => setProjects(d.projects.filter((p) => p.status === "active")))
+      .catch(() => setProjects([]));
+  }, [load, clientId]);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +61,7 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
     try {
       await api("/api/sources", {
         method: "POST",
-        json: { clientId, name, channel: channel || null, kind },
+        json: { clientId, name, channel: channel || null, kind, projectId: projectId || null },
       });
       setName("");
       await load();
@@ -57,6 +69,18 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
       setError(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function setSourceProject(sourceId: string, newProjectId: string) {
+    try {
+      await api(`/api/sources/${sourceId}`, {
+        method: "PATCH",
+        json: { projectId: newProjectId || null },
+      });
+      load();
+    } catch (e: any) {
+      setError(e.message);
     }
   }
 
@@ -76,7 +100,8 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
       <h3 className="mb-1 text-base font-bold text-slate-100">מקורות קליטה (Webhooks)</h3>
       <p className="mb-4 text-xs text-slate-500">
         לכל מקור כתובת ייחודית. מדביקים אותה ב-Make / Zapier / טופס אלמנטור — והלידים
-        נכנסים ישר למערכת. GET לכתובת בודק חיבור; POST עם JSON יוצר ליד.
+        נכנסים ישר למערכת. מקור המשויך לפרויקט מכניס את הלידים ישר לפרויקט ולאיש
+        המכירות שלו. GET לכתובת בודק חיבור; POST עם JSON יוצר ליד.
       </p>
 
       {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
@@ -96,6 +121,19 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
                 {s.lastSeenAt ? ` · נראה לאחרונה ${formatDateTime(s.lastSeenAt)}` : " · טרם התקבלו לידים"}
               </span>
               <div className="mr-auto flex items-center gap-1">
+                {projects.length > 0 ? (
+                  <Select
+                    value={s.project?.id ?? ""}
+                    onChange={(e) => setSourceProject(s.id, e.target.value)}
+                    className="!w-40 !py-1 text-xs"
+                    title="שיוך המקור לפרויקט"
+                  >
+                    <option value="">ללא פרויקט</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </Select>
+                ) : null}
                 <Button variant="ghost" size="sm" onClick={() => copy(s.token)}>
                   {copied === s.token ? "הועתק ✓" : "העתקת כתובת"}
                 </Button>
@@ -146,6 +184,18 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
             </Select>
           </Field>
         </div>
+        {projects.length > 0 ? (
+          <div className="w-40">
+            <Field label="פרויקט">
+              <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                <option value="">ללא פרויקט</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        ) : null}
         <Button type="submit" disabled={busy}>
           <Icon name="plus" className="h-4 w-4" />
           יצירת מקור

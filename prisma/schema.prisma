@@ -54,9 +54,24 @@ model User {
   documents     Document[]
   assignedLeads Lead[]     @relation("LeadAssignee")
   clientAssignments ClientAssignment[]
+  projectAssignments ProjectAssignment[]
 
   @@index([clientId])
   @@index([role])
+}
+
+// שיוך אנשי מכירות לפרויקטים. סוכן משויך רואה רק את הפרויקטים שלו;
+// ה"ראשי" מקבל את הלידים הנכנסים ממקורות הפרויקט (או סבב בין כולם).
+model ProjectAssignment {
+  id        String  @id @default(cuid())
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  isPrimary Boolean @default(false)
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }
 
 // Prepared for the future "account manager" model (agency staff scoped to
@@ -307,6 +322,9 @@ model LeadSource {
   id         String    @id @default(cuid())
   client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId   String
+  // מקור של פרויקט: לידים ממנו נכנסים ישר לפרויקט ולסוכניו.
+  project    Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId  String?
   name       String // "טופס אלמנטור — דף הבית", "פייסבוק לידים — קמפיין X"
   token      String    @unique
   channel    String? // default channel for leads from this source
@@ -461,6 +479,8 @@ model Project {
   budgets          Budget[]
   purchaseRequests PurchaseRequest[]
   contracts        Contract[]
+  assignments      ProjectAssignment[]
+  sources          LeadSource[]
 
   @@unique([clientId, name])
   @@index([clientId])

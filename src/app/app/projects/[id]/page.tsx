@@ -12,13 +12,20 @@ export default async function AppProjectPage({
   params: { id: string };
 }) {
   const user = (await getSession())!;
-  const project = await prisma.project.findUnique({ where: { id: params.id } });
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    include: { client: { select: { type: true } } },
+  });
   if (!project || project.clientId !== user.clientId) notFound();
 
   return (
     <>
       <PageHeader title={project.name} subtitle={project.description ?? undefined} />
-      <ProjectDetail projectId={project.id} clientId={user.clientId!} />
+      <ProjectDetail
+        projectId={project.id}
+        clientId={user.clientId!}
+        isRealestate={project.client.type === "realestate"}
+      />
     </>
   );
 }

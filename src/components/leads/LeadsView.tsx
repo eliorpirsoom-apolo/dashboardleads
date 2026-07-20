@@ -41,6 +41,7 @@ interface LeadRow {
   campaignLabel: string | null;
   status: StatusOpt | null;
   campaign: { id: string; name: string } | null;
+  project: { id: string; name: string } | null;
   unitType: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
   _count: { notes: number };
@@ -63,12 +64,14 @@ export default function LeadsView({
   const [statuses, setStatuses] = useState<StatusOpt[]>([]);
   const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([]);
   const [users, setUsers] = useState<UserOpt[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 
   const [q, setQ] = useState("");
   const [statusId, setStatusId] = useState("");
   const [channel, setChannel] = useState("");
   const [campaignId, setCampaignId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -86,11 +89,12 @@ export default function LeadsView({
     if (channel) p.set("channel", channel);
     if (campaignId) p.set("campaignId", campaignId);
     if (assigneeId) p.set("assigneeId", assigneeId);
+    if (projectId) p.set("projectId", projectId);
     if (showArchived) p.set("archived", "true");
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     return p;
-  }, [clientId, page, q, statusId, channel, campaignId, assigneeId, showArchived, from, to]);
+  }, [clientId, page, q, statusId, channel, campaignId, assigneeId, projectId, showArchived, from, to]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,6 +128,9 @@ export default function LeadsView({
       .catch(() => {});
     api<{ users: UserOpt[] }>(`/api/client-users?clientId=${clientId}`)
       .then((d) => setUsers(d.users))
+      .catch(() => {});
+    api<{ projects: { id: string; name: string }[] }>(`/api/projects?clientId=${clientId}`)
+      .then((d) => setProjects(d.projects))
       .catch(() => {});
   }, [clientId]);
 
@@ -229,6 +236,19 @@ export default function LeadsView({
             </Select>
           </Field>
         </div>
+        {projects.length > 0 ? (
+          <div className="w-36">
+            <Field label="פרויקט">
+              <Select value={projectId} onChange={(e) => { setProjectId(e.target.value); setPage(1); }}>
+                <option value="">הכול</option>
+                <option value="none">ללא פרויקט</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        ) : null}
         <div className="w-32">
           <Field label="מתאריך">
             <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
@@ -307,6 +327,25 @@ export default function LeadsView({
             ))}
             <option value="__none__">הסרת מטפל</option>
           </Select>
+          {projects.length > 0 ? (
+            <Select
+              className="!w-40"
+              defaultValue=""
+              disabled={bulkBusy}
+              onChange={(e) => {
+                if (e.target.value) {
+                  bulk("set_project", { projectId: e.target.value === "__none__" ? null : e.target.value });
+                }
+                e.target.value = "";
+              }}
+            >
+              <option value="">שיוך לפרויקט…</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+              <option value="__none__">הסרה מפרויקט</option>
+            </Select>
+          ) : null}
           {showArchived ? (
             <Button variant="ghost" size="sm" disabled={bulkBusy} onClick={() => bulk("restore")}>
               שחזור מהארכיון
@@ -350,7 +389,7 @@ export default function LeadsView({
                       className="h-4 w-4 rounded border-slate-600 bg-slate-900"
                     />
                   </th>
-                  {["#", "תאריך", "שם", "טלפון", "סטטוס", "מטפל", "ערוץ", "קמפיין", "הערות", ""].map((h, i) => (
+                  {["#", "תאריך", "שם", "טלפון", "סטטוס", "מטפל", "פרויקט", "ערוץ", "קמפיין", "הערות", ""].map((h, i) => (
                     <th key={i} className="px-3 py-2.5 text-right font-medium">{h}</th>
                   ))}
                 </tr>
@@ -410,6 +449,15 @@ export default function LeadsView({
                         {l.assignee.name.slice(0, 1)}
                       </span>
                       {l.assignee.name.split(" ")[0]}
+                    </span>
+                  ) : (
+                    <span className="text-slate-600">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-xs">
+                  {l.project ? (
+                    <span className="rounded-lg bg-cyan-500/10 px-2 py-0.5 text-cyan-300">
+                      {l.project.name}
                     </span>
                   ) : (
                     <span className="text-slate-600">—</span>

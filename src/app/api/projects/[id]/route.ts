@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { assertNotAgent } from "@/lib/permissions";
+import { allowedProjectIds } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,11 @@ async function scopedProject(id: string) {
   const project = await prisma.project.findUnique({ where: { id } });
   if (!project) throw new ApiError(404, "פרויקט לא נמצא");
   scopeClientId(user, project.clientId);
+  // סוכן-פרויקטים ניגש רק לפרויקטים שהוא משויך אליהם.
+  const allowed = await allowedProjectIds(user);
+  if (allowed && !allowed.includes(project.id)) {
+    throw new ApiError(403, "הפרויקט לא משויך אליך");
+  }
   return { user, project };
 }
 
@@ -43,6 +49,9 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
           lead: { select: { id: true, fullName: true, number: true, phone: true } },
           unitType: { select: { id: true, name: true } },
         },
+      },
+      assignments: {
+        include: { user: { select: { id: true, name: true, email: true, active: true } } },
       },
     },
   });

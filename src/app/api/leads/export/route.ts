@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId } from "@/lib/api";
 import { buildLeadWhere } from "@/lib/leadFilters";
 import { channelLabel } from "@/lib/defaults";
+import { allowedProjectIds } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -22,19 +23,20 @@ export const GET = handle(async (req) => {
   });
 
   const leads = await prisma.lead.findMany({
-    where: buildLeadWhere(clientId, p),
+    where: buildLeadWhere(clientId, p, user.id, await allowedProjectIds(user)),
     orderBy: { receivedAt: "desc" },
     take: 5000,
     include: {
       status: { select: { name: true } },
       campaign: { select: { name: true } },
+      project: { select: { name: true } },
       unitType: { select: { name: true } },
     },
   });
 
   const headers = [
     "מס' ליד", "תאריך", "שם", "טלפון", "אימייל", "עיר", "סטטוס",
-    "קמפיין", "קהל", "מודעה", "ערוץ", "פלטפורמה", "סוג", "הסכמה לדיוור",
+    "פרויקט", "קמפיין", "קהל", "מודעה", "ערוץ", "פלטפורמה", "סוג", "הסכמה לדיוור",
     "טיפוס דירה",
     ...fields.map((f) => f.label),
   ];
@@ -46,6 +48,7 @@ export const GET = handle(async (req) => {
       new Date(l.receivedAt).toLocaleString("he-IL"),
       l.fullName, l.phone, l.email, l.city,
       l.status?.name,
+      l.project?.name,
       l.campaign?.name ?? l.campaignLabel,
       l.audience, l.adName,
       channelLabel(l.channel), l.platform,

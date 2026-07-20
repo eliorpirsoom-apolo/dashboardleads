@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId } from "@/lib/api";
 import { ilMonthStart } from "@/lib/time";
+import { allowedProjectIds } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +19,21 @@ export const GET = handle(async (req) => {
     ? new Date(p.get("from")!)
     : ilMonthStart(now);
   const to = p.get("to") ? new Date(`${p.get("to")}T23:59:59`) : now;
-  const projectId = p.get("projectId") || undefined;
+  // סוכן-פרויקטים: הדוח תמיד בגבולות הפרויקטים שלו.
+  const allowed = await allowedProjectIds(user);
+  let projectId = p.get("projectId") || undefined;
+  if (allowed && projectId && !allowed.includes(projectId)) projectId = undefined;
+  const projFilter = projectId
+    ? { projectId }
+    : allowed
+      ? { projectId: { in: allowed } }
+      : {};
 
   const leadWhere = {
     clientId,
     archived: false,
     receivedAt: { gte: from, lte: to },
-    ...(projectId ? { projectId } : {}),
+    ...projFilter,
   };
 
   const [totalLeads, byChannel, byCampaign, byStatus, byKind, contracts, budgets, projects] =
@@ -54,7 +63,7 @@ export const GET = handle(async (req) => {
         where: {
           clientId,
           createdAt: { gte: from, lte: to },
-          ...(projectId ? { projectId } : {}),
+          ...projFilter,
         },
         select: { value: true },
       }),
@@ -62,7 +71,10 @@ export const GET = handle(async (req) => {
         where: { clientId, ...(projectId ? { projectId } : {}) },
       }),
       prisma.project.findMany({
-        where: { clientId, ...(projectId ? { id: projectId } : {}) },
+        where: {
+          clientId,
+          ...(projectId ? { id: projectId } : allowed ? { id: { in: allowed } } : {}),
+        },
         include: { unitTypes: true },
       }),
     ]);

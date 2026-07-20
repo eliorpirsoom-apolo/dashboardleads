@@ -29,6 +29,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   create: "הליד נוצר",
   status: "שינוי סטטוס",
   assign: "שיוך מטפל",
+  project: "שיוך לפרויקט",
   archive: "הועבר לארכיון",
   restore: "שוחזר מהארכיון",
   consent: "הסרה מדיוור",
@@ -390,11 +391,29 @@ export default function LeadDrawer({
               הסכמה לדיוור
             </label>
 
-            {/* Real-estate: unit linking + purchase request */}
+            {/* Project linking (+ unit & purchase request for real-estate) */}
             {projects.length > 0 ? (
               <div className="mt-4 rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-3">
-                <p className="mb-2 text-xs font-bold text-cyan-300">שיוך לפרויקט ודירה</p>
-                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                <p className="mb-2 text-xs font-bold text-cyan-300">שיוך לפרויקט</p>
+                <Field label="פרויקט">
+                  <Select
+                    value={
+                      edit.projectId !== undefined
+                        ? edit.projectId ?? ""
+                        : lead.projectId ?? ""
+                    }
+                    onChange={(e) =>
+                      setEdit({ ...edit, projectId: e.target.value || null })
+                    }
+                  >
+                    <option value="">ללא פרויקט</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+                {projects.some((p) => p.units.length > 0) ? (
+                <div className="mt-2 grid grid-cols-[1fr_auto] items-end gap-2">
                   <Field label="טיפוס דירה" hint='מעבר לסטטוס "עסקה" יוריד את הדירה מהמלאי'>
                     <Select
                       value={
@@ -456,6 +475,7 @@ export default function LeadDrawer({
                     בקשת רכישה
                   </Button>
                 </div>
+                ) : null}
               </div>
             ) : null}
 

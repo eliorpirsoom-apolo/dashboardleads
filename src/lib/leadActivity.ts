@@ -5,6 +5,7 @@ export type ActivityKind =
   | "create"
   | "status"
   | "assign"
+  | "project"
   | "archive"
   | "restore"
   | "consent"
@@ -38,12 +39,19 @@ export async function recordActivity(
  * Round-robin auto-assignment: pick the client's active sales agent with the
  * fewest non-archived leads (ties → least recently assigned). Falls back to
  * null when the client has no active agents.
+ * candidateIds (optional) limits the pool — e.g. the agents of one project.
  */
 export async function pickAutoAssignee(
-  clientId: string
+  clientId: string,
+  candidateIds?: string[]
 ): Promise<string | null> {
   const agents = await prisma.user.findMany({
-    where: { clientId, active: true, isAgent: true },
+    where: {
+      clientId,
+      active: true,
+      isAgent: true,
+      ...(candidateIds ? { id: { in: candidateIds } } : {}),
+    },
     select: { id: true },
   });
   if (agents.length === 0) return null;

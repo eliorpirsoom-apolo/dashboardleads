@@ -1,10 +1,12 @@
 import { prisma } from "./prisma";
 import { ilDateKey } from "./time";
 
-/** Daily lead counts for the last `days` days (Israel calendar days). */
+/** Daily lead counts for the last `days` days (Israel calendar days).
+ *  projectIds limits the trend to specific projects (agent scoping). */
 export async function leadTrend(
   clientId: string | null,
-  days = 30
+  days = 30,
+  projectIds?: string[] | null
 ): Promise<{ date: string; לידים: number }[]> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const leads = await prisma.lead.findMany({
@@ -12,6 +14,7 @@ export async function leadTrend(
       archived: false,
       receivedAt: { gte: since },
       ...(clientId ? { clientId } : {}),
+      ...(projectIds ? { projectId: { in: projectIds } } : {}),
     },
     select: { receivedAt: true },
   });

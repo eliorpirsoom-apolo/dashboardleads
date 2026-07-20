@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { onLeadStatusChanged } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
+import { allowedProjectIds, leadProjectWhere, projectAllowed } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -11,9 +12,10 @@ export const maxDuration = 60;
 const BulkAction = z.object({
   clientId: z.string().optional(),
   ids: z.array(z.string().min(1)).min(1, "לא נבחרו לידים").max(200),
-  action: z.enum(["set_status", "assign", "archive", "restore"]),
+  action: z.enum(["set_status", "assign", "archive", "restore", "set_project"]),
   statusId: z.string().optional(),
   assigneeId: z.string().nullable().optional(),
+  projectId: z.string().nullable().optional(),
 });
 
 // POST /api/leads/bulk — one action on many selected leads.
@@ -22,9 +24,10 @@ export const POST = handle(async (req) => {
   const user = await requireUser();
   const body = BulkAction.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
+  const allowed = await allowedProjectIds(user);
 
   const leads = await prisma.lead.findMany({
-    where: { id: { in: body.ids }, clientId },
+    where: { id: { in: body.ids }, clientId, ...leadProjectWhere(allowed) },
   });
   if (leads.length === 0) throw new ApiError(404, "לא נמצאו לידים");
 
@@ -65,6 +68,29 @@ export const POST = handle(async (req) => {
     for (const lead of leads) {
       await recordActivity(lead.id, user.name, "assign", {
         toValue: next?.name ?? "ללא מטפל",
+        note: "פעולה מרובה",
+      });
+    }
+  } else if (body.action === "set_project") {
+    const projectId = body.projectId ?? null;
+    if (projectId) {
+      const proj = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!proj || proj.clientId !== clientId) throw new ApiError(400, "פרויקט לא תקין");
+    }
+    if (!projectAllowed(allowed, projectId)) {
+      throw new ApiError(403, "אין גישה לפרויקט הזה");
+    }
+    const next = projectId
+      ? await prisma.project.findUnique({ where: { id: projectId } })
+      : null;
+    await prisma.lead.updateMany({
+      where: { id: { in: leads.map((l) => l.id) } },
+      data: { projectId },
+    });
+    for (const lead of leads) {
+      if (lead.projectId === projectId) continue;
+      await recordActivity(lead.id, user.name, "project", {
+        toValue: next?.name ?? "ללא פרויקט",
         note: "פעולה מרובה",
       });
     }

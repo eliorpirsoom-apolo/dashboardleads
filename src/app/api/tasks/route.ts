@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, readJson, ApiError } from "@/lib/api";
+import { allowedProjectIds } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,15 @@ export const GET = handle(async (req) => {
     // הפרדת הצדדים: לקוח רואה רק את המשימות של הצד שלו.
     where.clientId = user.clientId!;
     where.ownerSide = "client";
+    // סוכן-פרויקטים: המשימות שלו או של לידים בפרויקטים שלו.
+    const allowed = await allowedProjectIds(user);
+    if (allowed) {
+      where.OR = [
+        { assigneeId: user.id },
+        { createdById: user.id },
+        { lead: { projectId: { in: allowed } } },
+      ];
+    }
   }
   if (p.get("status")) where.status = p.get("status")!;
   if (p.get("type")) where.type = p.get("type")!;

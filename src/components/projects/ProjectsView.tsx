@@ -19,14 +19,17 @@ interface ProjectRow {
   totalUnits: number;
   soldUnits: number;
   unitTypes: number;
+  agents: { userId: string; name: string; active: boolean; isPrimary: boolean }[];
 }
 
 export default function ProjectsView({
   clientId,
   baseHref,
+  isRealestate = true,
 }: {
   clientId: string;
   baseHref: string; // "/app/projects" | "/admin/clients/<id>/projects"
+  isRealestate?: boolean; // false → כללי: בלי מלאי דירות וחוזים
 }) {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -61,7 +64,11 @@ export default function ProjectsView({
           <EmptyState
             icon="building"
             title="אין פרויקטים עדיין"
-            hint="הקימו פרויקט: שם, טיפוסי דירות, מלאי ומחירים — ומתחילים לנהל."
+            hint={
+              isRealestate
+                ? "הקימו פרויקט: שם, טיפוסי דירות, מלאי ומחירים — ומתחילים לנהל."
+                : "הקימו פרויקט: לכל פרויקט מקורות קליטה, אנשי מכירות ולידים משלו."
+            }
             action={
               <Button onClick={() => setShowCreate(true)}>
                 <Icon name="plus" className="h-4 w-4" />
@@ -86,7 +93,8 @@ export default function ProjectsView({
                       <div>
                         <p className="font-bold text-slate-100">{p.name}</p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          {p.unitTypes} טיפוסים · {p.leads} לידים
+                          {isRealestate ? `${p.unitTypes} טיפוסים · ` : ""}
+                          {p.leads} לידים
                         </p>
                       </div>
                     </div>
@@ -95,37 +103,57 @@ export default function ProjectsView({
                     ) : null}
                   </div>
 
-                  <div className="mt-4">
-                    <div className="mb-1 flex justify-between text-xs">
-                      <span className="text-slate-400">
-                        נמכרו {p.soldUnits} מתוך {p.totalUnits}
-                      </span>
-                      <span className="font-bold text-cyan-300">{pct}%</span>
+                  {p.agents.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500">אנשי מכירות:</span>
+                      {p.agents.map((a) => (
+                        <Chip key={a.userId} color={a.isPrimary ? "#22d3ee" : "#64748b"}>
+                          {a.name}
+                          {a.isPrimary ? " ★" : ""}
+                        </Chip>
+                      ))}
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-l from-cyan-400 to-indigo-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="mt-3 text-[11px] text-slate-600">
+                      אין אנשי מכירות משויכים — לידים ייכנסו ללא מטפל
+                    </p>
+                  )}
 
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-xl bg-slate-900/50 py-2">
-                      <p className="text-base font-bold text-emerald-300">{available}</p>
-                      <p className="text-[10px] text-slate-500">זמינות</p>
-                    </div>
-                    <div className="rounded-xl bg-slate-900/50 py-2">
-                      <p className="text-base font-bold text-slate-200">{p.contracts}</p>
-                      <p className="text-[10px] text-slate-500">חוזים</p>
-                    </div>
-                    <div className="rounded-xl bg-slate-900/50 py-2">
-                      <p className="text-base font-bold text-amber-300">
-                        {p.contractsValue ? formatCurrency(p.contractsValue) : "—"}
-                      </p>
-                      <p className="text-[10px] text-slate-500">ערך חוזים</p>
-                    </div>
-                  </div>
+                  {isRealestate ? (
+                    <>
+                      <div className="mt-4">
+                        <div className="mb-1 flex justify-between text-xs">
+                          <span className="text-slate-400">
+                            נמכרו {p.soldUnits} מתוך {p.totalUnits}
+                          </span>
+                          <span className="font-bold text-cyan-300">{pct}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-l from-cyan-400 to-indigo-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-xl bg-slate-900/50 py-2">
+                          <p className="text-base font-bold text-emerald-300">{available}</p>
+                          <p className="text-[10px] text-slate-500">זמינות</p>
+                        </div>
+                        <div className="rounded-xl bg-slate-900/50 py-2">
+                          <p className="text-base font-bold text-slate-200">{p.contracts}</p>
+                          <p className="text-[10px] text-slate-500">חוזים</p>
+                        </div>
+                        <div className="rounded-xl bg-slate-900/50 py-2">
+                          <p className="text-base font-bold text-amber-300">
+                            {p.contractsValue ? formatCurrency(p.contractsValue) : "—"}
+                          </p>
+                          <p className="text-[10px] text-slate-500">ערך חוזים</p>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
                 </Card>
               </Link>
             );
@@ -136,6 +164,7 @@ export default function ProjectsView({
       {showCreate ? (
         <CreateProjectModal
           clientId={clientId}
+          isRealestate={isRealestate}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
@@ -156,10 +185,12 @@ interface UnitDraft {
 
 function CreateProjectModal({
   clientId,
+  isRealestate,
   onClose,
   onCreated,
 }: {
   clientId: string;
+  isRealestate: boolean;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -216,7 +247,7 @@ function CreateProjectModal({
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
 
-        <div>
+        <div className={isRealestate ? "" : "hidden"}>
           <p className="mb-2 text-xs font-medium text-slate-400">
             טיפוסי דירות ומלאי התחלתי (תוכניות דירה מעלים אחרי ההקמה)
           </p>

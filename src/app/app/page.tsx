@@ -8,6 +8,7 @@ import { ilDayStart, ilDayEnd, ilMonthKey, ilMonthStart } from "@/lib/time";
 import { leadTrend } from "@/lib/trend";
 import TrendChart from "@/components/TrendChart";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
+import { allowedProjectIds, leadProjectWhere } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -23,23 +24,35 @@ export default async function ClientDashboard() {
   const monthKey = ilMonthKey(now);
   const monthStart = ilMonthStart(now);
 
+  // סוכן המשויך לפרויקטים רואה רק את המספרים של הפרויקטים שלו.
+  const allowed = await allowedProjectIds(user);
+  const projScope = leadProjectWhere(allowed);
+
   const [leadsToday, leadsWeek, leadsMonth, wonMonth, budgets, todayTasks, recentLeads, statusDist] =
     await Promise.all([
-      prisma.lead.count({ where: { clientId, archived: false, receivedAt: { gte: dayStart } } }),
-      prisma.lead.count({ where: { clientId, archived: false, receivedAt: { gte: weekAgo } } }),
-      prisma.lead.count({ where: { clientId, archived: false, receivedAt: { gte: monthStart } } }),
+      prisma.lead.count({ where: { clientId, archived: false, ...projScope, receivedAt: { gte: dayStart } } }),
+      prisma.lead.count({ where: { clientId, archived: false, ...projScope, receivedAt: { gte: weekAgo } } }),
+      prisma.lead.count({ where: { clientId, archived: false, ...projScope, receivedAt: { gte: monthStart } } }),
       prisma.lead.count({
-        where: { clientId, archived: false, status: { systemKind: "won" }, receivedAt: { gte: monthStart } },
+        where: { clientId, archived: false, ...projScope, status: { systemKind: "won" }, receivedAt: { gte: monthStart } },
       }),
       prisma.budget.findMany({ where: { clientId, periodKey: monthKey } }),
       prisma.task.findMany({
-        where: { clientId, ownerSide: "client", status: "open", dueAt: { gte: dayStart, lt: dayEnd } },
+        where: {
+          clientId,
+          ownerSide: "client",
+          status: "open",
+          dueAt: { gte: dayStart, lt: dayEnd },
+          ...(allowed
+            ? { OR: [{ assigneeId: user.id }, { lead: { projectId: { in: allowed } } }] }
+            : {}),
+        },
         orderBy: { dueAt: "asc" },
         take: 8,
         include: { lead: { select: { fullName: true, number: true } } },
       }),
       prisma.lead.findMany({
-        where: { clientId, archived: false },
+        where: { clientId, archived: false, ...projScope },
         orderBy: { receivedAt: "desc" },
         take: 6,
         include: { status: { select: { name: true, color: true } } },
@@ -47,7 +60,7 @@ export default async function ClientDashboard() {
       prisma.leadStatus.findMany({
         where: { clientId },
         orderBy: { order: "asc" },
-        include: { _count: { select: { leads: { where: { archived: false, receivedAt: { gte: monthStart } } } } } },
+        include: { _count: { select: { leads: { where: { archived: false, ...projScope, receivedAt: { gte: monthStart } } } } } },
       }),
     ]);
 
@@ -56,8 +69,8 @@ export default async function ClientDashboard() {
 
   // Trend + onboarding signals
   const [trend, totalLeads, sourcesCount, agentsCount] = await Promise.all([
-    leadTrend(clientId),
-    prisma.lead.count({ where: { clientId } }),
+    leadTrend(clientId, 30, allowed),
+    prisma.lead.count({ where: { clientId, ...projScope } }),
     prisma.leadSource.count({ where: { clientId, active: true } }),
     prisma.user.count({ where: { clientId, isAgent: true, active: true } }),
   ]);

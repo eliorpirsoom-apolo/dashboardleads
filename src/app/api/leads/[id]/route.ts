@@ -5,6 +5,7 @@ import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/ap
 import { normalizeEmail, normalizePhone } from "@/lib/leads";
 import { onLeadStatusChanged } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
+import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,12 @@ async function scopedLead(params: { id: string }) {
   const lead = await prisma.lead.findUnique({ where: { id: params.id } });
   if (!lead) throw new ApiError(404, "ליד לא נמצא");
   scopeClientId(user, lead.clientId);
-  return { user, lead };
+  // סוכן-פרויקטים נוגע רק בלידים של הפרויקטים שלו.
+  const allowed = await allowedProjectIds(user);
+  if (!projectAllowed(allowed, lead.projectId)) {
+    throw new ApiError(403, "הליד לא שייך לפרויקטים שלך");
+  }
+  return { user, lead, allowed };
 }
 
 // GET /api/leads/[id] — full lead card data.
@@ -85,10 +91,19 @@ const UpdateLead = z.object({
 // PATCH /api/leads/[id] — edits; status changes fire the domain hooks
 // (inventory automation + client automations).
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
-  const { user, lead } = await scopedLead(params);
+  const { user, lead, allowed } = await scopedLead(params);
   const body = UpdateLead.parse(await readJson(req));
 
   // Validate cross-references belong to the same client.
+  if (body.projectId) {
+    const proj = await prisma.project.findUnique({ where: { id: body.projectId } });
+    if (!proj || proj.clientId !== lead.clientId) throw new ApiError(400, "פרויקט לא תקין");
+    if (!projectAllowed(allowed, body.projectId)) {
+      throw new ApiError(403, "אין גישה לפרויקט הזה");
+    }
+  } else if (body.projectId === null && allowed) {
+    throw new ApiError(403, "סוכן לא יכול להוציא ליד מהפרויקט");
+  }
   if (body.statusId) {
     const st = await prisma.leadStatus.findUnique({ where: { id: body.statusId } });
     if (!st || st.clientId !== lead.clientId) throw new ApiError(400, "סטטוס לא תקין");
@@ -166,6 +181,16 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     await recordActivity(lead.id, user.name, "assign", {
       fromValue: prev?.name ?? null,
       toValue: next?.name ?? "ללא מטפל",
+    });
+  }
+  if (body.projectId !== undefined && body.projectId !== lead.projectId) {
+    const [prevProj, nextProj] = await Promise.all([
+      lead.projectId ? prisma.project.findUnique({ where: { id: lead.projectId } }) : null,
+      body.projectId ? prisma.project.findUnique({ where: { id: body.projectId } }) : null,
+    ]);
+    await recordActivity(lead.id, user.name, "project", {
+      fromValue: prevProj?.name ?? null,
+      toValue: nextProj?.name ?? "ללא פרויקט",
     });
   }
   if (body.archived === false && lead.archived) {

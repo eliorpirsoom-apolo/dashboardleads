@@ -6,6 +6,7 @@ import { createLeadNumbered, defaultStatusId, normalizeEmail, normalizePhone } f
 import { buildLeadWhere } from "@/lib/leadFilters";
 import { onLeadCreated } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
+import { allowedProjectIds } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export const GET = handle(async (req) => {
 
   const page = Math.max(1, Number(p.get("page") || 1));
   const pageSize = Math.min(100, Math.max(10, Number(p.get("pageSize") || 25)));
-  const where = buildLeadWhere(clientId, p, user.id);
+  const where = buildLeadWhere(clientId, p, user.id, await allowedProjectIds(user));
 
   const [total, rows] = await Promise.all([
     prisma.lead.count({ where }),
@@ -29,6 +30,7 @@ export const GET = handle(async (req) => {
       include: {
         status: { select: { id: true, name: true, color: true, systemKind: true } },
         campaign: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
         unitType: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
         _count: { select: { notes: true } },
@@ -53,6 +55,7 @@ const CreateLead = z.object({
   adName: z.string().max(160).optional().nullable(),
   consent: z.boolean().default(false),
   kind: z.enum(["form", "call", "whatsapp", "manual"]).default("manual"),
+  projectId: z.string().optional().nullable(),
   data: z.record(z.any()).optional(),
 });
 
@@ -62,8 +65,21 @@ export const POST = handle(async (req) => {
   const body = CreateLead.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
 
+  // פרויקט: חייב להשתייך לאותו לקוח; סוכן-פרויקטים מוגבל לפרויקטים שלו
+  // (וליד ידני שלו נכנס לפרויקט הראשון שלו אם לא נבחר אחרת).
+  const allowed = await allowedProjectIds(user);
+  let projectId = body.projectId || null;
+  if (projectId) {
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!project || project.clientId !== clientId) projectId = null;
+  }
+  if (allowed) {
+    if (!projectId || !allowed.includes(projectId)) projectId = allowed[0];
+  }
+
   const lead = await createLeadNumbered({
     clientId,
+    projectId,
     kind: body.kind,
     statusId: await defaultStatusId(clientId),
     assigneeId: user.role === "CLIENT" && user.isAgent ? user.id : null,

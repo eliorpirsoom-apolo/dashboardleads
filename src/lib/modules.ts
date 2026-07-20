@@ -14,7 +14,8 @@ export type ModuleKey =
   | "purchases" // purchase requests (realestate + general per spec)
   | "topads" // "2 strongest ads of the month"
   | "broadcasts" // distribution messages + report
-  | "realestate" // projects, unit inventory, contracts
+  | "projects" // core: projects layer — sources, agents and leads per project
+  | "realestate" // unit inventory + contracts (on top of projects)
   | "seo"; // Search Console / GA4 dashboards
 
 const CORE: ModuleKey[] = [
@@ -25,6 +26,7 @@ const CORE: ModuleKey[] = [
   "purchases",
   "topads",
   "broadcasts",
+  "projects",
 ];
 
 const MODULES_BY_TYPE: Record<ClientType, ModuleKey[]> = {

@@ -21,7 +21,7 @@ export default async function ClientWorkspaceLayout({
   const tabs = [
     { href: `/admin/clients/${client.id}`, label: "סקירה", exact: true },
     { href: `/admin/clients/${client.id}/leads`, label: "לידים" },
-    ...(hasModule(client.type, "realestate")
+    ...(hasModule(client.type, "projects")
       ? [{ href: `/admin/clients/${client.id}/projects`, label: "פרויקטים" }]
       : []),
     ...(hasModule(client.type, "seo")
