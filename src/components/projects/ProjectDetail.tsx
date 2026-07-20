@@ -919,7 +919,9 @@ function AgentsCard({
     api<{ users: { id: string; name: string; isAgent: boolean }[] }>(
       `/api/client-users?clientId=${clientId}`
     )
-      .then((d) => setAgents(d.users.filter((u) => u.isAgent)))
+      // כל משתמשי הלקוח — גם הבעלים יכול להיות איש המכירות של פרויקט
+      // (סוכן מצומצם לפרויקטים שלו; בעלים ממשיך לראות הכול).
+      .then((d) => setAgents(d.users))
       .catch(() => setAgents([]));
   }, [clientId]);
 

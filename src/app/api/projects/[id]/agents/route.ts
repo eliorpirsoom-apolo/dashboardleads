@@ -29,9 +29,11 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   const { project } = await scopedProject(params.id);
   const body = AddAgent.parse(await readJson(req));
 
+  // גם הבעלים יכול להיות איש המכירות של פרויקט: הוא יקבל את הלידים
+  // הנכנסים, אבל הצמצום לפרויקטים חל רק על משתמשים מסומנים כסוכנים.
   const agent = await prisma.user.findUnique({ where: { id: body.userId } });
-  if (!agent || agent.clientId !== project.clientId || !agent.isAgent) {
-    throw new ApiError(400, "המשתמש חייב להיות סוכן מכירות של הלקוח");
+  if (!agent || agent.clientId !== project.clientId) {
+    throw new ApiError(400, "המשתמש חייב להיות משתמש של הלקוח");
   }
 
   const [assignment] = await prisma.$transaction([

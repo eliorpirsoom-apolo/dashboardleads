@@ -291,13 +291,16 @@ export async function POST(
     let assigneeId: string | null = null;
     const projectAgents = source.project?.assignments ?? [];
     if (projectAgents.length > 0) {
-      assigneeId = source.client.autoAssignLeads
-        ? await pickAutoAssignee(
-            source.clientId,
-            projectAgents.map((a) => a.userId)
-          )
-        : projectAgents.find((a) => a.isPrimary)?.userId ??
-          projectAgents[0].userId;
+      if (source.client.autoAssignLeads) {
+        assigneeId = await pickAutoAssignee(
+          source.clientId,
+          projectAgents.map((a) => a.userId)
+        );
+      }
+      // בלי סבב (או כשאין סוכן זמין) — הליד הולך לראשי של הפרויקט.
+      assigneeId ??=
+        projectAgents.find((a) => a.isPrimary)?.userId ??
+        projectAgents[0].userId;
     } else if (source.client.autoAssignLeads) {
       assigneeId = await pickAutoAssignee(source.clientId);
     }
