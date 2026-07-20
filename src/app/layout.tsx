@@ -3,9 +3,10 @@ import ToasterProvider from "@/components/Toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "מערכת CRM — ניהול לקוחות ולידים",
+  title: "Apollo CRM — ניהול לקוחות ולידים",
   description:
     "CRM דו-צדדי למשרד דיגיטל: ניהול לקוחות, לידים, קמפיינים, משימות ומסמכים.",
+  icons: { icon: "/brand/apollo-icon.jpg" },
 };
 
 export default function RootLayout({

@@ -39,7 +39,7 @@ export default async function AdminDashboard() {
 
   return (
     <>
-      <PageHeader title="דשבורד המשרד" subtitle="תמונת מצב כלל הלקוחות" />
+      <PageHeader title="סקירה כללית" subtitle="תמונת מצב כלל הלקוחות" />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="לקוחות פעילים" value={activeClients} icon="users" />

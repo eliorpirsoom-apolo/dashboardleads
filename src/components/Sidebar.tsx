@@ -87,16 +87,16 @@ export default function Sidebar({
           alt=""
           className="h-9 w-9 rounded-xl border border-slate-700 bg-white/5 object-contain p-0.5"
         />
-      ) : (
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-sm font-black text-white shadow-lg shadow-cyan-500/30">
-          C
-        </div>
-      )}
+      ) : null}
       <div>
-        <p className="text-sm font-bold leading-tight text-slate-100">
-          מערכת CRM
-        </p>
-        <p className="text-[11px] leading-tight text-slate-500">{roleLabel}</p>
+        {/* לוגו המשרד — שחור על שקוף, מהופך ללבן על הרקע הכהה. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/apollo-logo.png"
+          alt="Apollo"
+          className="h-5 w-auto invert"
+        />
+        <p className="mt-1 text-[11px] leading-tight text-slate-500">{roleLabel}</p>
       </div>
     </div>
   );
@@ -112,7 +112,8 @@ export default function Sidebar({
         >
           <Icon name="menu" />
         </button>
-        <p className="text-sm font-bold text-slate-100">מערכת CRM</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/apollo-logo.png" alt="Apollo" className="h-4 w-auto invert" />
         <div className="w-8" />
       </div>
 

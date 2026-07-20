@@ -13,7 +13,7 @@ export interface NavItem {
 }
 
 export const ADMIN_NAV: NavItem[] = [
-  { href: "/admin", label: "דשבורד", icon: "home" },
+  { href: "/admin", label: "סקירה כללית", icon: "home" },
   { href: "/admin/clients", label: "לקוחות", icon: "users" },
   { href: "/admin/tasks", label: "משימות", icon: "tasks" },
   { href: "/admin/calendar", label: "לוח שנה", icon: "calendar" },
@@ -24,7 +24,7 @@ export const ADMIN_NAV: NavItem[] = [
 ];
 
 const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
-  { href: "/app", label: "דשבורד", icon: "home" },
+  { href: "/app", label: "סקירה כללית", icon: "home" },
   { href: "/app/leads", label: "לידים", icon: "leads", module: "leads" },
   { href: "/app/projects", label: "פרויקטים", icon: "building", module: "projects" },
   { href: "/app/purchases", label: "בקשות רכישה", icon: "money", module: "purchases" },

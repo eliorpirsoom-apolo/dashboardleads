@@ -26,12 +26,13 @@ export default async function LoginPage({
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-xl font-black text-white shadow-lg shadow-cyan-500/30">
-            C
-          </div>
-          <h1 className="text-2xl font-bold text-slate-100">
-            מערכת <span className="text-gradient">CRM</span>
-          </h1>
+          {/* לוגו אפולו — שחור על שקוף, מהופך ללבן על הרקע הכהה. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/apollo-logo.png"
+            alt="Apollo"
+            className="mx-auto mb-4 h-9 w-auto invert"
+          />
           <p className="mt-1 text-sm text-slate-400">
             התחברות לניהול הפעילות הדיגיטלית שלך
           </p>
