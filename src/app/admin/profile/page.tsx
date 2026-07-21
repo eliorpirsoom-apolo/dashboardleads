@@ -14,6 +14,7 @@ export default async function AdminProfilePage() {
       <ProfileView
         initialName={dbUser?.name ?? ""}
         initialPhone={dbUser?.phone ?? ""}
+        initialBirthday={dbUser?.birthday ? dbUser.birthday.toISOString().slice(0, 10) : ""}
         email={dbUser?.email ?? ""}
         hasPassword={Boolean(dbUser?.passwordHash)}
       />

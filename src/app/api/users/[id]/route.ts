@@ -14,6 +14,7 @@ const UpdateUser = z.object({
   isAgent: z.boolean().optional(),
   adminRole: z.enum(["manager", "staff"]).optional(),
   phone: z.string().max(30).nullable().optional(),
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   active: z.boolean().optional(),
 });
 
@@ -43,6 +44,9 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
         ? { adminRole: body.adminRole }
         : {}),
       phone: body.phone,
+      ...(body.birthday !== undefined
+        ? { birthday: body.birthday ? new Date(`${body.birthday}T12:00:00Z`) : null }
+        : {}),
       active: body.active,
       ...(body.password ? { passwordHash: hashPassword(body.password) } : {}),
       ...(revokeSessions ? { tokenVersion: { increment: 1 } } : {}),

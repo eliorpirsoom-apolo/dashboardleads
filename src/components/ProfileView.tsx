@@ -9,17 +9,20 @@ import { Icon } from "@/components/Icon";
 export default function ProfileView({
   initialName,
   initialPhone,
+  initialBirthday = "",
   email,
   hasPassword,
 }: {
   initialName: string;
   initialPhone: string;
+  initialBirthday?: string; // "yyyy-mm-dd"
   email: string;
   hasPassword: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState(initialPhone);
+  const [birthday, setBirthday] = useState(initialBirthday);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [msg, setMsg] = useState("");
@@ -32,7 +35,10 @@ export default function ProfileView({
     setMsg("");
     setErr("");
     try {
-      await api("/api/me", { method: "PATCH", json: { name, phone: phone || null } });
+      await api("/api/me", {
+        method: "PATCH",
+        json: { name, phone: phone || null, birthday: birthday || null },
+      });
       setMsg("הפרטים נשמרו ✓");
       router.refresh();
     } catch (e: any) {
@@ -90,6 +96,14 @@ export default function ProfileView({
             </Field>
             <Field label="טלפון (לתזכורות SMS/וואטסאפ)">
               <Input dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+            <Field label="תאריך יום הולדת 🎂 (לברכה בצוות)">
+              <Input
+                type="date"
+                dir="ltr"
+                value={birthday}
+                onChange={(e) => setBirthday(e.target.value)}
+              />
             </Field>
           </div>
           <div className="flex justify-end">

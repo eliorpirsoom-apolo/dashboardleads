@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 const UpdateMe = z.object({
   name: z.string().min(1, "חסר שם").max(120).optional(),
   phone: z.string().max(30).nullable().optional(),
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   // Password change requires proving the current password.
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8, "סיסמה חדשה קצרה מדי (מינימום 8)").optional(),
@@ -50,6 +51,9 @@ export const PATCH = handle(async (req) => {
     data: {
       name: body.name,
       phone: body.phone,
+      ...(body.birthday !== undefined
+        ? { birthday: body.birthday ? new Date(`${body.birthday}T12:00:00Z`) : null }
+        : {}),
       ...(newHash ? { passwordHash: newHash } : {}),
       ...(bumpVersion ? { tokenVersion: { increment: 1 } } : {}),
     },
