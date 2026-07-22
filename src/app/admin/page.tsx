@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { PageHeader, StatCard, Card, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { formatTime } from "@/lib/format";
 import { ilDayStart, ilDayEnd } from "@/lib/time";
+import { ilGreeting } from "@/lib/greeting";
 
 export const dynamic = "force-dynamic";
 
 // Agency home — one morning glance: what's happening across all clients.
 export default async function AdminDashboard() {
+  const user = (await getSession())!;
   const now = new Date();
   const dayStart = ilDayStart(now);
   const dayEnd = ilDayEnd(now);
@@ -39,7 +42,10 @@ export default async function AdminDashboard() {
 
   return (
     <>
-      <PageHeader title="סקירה כללית" subtitle="תמונת מצב כלל הלקוחות" />
+      <PageHeader
+        title={`${ilGreeting()}, ${user.name.split(" ")[0]}`}
+        subtitle="סקירה כללית — תמונת מצב כלל הלקוחות"
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="לקוחות פעילים" value={activeClients} icon="users" />

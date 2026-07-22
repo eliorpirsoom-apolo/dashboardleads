@@ -9,6 +9,7 @@ import { leadTrend } from "@/lib/trend";
 import TrendChart from "@/components/TrendChart";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
 import { allowedProjectIds, leadProjectWhere } from "@/lib/projectScope";
+import { ilGreeting } from "@/lib/greeting";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ export default async function ClientDashboard() {
   return (
     <>
       <PageHeader
-        title={`שלום, ${user.name.split(" ")[0]} 👋`}
+        title={`${ilGreeting()}, ${user.name.split(" ")[0]}`}
         subtitle="תמונת מצב הפעילות הדיגיטלית שלך"
       />
 
