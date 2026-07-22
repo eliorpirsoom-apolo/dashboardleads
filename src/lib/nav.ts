@@ -18,6 +18,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/tasks", label: "משימות", icon: "tasks" },
   { href: "/admin/calendar", label: "לוח שנה", icon: "calendar" },
   { href: "/admin/documents", label: "מסמכים", icon: "folder" },
+  { href: "/admin/quotes", label: "הצעות מחיר", icon: "money" },
   { href: "/admin/messages", label: "הודעות", icon: "megaphone" },
   { href: "/admin/settings", label: "הגדרות", icon: "settings" },
   { href: "/admin/profile", label: "החשבון שלי", icon: "users" },

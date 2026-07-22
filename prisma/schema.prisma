@@ -152,6 +152,7 @@ model Client {
   seoKeywords      SeoKeyword[]
   intakeLogs       IntakeLog[]
   adInsights       AdInsight[]
+  quotes           Quote[]
   messageTemplates MessageTemplate[]
   clientAssignments ClientAssignment[]
 
@@ -453,6 +454,31 @@ model Document {
 
   @@index([clientId, category])
   @@index([clientId, month])
+}
+
+// ---------------------------------------------------------------------------
+// הצעות מחיר של המשרד — מעקב עד סגירה. הצעה פתוחה שלא טופלה כמה ימים
+// מופיעה בפאנל "הצעות מחיר ממתינות" בסקירה הכללית.
+// ---------------------------------------------------------------------------
+
+model Quote {
+  id        String   @id @default(cuid())
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId  String? // אופציונלי — הצעות יוצאות גם למתעניינים שאינם לקוחות עדיין
+  recipient String // למי נשלחה — שם העסק / איש הקשר
+  title     String // נושא ההצעה
+  amount    Float?
+  status    String   @default("sent") // "sent" | "followup" | "won" | "lost"
+  sentAt    DateTime @default(now())
+  notes     String?
+  // קובץ ההצעה (PDF) — namespace נפרד של המשרד: agency/quotes/...
+  fileKey   String?
+  fileName  String?
+  mimeType  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, updatedAt])
 }
 
 // ---------------------------------------------------------------------------
