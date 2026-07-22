@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendMessage, type Channel } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
+import { maybeSendMorningDigest } from "@/lib/digest";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -105,5 +106,16 @@ export async function GET(req: Request) {
     ok ? sent++ : failed++;
   }
 
-  return NextResponse.json({ processed: due.length, sent, failed });
+  // ☕ תקציר בוקר — רוכב על אותו cron; נשלח פעם ביום ב-08:00.
+  // ?digest=force — שליחה מיידית לבדיקה (עדיין מאחורי ה-CRON_SECRET).
+  let digest = false;
+  try {
+    digest = await maybeSendMorningDigest(
+      new URL(req.url).searchParams.get("digest") === "force"
+    );
+  } catch (err) {
+    console.error("[digest]", err);
+  }
+
+  return NextResponse.json({ processed: due.length, sent, failed, digest });
 }

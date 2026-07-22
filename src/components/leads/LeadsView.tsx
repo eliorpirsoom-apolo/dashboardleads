@@ -7,6 +7,7 @@ import { channelLabel, CHANNELS } from "@/lib/defaults";
 import { Button, EmptyState, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
+import { fireConfetti } from "@/lib/confetti";
 import LeadDrawer from "./LeadDrawer";
 import ImportLeadsModal from "./ImportLeadsModal";
 
@@ -140,6 +141,10 @@ export default function LeadsView({
         method: "PATCH",
         json: { statusId: newStatusId },
       });
+      // 🎉 עסקה נסגרה!
+      if (statuses.find((s) => s.id === newStatusId)?.systemKind === "won") {
+        fireConfetti();
+      }
       load();
     } catch (e: any) {
       alert(e.message);
@@ -154,6 +159,12 @@ export default function LeadsView({
         method: "POST",
         json: { clientId, ids: [...selected], action, ...extra },
       });
+      if (
+        action === "set_status" &&
+        statuses.find((s) => s.id === extra.statusId)?.systemKind === "won"
+      ) {
+        fireConfetti();
+      }
       load();
     } catch (e: any) {
       alert(e.message);

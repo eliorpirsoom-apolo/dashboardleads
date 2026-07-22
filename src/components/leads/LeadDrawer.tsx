@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { CHANNELS } from "@/lib/defaults";
+import { fireConfetti } from "@/lib/confetti";
 import { Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import type { StatusOpt, UserOpt } from "./LeadsView";
@@ -155,6 +156,13 @@ export default function LeadDrawer({
           ...(Object.keys(customEdit).length ? { data: customEdit } : {}),
         },
       });
+      // 🎉 עסקה נסגרה!
+      if (
+        edit.statusId &&
+        statuses.find((s) => s.id === edit.statusId)?.systemKind === "won"
+      ) {
+        fireConfetti();
+      }
       await load();
       onChanged();
     } catch (e: any) {
