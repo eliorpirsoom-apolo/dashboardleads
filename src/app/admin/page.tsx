@@ -8,6 +8,7 @@ import { ilDayStart, ilDayEnd } from "@/lib/time";
 import { ilGreeting } from "@/lib/greeting";
 import { wonDeals } from "@/lib/wins";
 import { teamGoogleEvents, type GoogleEvent } from "@/lib/gcal";
+import EngagementsPanel from "@/components/EngagementsPanel";
 
 function shortDate(d: Date): string {
   return new Intl.DateTimeFormat("he-IL", {
@@ -314,6 +315,9 @@ export default async function AdminDashboard() {
           )}
         </Card>
       </div>
+
+      {/* 🚀 נכנס לעבודה — רוחב מלא */}
+      <EngagementsPanel />
     </>
   );
 }

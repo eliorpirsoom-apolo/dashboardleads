@@ -57,6 +57,7 @@ model User {
   clientAssignments ClientAssignment[]
   projectAssignments ProjectAssignment[]
   calendarConnection CalendarConnection?
+  engagementTasks EngagementTask[] @relation("EngagementTaskAssignee")
 
   @@index([clientId])
   @@index([role])
@@ -153,6 +154,8 @@ model Client {
   intakeLogs       IntakeLog[]
   adInsights       AdInsight[]
   quotes           Quote[]
+  engagements      Engagement[]
+  ganttPlan        GanttPlan?
   messageTemplates MessageTemplate[]
   clientAssignments ClientAssignment[]
 
@@ -471,6 +474,10 @@ model Quote {
   status    String   @default("sent") // "sent" | "followup" | "won" | "lost"
   sentAt    DateTime @default(now())
   notes     String?
+  // פרטי קשר לפתיחת לקוח אוטומטית באישור ההצעה.
+  company   String?
+  phone     String?
+  email     String?
   // קובץ ההצעה (PDF) — namespace נפרד של המשרד: agency/quotes/...
   fileKey   String?
   fileName  String?
@@ -478,7 +485,75 @@ model Quote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  engagement Engagement?
+
   @@index([status, updatedAt])
+}
+
+// "נכנס לעבודה" — לקוח שאישר הצעה. מרכז את ישיבת ההתנעה וצ'ק-ליסט
+// האונבורדינג כדי ששום שלב בקליטת הלקוח לא ייפול.
+model Engagement {
+  id          String    @id @default(cuid())
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String
+  quote       Quote?    @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  quoteId     String?   @unique
+  title       String // תקציר ההיקף (נושא ההצעה)
+  kickoffAt   DateTime?
+  kickoffDone Boolean   @default(false)
+  status      String    @default("active") // "active" | "done"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tasks EngagementTask[]
+
+  @@index([status, createdAt])
+}
+
+model EngagementTask {
+  id           String     @id @default(cuid())
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  engagementId String
+  title        String
+  assignee     User?      @relation("EngagementTaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId   String?
+  done         Boolean    @default(false)
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([engagementId])
+}
+
+// ---------------------------------------------------------------------------
+// גאנט חודשי ללקוח — תוכנית שבוע-אחר-שבוע ל-6 חודשים. המשרד מתכנן ומסמן
+// ביצוע; הלקוח צופה. נגיש בשני הצדדים.
+// ---------------------------------------------------------------------------
+
+model GanttPlan {
+  id         String   @id @default(cuid())
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String   @unique
+  startMonth String // "YYYY-MM" — עוגן 6 החודשים
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tasks GanttTask[]
+}
+
+model GanttTask {
+  id        String   @id @default(cuid())
+  plan      GanttPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId    String
+  title     String
+  ownerName String?
+  color     String   @default("#22d3ee")
+  order     Int      @default(0)
+  // סטטוס לכל שבוע (0..23) כ-JSON: {"3":"planned","4":"done"}
+  weeks     String   @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId])
 }
 
 // ---------------------------------------------------------------------------

@@ -64,10 +64,16 @@ export default function QuotesView() {
     load();
   }, [load]);
 
+  const [approving, setApproving] = useState<QuoteRow | null>(null);
+
   async function setStatus(q: QuoteRow, status: string) {
+    // אישור הצעה = פתיחת לקוח + כניסה לעבודה → דרך דיאלוג ייעודי.
+    if (status === "won") {
+      setApproving(q);
+      return;
+    }
     try {
       await api(`/api/quotes/${q.id}`, { method: "PATCH", json: { status } });
-      if (status === "won") fireConfetti(); // 🎉 הצעה אושרה!
       load();
     } catch (e: any) {
       alert(e.message);
@@ -231,7 +237,94 @@ export default function QuotesView() {
           }}
         />
       ) : null}
+
+      {approving ? (
+        <ApproveQuoteModal
+          quote={approving}
+          onClose={() => setApproving(null)}
+          onApproved={() => {
+            setApproving(null);
+            fireConfetti(); // 🎉 נכנס לעבודה!
+            load();
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function ApproveQuoteModal({
+  quote,
+  onClose,
+  onApproved,
+}: {
+  quote: QuoteRow;
+  onClose: () => void;
+  onApproved: () => void;
+}) {
+  const hasClient = Boolean(quote.client);
+  const [company, setCompany] = useState(quote.recipient);
+  const [contactName, setContactName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/quotes/${quote.id}/approve`, {
+        method: "POST",
+        json: hasClient
+          ? { clientId: quote.client!.id }
+          : { company, contactName: contactName || null, phone: phone || null, email: email || null },
+      });
+      onApproved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="אישור הצעה — פתיחת לקוח" onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {hasClient ? (
+          <p className="text-sm text-slate-300">
+            ההצעה תסומן כאושרה והלקוח <b>{quote.client!.name}</b> ייכנס לעבודה עם
+            צ&apos;ק-ליסט אונבורדינג.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-400">
+              ייפתח לקוח חדש + משתמש (כניסה עם Google) וייכנס לעבודה עם צ&apos;ק-ליסט.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="שם החברה">
+                <Input value={company} onChange={(e) => setCompany(e.target.value)} required />
+              </Field>
+              <Field label="איש קשר">
+                <Input value={contactName} onChange={(e) => setContactName(e.target.value)} />
+              </Field>
+              <Field label="טלפון">
+                <Input dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </Field>
+              <Field label="אימייל (לכניסה עם Google)">
+                <Input dir="ltr" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </Field>
+            </div>
+          </>
+        )}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
+          <Button type="submit" disabled={busy}>{busy ? "פותח…" : "אישור וכניסה לעבודה"}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

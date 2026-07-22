@@ -24,6 +24,7 @@ export default async function ClientWorkspaceLayout({
     ...(hasModule(client.type, "projects")
       ? [{ href: `/admin/clients/${client.id}/projects`, label: "פרויקטים" }]
       : []),
+    { href: `/admin/clients/${client.id}/gantt`, label: "גאנט" },
     ...(hasModule(client.type, "seo")
       ? [{ href: `/admin/clients/${client.id}/seo`, label: "SEO" }]
       : []),
