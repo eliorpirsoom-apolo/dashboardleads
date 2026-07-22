@@ -268,24 +268,15 @@ function CreateQuoteModal({
     try {
       let fileMeta: Record<string, string> = {};
       if (file) {
-        const { target, key } = await api<{ target: any; key: string }>(
-          "/api/uploads/presign",
-          {
-            method: "POST",
-            json: {
-              category: "quote",
-              fileName: file.name,
-              mimeType: file.type || "application/octet-stream",
-              size: file.size,
-            },
-          }
-        );
-        const up = await fetch(target.url, {
-          method: target.method,
-          headers: target.headers,
-          body: file,
-        });
-        if (!up.ok) throw new Error("העלאת הקובץ נכשלה");
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("category", "quote");
+        const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+        if (!up.ok) {
+          const err = await up.json().catch(() => ({}));
+          throw new Error(err.error || "העלאת הקובץ נכשלה");
+        }
+        const { key } = await up.json();
         fileMeta = {
           fileKey: key,
           fileName: file.name,

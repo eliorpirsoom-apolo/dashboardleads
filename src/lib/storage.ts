@@ -112,6 +112,34 @@ export function verifyLocalUploadToken(
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// --- Server-side write ------------------------------------------------------
+
+/**
+ * Write bytes to storage from the server (R2 putObject / local disk).
+ * Used by the same-origin upload proxy so the browser never talks to R2
+ * directly — no bucket CORS needed. Fine for the file sizes we handle
+ * (quotes, contracts, receipts); large media would want presigned PUT.
+ */
+export async function putObject(
+  key: string,
+  data: Buffer,
+  mimeType: string
+): Promise<void> {
+  if (r2Configured()) {
+    const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+    await (await s3()).send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET!,
+        Key: key,
+        Body: data,
+        ContentType: mimeType,
+      })
+    );
+    return;
+  }
+  await writeLocalObject(key, data);
+}
+
 // --- Local writes / reads ---------------------------------------------------
 
 export async function writeLocalObject(

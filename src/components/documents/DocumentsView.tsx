@@ -215,30 +215,19 @@ export function UploadModal({
     setBusy(true);
     setError("");
     try {
-      // 1. Ask where to PUT the bytes (R2 presigned / local dev sink).
-      const { target, key } = await api<{ target: any; key: string }>(
-        "/api/uploads/presign",
-        {
-          method: "POST",
-          json: {
-            clientId,
-            category,
-            fileName: file.name,
-            mimeType: file.type || "application/octet-stream",
-            size: file.size,
-          },
-        }
-      );
+      // 1. Upload the bytes through our own origin (no bucket CORS needed).
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("category", category);
+      fd.append("clientId", clientId);
+      const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+      if (!up.ok) {
+        const e = await up.json().catch(() => ({}));
+        throw new Error(e.error || "העלאת הקובץ נכשלה");
+      }
+      const { key } = await up.json();
 
-      // 2. Upload the bytes directly.
-      const up = await fetch(target.url, {
-        method: target.method,
-        headers: target.headers,
-        body: file,
-      });
-      if (!up.ok) throw new Error("העלאת הקובץ נכשלה");
-
-      // 3. Register metadata.
+      // 2. Register metadata.
       const { document } = await api<{ document: { id: string } }>(
         "/api/documents",
         {
