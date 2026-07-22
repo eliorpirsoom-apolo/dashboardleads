@@ -277,7 +277,7 @@ export default async function AdminDashboard() {
           </div>
           {openQuotes.length === 0 ? (
             <p className="flex flex-1 items-center justify-center px-4 text-center text-xs text-slate-600">
-              אין הצעות פתוחות — רושמים ב"הצעות מחיר" בתפריט
+              אין הצעות פתוחות — רושמים ב&quot;הצעות מחיר&quot; בתפריט
             </p>
           ) : (
             <div className="thin-scroll flex flex-1 flex-col gap-1.5 overflow-y-auto pl-1">
