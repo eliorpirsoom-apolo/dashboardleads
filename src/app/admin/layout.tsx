@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { ADMIN_NAV } from "@/lib/nav";
 import Sidebar from "@/components/Sidebar";
 import BirthdayBanner from "@/components/BirthdayBanner";
-import { FridayBanner, WinsTodayBanner } from "@/components/FestiveBanners";
+import { FridayBanner } from "@/components/FestiveBanners";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,6 @@ export default async function AdminLayout({
       />
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
         <BirthdayBanner />
-        <WinsTodayBanner />
         <FridayBanner />
         {children}
       </main>

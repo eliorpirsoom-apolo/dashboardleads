@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { ilDayStart } from "@/lib/time";
-import { wonDeals } from "@/lib/wins";
 
 // ---------------------------------------------------------------------------
-// באנרים חגיגיים בצד המשרד (בנוסף לבאנר ימי ההולדת):
-//   🔥 עסקאות שנסגרו היום   ·   🌇 שישי שמח
+// באנרים חגיגיים בצד המשרד (בנוסף לבאנר ימי ההולדת).
+// עסקאות שנסגרו מוצגות בפאנל "עסקאות שנסגרו" בסקירה הכללית.
 // ---------------------------------------------------------------------------
 
 function ilWeekday(d: Date): number {
@@ -13,30 +11,6 @@ function ilWeekday(d: Date): number {
     weekday: "short",
   }).format(d);
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
-}
-
-/** 🔥 נסגרה עסקה היום — מוצג בכל צד המשרד עד סוף היום. */
-export async function WinsTodayBanner() {
-  const now = new Date();
-  const deals = await wonDeals(ilDayStart(now), now);
-  if (deals.length === 0) return null;
-
-  const label = (d: (typeof deals)[number]) =>
-    `${d.fullName ?? `ליד #${d.number}`} (${d.projectName ?? d.clientName})`;
-  const shown = deals.slice(0, 3).map(label).join(" · ");
-  const extra = deals.length > 3 ? ` ועוד ${deals.length - 3}` : "";
-  const text =
-    deals.length === 1
-      ? `נסגרה עסקה היום: ${shown} — כל הכבוד!`
-      : `נסגרו ${deals.length} עסקאות היום: ${shown}${extra} — כל הכבוד!`;
-
-  return (
-    <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-gradient-to-l from-emerald-500/15 via-cyan-500/10 to-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.15)]">
-      <span aria-hidden>🔥</span>
-      {text}
-      <span aria-hidden>🎉</span>
-    </div>
-  );
 }
 
 /** 🌇 שישי שמח — כל יום שישי (לוח ישראל). */
