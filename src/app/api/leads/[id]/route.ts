@@ -6,6 +6,7 @@ import { normalizeEmail, normalizePhone } from "@/lib/leads";
 import { onLeadStatusChanged } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
 import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -200,9 +201,19 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   return NextResponse.json({ lead: updated });
 });
 
-// DELETE — archive (never hard-delete lead history).
-export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
+// DELETE — ברירת מחדל: העברה לארכיון (שמירת היסטוריה).
+// ?hard=true — מחיקה לצמיתות. הערות/פעילות נמחקות בקסקייד; משימות/הודעות
+// מנותקות (SetNull). שמור לבעלים/מנהל — סוכן-מכירות יכול רק לארכב.
+export const DELETE = handle(async (req, { params }: { params: { id: string } }) => {
   const { user, lead } = await scopedLead(params);
+  const hard = new URL(req.url).searchParams.get("hard") === "true";
+
+  if (hard) {
+    assertNotAgent(user, "מחיקת ליד לצמיתות");
+    await prisma.lead.delete({ where: { id: lead.id } });
+    return NextResponse.json({ ok: true, deleted: true });
+  }
+
   await prisma.lead.update({ where: { id: lead.id }, data: { archived: true } });
   await recordActivity(lead.id, user.name, "archive");
   return NextResponse.json({ ok: true });

@@ -194,6 +194,18 @@ export default function LeadDrawer({
     onClose();
   }
 
+  async function removeForever() {
+    if (
+      !confirm(
+        "למחוק את הליד לצמיתות? פעולה זו אינה הפיכה — ההערות והפעילות יימחקו לגמרי."
+      )
+    )
+      return;
+    await api(`/api/leads/${leadId}?hard=true`, { method: "DELETE" });
+    onChanged();
+    onClose();
+  }
+
   const data = lead?.data ? JSON.parse(lead.data) : {};
   const val = (k: keyof FullLead) =>
     edit[k] !== undefined ? edit[k] : lead?.[k] ?? "";
@@ -234,10 +246,19 @@ export default function LeadDrawer({
                 </div>
               </div>
               <div className="flex gap-1">
+                {!lead.archived ? (
+                  <button
+                    onClick={archive}
+                    title="העבר לארכיון"
+                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-amber-300"
+                  >
+                    <Icon name="folder" className="h-4 w-4" />
+                  </button>
+                ) : null}
                 <button
-                  onClick={archive}
-                  title="ארכיון"
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                  onClick={removeForever}
+                  title="מחק לצמיתות"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-rose-900/40 hover:text-rose-300"
                 >
                   <Icon name="trash" className="h-4 w-4" />
                 </button>

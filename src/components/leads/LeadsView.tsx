@@ -363,7 +363,7 @@ export default function LeadsView({
             </Button>
           ) : (
             <Button
-              variant="danger"
+              variant="ghost"
               size="sm"
               disabled={bulkBusy}
               onClick={() => confirm(`להעביר ${selected.size} לידים לארכיון?`) && bulk("archive")}
@@ -371,6 +371,18 @@ export default function LeadsView({
               העברה לארכיון
             </Button>
           )}
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={bulkBusy}
+            onClick={() =>
+              confirm(
+                `למחוק ${selected.size} לידים לצמיתות? פעולה בלתי הפיכה — ההערות והפעילות יימחקו.`
+              ) && bulk("delete")
+            }
+          >
+            מחק לצמיתות
+          </Button>
           <button onClick={() => setSelected(new Set())} className="mr-auto text-xs text-slate-500 hover:text-slate-300">
             ניקוי בחירה
           </button>

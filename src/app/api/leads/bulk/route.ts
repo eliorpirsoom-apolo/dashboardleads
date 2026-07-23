@@ -5,6 +5,7 @@ import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/ap
 import { onLeadStatusChanged } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
 import { allowedProjectIds, leadProjectWhere, projectAllowed } from "@/lib/projectScope";
+import { assertNotAgent } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -12,7 +13,7 @@ export const maxDuration = 60;
 const BulkAction = z.object({
   clientId: z.string().optional(),
   ids: z.array(z.string().min(1)).min(1, "לא נבחרו לידים").max(200),
-  action: z.enum(["set_status", "assign", "archive", "restore", "set_project"]),
+  action: z.enum(["set_status", "assign", "archive", "restore", "set_project", "delete"]),
   statusId: z.string().optional(),
   assigneeId: z.string().nullable().optional(),
   projectId: z.string().nullable().optional(),
@@ -30,6 +31,13 @@ export const POST = handle(async (req) => {
     where: { id: { in: body.ids }, clientId, ...leadProjectWhere(allowed) },
   });
   if (leads.length === 0) throw new ApiError(404, "לא נמצאו לידים");
+
+  if (body.action === "delete") {
+    // מחיקה לצמיתות — שמור לבעלים/מנהל. הערות/פעילות בקסקייד; משימות/הודעות מנותקות.
+    assertNotAgent(user, "מחיקת לידים לצמיתות");
+    await prisma.lead.deleteMany({ where: { id: { in: leads.map((l) => l.id) } } });
+    return NextResponse.json({ ok: true, affected: leads.length, deleted: true });
+  }
 
   if (body.action === "set_status") {
     if (!body.statusId) throw new ApiError(400, "חסר סטטוס יעד");
