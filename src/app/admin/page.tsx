@@ -294,6 +294,7 @@ export default async function AdminDashboard() {
                       {q.recipient}
                       <span className="text-slate-500"> · {q.title}</span>
                     </span>
+                    <span className="shrink-0 font-mono text-[10px] text-slate-600">{shortDate(q.sentAt)}</span>
                     {q.amount ? (
                       <span className="text-[10px] text-slate-500">{formatCurrency(q.amount)}</span>
                     ) : null}

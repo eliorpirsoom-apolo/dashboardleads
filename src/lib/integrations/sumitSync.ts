@@ -22,6 +22,7 @@ export interface SumitSyncResult {
 }
 
 const GETDETAILS_BUDGET = 25; // מגבלת קריאות getdetails לריצה
+const QUOTE_WINDOW_DAYS = 14; // מייבאים הצעות מחיר רק מהחלון האחרון
 
 export async function syncSumit(): Promise<SumitSyncResult> {
   if (!sumitConfigured()) throw new Error("SUMIT לא מוגדר");
@@ -63,10 +64,21 @@ export async function syncSumit(): Promise<SumitSyncResult> {
   }
 
   const matchedClients = new Set<string>();
+  const cutoff = new Date(Date.now() - QUOTE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
-  // --- Pass 1: הצעות מחיר → מודול ההצעות (מהיר, בלי getdetails) ---
+  // ניקוי הצעות SUMIT ישנות שיובאו אוטומטית וטרם טופלו (מחוץ לחלון).
+  await prisma.quote.deleteMany({
+    where: {
+      notes: { contains: "[sumit:" },
+      status: { in: ["sent", "followup"] },
+      sentAt: { lt: cutoff },
+    },
+  });
+
+  // --- Pass 1: הצעות מחיר מ-14 הימים האחרונים → מודול ההצעות ---
   for (const d of docs) {
     if (sumitDocType(d.Type).category !== "proposal") continue;
+    if (!d.Date || new Date(d.Date) < cutoff) continue; // רק חלון אחרון
     const key = String(d.DocumentID);
     if (haveQuote.has(key)) continue;
     const clientId = bySumitId.get(d.CustomerID) ?? null;
