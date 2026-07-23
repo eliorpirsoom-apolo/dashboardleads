@@ -44,12 +44,12 @@ export async function POST(req: Request) {
     detailsShape = { status: det.status, ok: det.ok, error: det.error, shape: det.data ? shape(det.data) : null };
   }
 
-  // 3) חיפוש לקוח לפי מייל — כמה וריאנטים.
+  // 3) חיפוש/רשימת לקוחות לפי מייל — כמה וריאנטים.
   const custAttempts: { path: string; body: Record<string, unknown> }[] = [
-    { path: "/accounting/customers/get/", body: { EmailAddress: email } },
-    { path: "/accounting/customers/get/", body: { Customer: { SearchMode: 1, EmailAddress: email } } },
-    { path: "/accounting/customers/searchcustomers/", body: { EmailAddress: email } },
-    { path: "/website/customerportal/getcustomer/", body: { EmailAddress: email } },
+    { path: "/accounting/customers/list/", body: { Page: 1 } },
+    { path: "/accounting/customers/getcustomers/", body: { Search: email } },
+    { path: "/accounting/customers/get/", body: { Search: email } },
+    { path: "/accounting/customers/getopenbalances/", body: {} },
   ];
   const customers: any[] = [];
   if (email) {
