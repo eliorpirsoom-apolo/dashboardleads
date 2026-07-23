@@ -43,6 +43,18 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
         orderBy: { dueAt: "asc" },
         select: { id: true, title: true, dueAt: true, type: true },
       },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          channel: true,
+          status: true,
+          kind: true,
+          subject: true,
+          createdAt: true,
+        },
+      },
     },
   });
   const fields = await prisma.customFieldDef.findMany({

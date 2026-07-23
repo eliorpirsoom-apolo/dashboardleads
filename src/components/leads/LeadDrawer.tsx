@@ -79,6 +79,19 @@ interface FullLead {
   callDurationSec: number | null;
   callRecordingUrl: string | null;
   callStatus: string | null;
+  callAdNumber: string | null;
+  callTargetNumber: string | null;
+  callTargetName: string | null;
+  callTranscript: string | null;
+  callSummary: string | null;
+  messages: {
+    id: string;
+    channel: string;
+    status: string;
+    kind: string;
+    subject: string | null;
+    createdAt: string;
+  }[];
   status: StatusOpt | null;
   campaign: { id: string; name: string } | null;
   project: { id: string; name: string } | null;
@@ -336,23 +349,86 @@ export default function LeadDrawer({
 
             {/* Call lead info */}
             {lead.kind === "call" ? (
-              <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-3 text-center text-xs">
-                <div>
-                  <p className="text-slate-500">משך שיחה</p>
-                  <p className="mt-0.5 font-bold text-emerald-300">{formatDuration(lead.callDurationSec)}</p>
+              <div className="mb-4 space-y-3 rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-3">
+                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  <div>
+                    <p className="text-slate-500">מתקשר</p>
+                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-200">{lead.phone ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">מספר פרסומי</p>
+                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-200">{lead.callAdNumber ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">יעד</p>
+                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-200">
+                      {lead.callTargetNumber ?? "—"}
+                      {lead.callTargetName ? ` · ${lead.callTargetName}` : ""}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">משך</p>
+                    <p className="mt-0.5 font-bold text-emerald-300">{formatDuration(lead.callDurationSec)}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">סטטוס מענה</p>
+                    <p className="mt-0.5 font-bold text-emerald-300">{lead.callStatus ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">הודעת מעקב</p>
+                    {(() => {
+                      const fu = (lead.messages || []).find(
+                        (m) => m.channel === "sms" || m.channel === "whatsapp"
+                      );
+                      if (!fu) return <p className="mt-0.5 font-bold text-slate-500">לא נשלחה</p>;
+                      const chan = fu.channel === "sms" ? "SMS" : "וואטסאפ";
+                      const st =
+                        fu.status === "sent"
+                          ? "נשלחה ✓"
+                          : fu.status === "failed"
+                            ? "נכשלה"
+                            : fu.status === "skipped"
+                              ? "לא הוגדר"
+                              : fu.status;
+                      return (
+                        <p className="mt-0.5 font-bold text-slate-200">
+                          {chan}: {st}
+                        </p>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-slate-500">סטטוס שיחה</p>
-                  <p className="mt-0.5 font-bold text-emerald-300">{lead.callStatus ?? "—"}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">הקלטה</p>
-                  {lead.callRecordingUrl ? (
-                    <a href={lead.callRecordingUrl} target="_blank" className="mt-0.5 block font-bold text-cyan-300 underline">האזנה</a>
-                  ) : (
-                    <p className="mt-0.5 font-bold text-slate-500">—</p>
-                  )}
-                </div>
+
+                {lead.callRecordingUrl ? (
+                  <div>
+                    <p className="mb-1 text-xs text-slate-500">הקלטה</p>
+                    <audio controls preload="none" src={lead.callRecordingUrl} className="w-full">
+                      <a href={lead.callRecordingUrl} target="_blank">
+                        הורדת ההקלטה
+                      </a>
+                    </audio>
+                  </div>
+                ) : null}
+
+                {lead.callSummary ? (
+                  <div>
+                    <p className="mb-1 text-xs font-bold text-slate-300">סיכום שיחה</p>
+                    <div className="whitespace-pre-line rounded-lg bg-slate-900/50 p-2 text-xs text-slate-300">
+                      {lead.callSummary}
+                    </div>
+                  </div>
+                ) : null}
+
+                {lead.callTranscript ? (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-slate-400 hover:text-slate-200">
+                      תמלול מלא
+                    </summary>
+                    <div className="thin-scroll mt-1 max-h-64 overflow-y-auto whitespace-pre-line rounded-lg bg-slate-900/50 p-2 text-slate-300">
+                      {lead.callTranscript}
+                    </div>
+                  </details>
+                ) : null}
               </div>
             ) : null}
 

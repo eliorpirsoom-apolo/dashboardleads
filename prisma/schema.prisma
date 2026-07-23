@@ -276,10 +276,15 @@ model Lead {
   adName        String? // מודעה
   consent       Boolean @default(false) // הסכמה לדיוור
 
-  // Call leads (Paycall)
+  // Call leads (Paycall / CheckCall)
   callDurationSec  Int?
   callRecordingUrl String?
   callStatus       String?
+  callAdNumber     String? // מספר פרסומי (ה-DID/CheckCall שאליו התקשרו)
+  callTargetNumber String? // מספר הטלפון ביעד (למי נותבה השיחה)
+  callTargetName   String? // שם היעד/נציג
+  callTranscript   String? // תמלול מלא (מפייקול)
+  callSummary      String? // סיכום שיחה בראשי פרקים (מפייקול)
 
   receivedAt DateTime @default(now())
   archived   Boolean  @default(false)

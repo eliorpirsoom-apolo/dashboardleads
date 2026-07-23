@@ -69,19 +69,24 @@ export const dynamic = "force-dynamic";
 
 const ALIASES: Record<string, string[]> = {
   fullName: ["fullname", "full_name", "full-name", "name", "שם", "שם מלא", "שם פרטי", "שם ומשפחה", "first_name", "your-name", "field_name"],
-  phone: ["phone", "טלפון", "טלפון נייד", "נייד", "מספר טלפון", "מס' טלפון", "phone_number", "phone-number", "phone number", "tel", "mobile", "your-phone", "caller", "caller_number", "from"],
+  phone: ["phone", "טלפון", "טלפון נייד", "נייד", "מספר טלפון", "מס' טלפון", "phone_number", "phone-number", "phone number", "tel", "mobile", "your-phone", "caller", "caller_number", "caller_id", "callerid", "ani", "src", "source_number", "מספר מתקשר", "ממספר", "from"],
   email: ["email", "מייל", "אימייל", "כתובת מייל", "דוא\"ל", "email address", "your-email", "e-mail", "mail"],
   city: ["city", "עיר", "location"],
-  campaignLabel: ["campaign", "campaign_name", "קמפיין", "utm_campaign"],
+  campaignLabel: ["campaign", "campaign_name", "קמפיין", "utm_campaign", "שם קבוצה", "group", "group_name"],
   audience: ["audience", "adset", "adset_name", "קהל", "utm_medium"],
   adName: ["ad", "ad_name", "מודעה", "creative", "utm_content"],
   channel: ["channel", "ערוץ", "utm_source", "source"],
   platform: ["platform", "פלטפורמה"],
   consent: ["consent", "הסכמה", "marketing_consent", "newsletter", "accept_marketing"],
-  callDurationSec: ["duration", "call_duration", "משך שיחה", "duration_seconds"],
-  callRecordingUrl: ["recording", "recording_url", "הקלטה", "call_recording"],
-  callStatus: ["call_status", "סטטוס שיחה", "disposition"],
-  externalId: ["id", "lead_id", "external_id", "call_id", "entry_id"],
+  callDurationSec: ["duration", "call_duration", "משך שיחה", "duration_seconds", "seconds", "שניות", "סה\"כ שניות", "talk_time", "talktime", "airtime", "זמן אוויר", "billsec"],
+  callRecordingUrl: ["recording", "recording_url", "recording_link", "הקלטה", "call_recording", "record", "record_url", "audio", "audio_url", "url_recording", "link"],
+  callStatus: ["call_status", "סטטוס שיחה", "disposition", "status", "מענה", "ענה", "answered", "call_result", "result", "סטטוס", "וזמן מענה"],
+  callAdNumber: ["did", "dialed", "dialed_number", "checkcall", "check_call", "checkcall_number", "מספר checkcall", "מספר פרסומי", "campaign_number", "virtual_number", "dnis", "publish_number", "מספר קו", "line_number"],
+  callTargetNumber: ["target", "target_number", "מספר יעד", "מספר טלפון ביעד", "agent_number", "forward_to", "answered_by", "extension", "destination", "dest", "to"],
+  callTargetName: ["target_name", "שם יעד", "agent", "agent_name", "שם נציג", "שם היעד"],
+  callTranscript: ["transcript", "תמלול", "תמלול שיחה", "call_transcript", "text"],
+  callSummary: ["summary", "סיכום", "סיכום שיחה", "call_summary", "abstract"],
+  externalId: ["id", "lead_id", "external_id", "call_id", "callid", "checkcall_id", "unique_id", "uniqueid", "uid", "recordid", "entry_id"],
 };
 
 // "fields[email][value]=x" → { fields: { email: { value: "x" } } }.
@@ -246,6 +251,37 @@ export async function POST(
   payload = flattenFormShapes(payload);
 
   try {
+    // תמלול/סיכום מגיעים מפייקול כ-webhook נפרד אחרי השיחה — מצרפים אותם לליד
+    // הקיים לפי externalId (מזהה השיחה) במקום ליצור ליד חדש.
+    const transcript = pick(payload, "callTranscript");
+    const summary = pick(payload, "callSummary");
+    const extId = pick(payload, "externalId");
+    if ((transcript || summary) && extId) {
+      const existing = await prisma.lead.findFirst({
+        where: { clientId: source.clientId, externalId: String(extId) },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existing) {
+        await prisma.lead.update({
+          where: { id: existing.id },
+          data: {
+            ...(transcript ? { callTranscript: String(transcript).slice(0, 20000) } : {}),
+            ...(summary ? { callSummary: String(summary).slice(0, 8000) } : {}),
+          },
+        });
+        await prisma.intakeLog.create({
+          data: {
+            sourceId: source.id,
+            clientId: source.clientId,
+            status: "ok",
+            leadId: existing.id,
+            payload: rawPayload,
+          },
+        });
+        return NextResponse.json({ ok: true, updated: true, leadId: existing.id });
+      }
+    }
+
     const phone = normalizePhone(pick(payload, "phone"));
     const email = normalizeEmail(pick(payload, "email"));
     const fullName = pick(payload, "fullName");
@@ -353,6 +389,17 @@ export async function POST(
       callStatus: pick(payload, "callStatus")
         ? String(pick(payload, "callStatus")).slice(0, 60)
         : null,
+      callAdNumber: pick(payload, "callAdNumber")
+        ? String(pick(payload, "callAdNumber")).slice(0, 40)
+        : null,
+      callTargetNumber: pick(payload, "callTargetNumber")
+        ? String(pick(payload, "callTargetNumber")).slice(0, 40)
+        : null,
+      callTargetName: pick(payload, "callTargetName")
+        ? String(pick(payload, "callTargetName")).slice(0, 120)
+        : null,
+      callTranscript: transcript ? String(transcript).slice(0, 20000) : null,
+      callSummary: summary ? String(summary).slice(0, 8000) : null,
       receivedAt: new Date(),
       data: Object.keys(extra).length ? JSON.stringify(extra) : null,
     });
