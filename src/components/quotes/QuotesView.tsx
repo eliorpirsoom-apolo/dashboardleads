@@ -262,7 +262,10 @@ function ApproveQuoteModal({
   onClose: () => void;
   onApproved: () => void;
 }) {
-  const hasClient = Boolean(quote.client);
+  // ברירת מחדל: אם ההצעה כבר משויכת ללקוח — "קיים"; אחרת "חדש".
+  const [mode, setMode] = useState<"existing" | "new">(quote.client ? "existing" : "new");
+  const [clientId, setClientId] = useState(quote.client?.id ?? "");
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [company, setCompany] = useState(quote.recipient);
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
@@ -270,16 +273,32 @@ function ApproveQuoteModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    api<{ clients: { id: string; name: string }[] }>("/api/clients")
+      .then((d) => setClients(d.clients))
+      .catch(() => {});
+  }, []);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError("");
+    if (mode === "existing" && !clientId) {
+      setError("בחרו לקוח קיים או עברו ל'לקוח חדש'");
+      return;
+    }
+    setBusy(true);
     try {
       await api(`/api/quotes/${quote.id}/approve`, {
         method: "POST",
-        json: hasClient
-          ? { clientId: quote.client!.id }
-          : { company, contactName: contactName || null, phone: phone || null, email: email || null },
+        json:
+          mode === "existing"
+            ? { clientId }
+            : {
+                company,
+                contactName: contactName || null,
+                phone: phone || null,
+                email: email || null,
+              },
       });
       onApproved();
     } catch (e: any) {
@@ -290,14 +309,47 @@ function ApproveQuoteModal({
   }
 
   return (
-    <Modal title="אישור הצעה — פתיחת לקוח" onClose={onClose}>
+    <Modal title="אישור הצעה — כניסה לעבודה" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
-        {hasClient ? (
-          <p className="text-sm text-slate-300">
-            ההצעה תסומן כאושרה והלקוח <b>{quote.client!.name}</b> ייכנס לעבודה עם
-            צ&apos;ק-ליסט אונבורדינג.
-          </p>
+
+        {/* בחירה: לקוח קיים או חדש */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("existing")}
+            className={`flex-1 rounded-xl border px-3 py-2 text-sm transition ${
+              mode === "existing"
+                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-300"
+                : "border-slate-800 text-slate-400"
+            }`}
+          >
+            לקוח קיים
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("new")}
+            className={`flex-1 rounded-xl border px-3 py-2 text-sm transition ${
+              mode === "new"
+                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-300"
+                : "border-slate-800 text-slate-400"
+            }`}
+          >
+            לקוח חדש
+          </button>
+        </div>
+
+        {mode === "existing" ? (
+          <Field label="בחירת לקוח">
+            <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+              <option value="">— בחרו לקוח —</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
         ) : (
           <>
             <p className="text-sm text-slate-400">
@@ -305,7 +357,7 @@ function ApproveQuoteModal({
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="שם החברה">
-                <Input value={company} onChange={(e) => setCompany(e.target.value)} required />
+                <Input value={company} onChange={(e) => setCompany(e.target.value)} required={mode === "new"} />
               </Field>
               <Field label="איש קשר">
                 <Input value={contactName} onChange={(e) => setContactName(e.target.value)} />
@@ -319,6 +371,7 @@ function ApproveQuoteModal({
             </div>
           </>
         )}
+
         <div className="mt-1 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
           <Button type="submit" disabled={busy}>{busy ? "פותח…" : "אישור וכניסה לעבודה"}</Button>

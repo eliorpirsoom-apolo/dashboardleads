@@ -66,3 +66,24 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 
   return NextResponse.json({ user });
 });
+
+// DELETE /api/users/[id] — מחיקה סופית. הגנות: לא את עצמך, ולא המנהל
+// האחרון של המשרד. היסטוריה (לידים/הערות/משימות) נשמרת — הקישור מתנתק
+// (השם נשמר מראש בשדה נפרד), אז לא הולך מידע.
+export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
+  const actor = await requireManager();
+  const target = await prisma.user.findUnique({ where: { id: params.id } });
+  if (!target) throw new ApiError(404, "משתמש לא נמצא");
+  if (target.id === actor.id) throw new ApiError(400, "אי אפשר למחוק את המשתמש של עצמך");
+
+  if (target.role === "ADMIN" && target.adminRole === "manager") {
+    const managers = await prisma.user.count({
+      where: { role: "ADMIN", adminRole: "manager", active: true },
+    });
+    if (managers <= 1) throw new ApiError(400, "אי אפשר למחוק את מנהל המשרד האחרון");
+  }
+
+  await prisma.user.delete({ where: { id: target.id } });
+  await audit(actor, "user_deleted", "user", target.id, target.email);
+  return NextResponse.json({ ok: true });
+});

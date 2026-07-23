@@ -55,6 +55,21 @@ export default function UsersManager({
     }
   }
 
+  async function remove(u: ClientUser) {
+    if (
+      !confirm(
+        `למחוק לצמיתות את המשתמש "${u.name}" (${u.email})?\n\nהפעולה בלתי הפיכה. אם רק רוצים לחסום גישה — עדיף להשבית.`
+      )
+    )
+      return;
+    try {
+      await api(`/api/users/${u.id}`, { method: "DELETE" });
+      router.refresh();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  }
+
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
@@ -101,6 +116,13 @@ export default function UsersManager({
                 title={u.active ? "השבתה" : "הפעלה"}
               >
                 <Icon name={u.active ? "x" : "check"} className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => remove(u)}
+                className="rounded p-1.5 text-slate-500 hover:text-red-400"
+                title="מחיקה לצמיתות"
+              >
+                <Icon name="trash" className="h-4 w-4" />
               </button>
             </div>
           </div>
