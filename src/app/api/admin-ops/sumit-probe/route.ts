@@ -27,28 +27,46 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const email: string | undefined = body.email;
 
-  // ננסה כמה endpoints סבירים ונחזיר את מה שנענה.
-  const attempts: { path: string; body: Record<string, unknown> }[] = [
-    { path: "/accounting/documents/list/", body: { Page: 1 } },
-    { path: "/accounting/documents/getdocuments/", body: {} },
-    { path: "/accounting/customers/getcustomers/", body: email ? { EmailAddress: email } : {} },
-    { path: "/website/customers/get/", body: email ? { EmailAddress: email } : {} },
-  ];
+  // 1) אילו סוגי מסמכים (Type) קיימים בחשבון + דוגמה לכל סוג.
+  const list = await sumitCall<any>("/accounting/documents/list/", { Page: 1 });
+  const docs: any[] = list.data?.Documents ?? [];
+  const byType: Record<string, { count: number; sampleNumber: number; sampleId: number }> = {};
+  for (const d of docs) {
+    const t = String(d.Type);
+    if (!byType[t]) byType[t] = { count: 0, sampleNumber: d.DocumentNumber, sampleId: d.DocumentID };
+    byType[t].count++;
+  }
 
-  const results: any[] = [];
-  for (const a of attempts) {
-    try {
-      const r = await sumitCall(a.path, a.body);
-      results.push({
-        path: a.path,
-        httpStatus: r.status,
-        ok: r.ok,
-        error: r.error,
-        dataShape: r.data ? shape(r.data) : null,
-      });
-    } catch (e) {
-      results.push({ path: a.path, exception: String(e).slice(0, 200) });
+  // 2) getdetails על מסמך ראשון — אולי יש שם תווית סוג.
+  let detailsShape: any = null;
+  if (docs[0]?.DocumentID) {
+    const det = await sumitCall<any>("/accounting/documents/getdetails/", { DocumentID: docs[0].DocumentID });
+    detailsShape = { status: det.status, ok: det.ok, error: det.error, shape: det.data ? shape(det.data) : null };
+  }
+
+  // 3) חיפוש לקוח לפי מייל — כמה וריאנטים.
+  const custAttempts: { path: string; body: Record<string, unknown> }[] = [
+    { path: "/accounting/customers/get/", body: { EmailAddress: email } },
+    { path: "/accounting/customers/get/", body: { Customer: { SearchMode: 1, EmailAddress: email } } },
+    { path: "/accounting/customers/searchcustomers/", body: { EmailAddress: email } },
+    { path: "/website/customerportal/getcustomer/", body: { EmailAddress: email } },
+  ];
+  const customers: any[] = [];
+  if (email) {
+    for (const a of custAttempts) {
+      try {
+        const r = await sumitCall<any>(a.path, a.body);
+        customers.push({ path: a.path, body: Object.keys(a.body), httpStatus: r.status, ok: r.ok, error: r.error, dataShape: r.data ? shape(r.data) : null });
+      } catch (e) {
+        customers.push({ path: a.path, exception: String(e).slice(0, 150) });
+      }
     }
   }
-  return NextResponse.json({ results });
+
+  return NextResponse.json({
+    documentTypes: byType,
+    totalOnPage: docs.length,
+    detailsShape,
+    customerSearch: customers,
+  });
 }
