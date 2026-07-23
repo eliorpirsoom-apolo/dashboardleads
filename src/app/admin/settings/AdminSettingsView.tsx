@@ -114,6 +114,8 @@ export default function AdminSettingsView() {
 
       <SumitCard />
 
+      <SmsCard />
+
       <AuditLogCard />
 
       {showCreate ? (
@@ -183,6 +185,77 @@ function SumitCard() {
         </div>
       </div>
       {result ? <p className="text-xs text-slate-400">{result}</p> : null}
+    </Card>
+  );
+}
+
+// חיבור SMS (MultiSend / פייקול) — בדיקת שליחה חיה.
+function SmsCard() {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string>("");
+
+  useEffect(() => {
+    api<{ configured: boolean }>("/api/integrations/sms/test")
+      .then((d) => setConfigured(d.configured))
+      .catch(() => setConfigured(false));
+  }, []);
+
+  async function sendTest() {
+    setBusy(true);
+    setResult("");
+    try {
+      const r = await api<{ status: string }>("/api/integrations/sms/test", {
+        method: "POST",
+        json: { to: phone.trim() },
+      });
+      setResult(
+        r.status === "sent"
+          ? `נשלחה הודעת בדיקה ל-${phone} ✓`
+          : `הבקשה עברה אך הסטטוס: ${r.status}`
+      );
+    } catch (e: any) {
+      setResult("שגיאה: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-100">SMS — MultiSend (פייקול)</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            תזכורות והתראות ב-SMS. הגדרה במשתני סביבה: MULTISEND_USER, MULTISEND_PASSWORD, SMS_FROM.
+          </p>
+        </div>
+        <Chip color={configured ? "#34d399" : "#64748b"}>
+          {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
+        </Chip>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-48">
+          <Field label="מספר לבדיקה">
+            <Input
+              dir="ltr"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="0501234567"
+            />
+          </Field>
+        </div>
+        <Button
+          size="sm"
+          disabled={busy || !configured || phone.trim().length < 9}
+          onClick={sendTest}
+        >
+          <Icon name="phone" className="h-4 w-4" />
+          {busy ? "שולח…" : "שלח SMS בדיקה"}
+        </Button>
+      </div>
+      {result ? <p className="mt-2 text-xs text-slate-400">{result}</p> : null}
     </Card>
   );
 }

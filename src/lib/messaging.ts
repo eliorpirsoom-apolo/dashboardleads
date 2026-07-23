@@ -29,7 +29,7 @@ export function emailConfigured(): boolean {
 }
 
 export function smsConfigured(): boolean {
-  return Boolean(process.env.SMS_API_URL && process.env.SMS_API_TOKEN);
+  return Boolean(process.env.MULTISEND_USER && process.env.MULTISEND_PASSWORD);
 }
 
 export function whatsappConfigured(): boolean {
@@ -73,20 +73,41 @@ async function sendSms(to: string, body: string) {
     console.log(`[sms:not-configured] to=${to}: ${body}`);
     return { skipped: true as const };
   }
-  // Generic HTTP SMS provider (019-style JSON API). Configured via env.
-  const res = await fetch(process.env.SMS_API_URL!, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.SMS_API_TOKEN}`,
-    },
-    body: JSON.stringify({
-      to,
-      from: process.env.SMS_FROM || "CRM",
-      message: body,
-    }),
+  // MultiSend (מולטיסנד) — ספק ה-SMS של פייקול. POST form-urlencoded.
+  // מפרט: /MultiSendAPI/sendsms עם user,password,from,recipient,message.
+  const url =
+    process.env.SMS_API_URL || "https://api.multisend.co.il/MultiSendAPI/sendsms";
+  const digits = to.replace(/[^\d+]/g, "");
+  const isIsraeli =
+    digits.startsWith("0") || digits.startsWith("972") || digits.startsWith("+972");
+  const params = new URLSearchParams({
+    user: process.env.MULTISEND_USER!,
+    password: process.env.MULTISEND_PASSWORD!,
+    from: process.env.SMS_FROM || "Apollo",
+    recipient: digits,
+    message: body,
+    message_type: "2", // 2 = SMS
+    international: isIsraeli ? "0" : "1",
   });
-  if (!res.ok) throw new Error(`SMS provider HTTP ${res.status}`);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`MultiSend HTTP ${res.status}: ${text.slice(0, 200)}`);
+  // התשובה בד"כ JSON: { success, message, smsCount, error }.
+  let json: any = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    /* תשובה לא-JSON — נסתמך על סטטוס 200 */
+  }
+  if (json && json.success === false) {
+    const errMsg =
+      json.message || (json.error ? JSON.stringify(json.error) : "שגיאת MultiSend");
+    throw new Error(`MultiSend: ${errMsg}`);
+  }
   return { skipped: false as const };
 }
 
