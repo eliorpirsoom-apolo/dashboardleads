@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { assertNotAgent } from "@/lib/permissions";
 import { allowedProjectIds } from "@/lib/projectScope";
+import { parseItems, sendMaterialsRequest } from "@/lib/materials";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,8 @@ const CreateProject = z.object({
   clientId: z.string().optional(),
   name: z.string().min(1, "חסר שם פרויקט").max(160),
   description: z.string().max(1000).nullable().optional(),
+  // תבנית "מכולת" — אם נבחרה, נשלחת בקשת חומרים אוטומטית ללקוח.
+  materialTemplateId: z.string().optional().nullable(),
   unitTypes: z
     .array(
       z.object({
@@ -86,6 +89,15 @@ export const POST = handle(async (req) => {
   });
   if (exists) throw new ApiError(409, "כבר קיים פרויקט בשם הזה");
 
+  // אם נבחרה תבנית "מכולת" — נפיק את פריטי החומרים לפרויקט.
+  let materialItems: string[] = [];
+  if (body.materialTemplateId) {
+    const tpl = await prisma.materialTemplate.findUnique({
+      where: { id: body.materialTemplateId },
+    });
+    if (tpl) materialItems = parseItems(tpl.items);
+  }
+
   const project = await prisma.project.create({
     data: {
       clientId,
@@ -101,9 +113,18 @@ export const POST = handle(async (req) => {
             })),
           }
         : undefined,
+      materials: materialItems.length
+        ? { create: materialItems.map((label, i) => ({ label, order: i })) }
+        : undefined,
     },
     include: { unitTypes: true },
   });
 
-  return NextResponse.json({ project }, { status: 201 });
+  // שליחה אוטומטית של בקשת החומרים ללקוח (מחוץ ליצירה — לא חוסם).
+  let materialsSent = false;
+  if (materialItems.length) {
+    materialsSent = await sendMaterialsRequest(project.id).catch(() => false);
+  }
+
+  return NextResponse.json({ project, materialsSent }, { status: 201 });
 });

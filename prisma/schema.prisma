@@ -592,6 +592,12 @@ model Project {
   logoKey     String? // project logo
   description String?
   status      String   @default("active") // "active" | "done" | "archived"
+  // בקשת חומרים מהלקוח ("מכולת"): נשלחת בפתיחה, תזכורות עד קבלה.
+  materialsRequestedAt    DateTime?
+  materialsReceived       Boolean   @default(false)
+  materialsReceivedAt     DateTime?
+  materialsRemindersSent  Int       @default(0)
+  materialsLastRemindedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -604,9 +610,35 @@ model Project {
   contracts        Contract[]
   assignments      ProjectAssignment[]
   sources          LeadSource[]
+  materials        ProjectMaterial[]
 
   @@unique([clientId, name])
   @@index([clientId])
+  @@index([materialsReceived, materialsRequestedAt])
+}
+
+// פריט חומרים שנדרש מהלקוח בפרויקט (מופק מתבנית או ידני).
+model ProjectMaterial {
+  id        String   @id @default(cuid())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  label     String
+  received  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}
+
+// תבנית "מכולת" — רשימת חומרים לפי סוג פרויקט (נדל"ן / SEO / כללי / חופשי).
+model MaterialTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  // רשימת פריטים כ-JSON array של מחרוזות.
+  items     String   @default("[]")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // A unit type in a project: "דירת גן 4 חד׳" with price + inventory.

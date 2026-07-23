@@ -149,6 +149,9 @@ export default function ProjectDetail({
       {/* Sales agents — לכל פרויקט המשתמש והלידים שלו */}
       <AgentsCard project={project} clientId={clientId} onChanged={load} />
 
+      {/* רשימת חומרים מהלקוח ("מכולת") */}
+      <MaterialsCard projectId={projectId} />
+
       {isRealestate ? (
       <>
       {/* Inventory board */}
@@ -1035,6 +1038,159 @@ function AgentsCard({
           </span>
         ) : null}
       </div>
+    </Card>
+  );
+}
+
+// רשימת החומרים מהלקוח ("מכולת") — שליחה, תזכורות, וסימון קבלה.
+interface Material {
+  id: string;
+  label: string;
+  received: boolean;
+}
+function MaterialsCard({ projectId }: { projectId: string }) {
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [requestedAt, setRequestedAt] = useState<string | null>(null);
+  const [received, setReceived] = useState(false);
+  const [remindersSent, setRemindersSent] = useState(0);
+  const [templates, setTemplates] = useState<{ id: string; name: string; items: string[] }[]>([]);
+  const [tpl, setTpl] = useState("");
+  const [newItem, setNewItem] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const d = await api<{
+      materials: Material[];
+      requestedAt: string | null;
+      received: boolean;
+      remindersSent: number;
+    }>(`/api/projects/${projectId}/materials`);
+    setMaterials(d.materials);
+    setRequestedAt(d.requestedAt);
+    setReceived(d.received);
+    setRemindersSent(d.remindersSent);
+  }, [projectId]);
+
+  useEffect(() => {
+    load();
+    api<{ templates: { id: string; name: string; items: string[] }[] }>("/api/material-templates")
+      .then((d) => setTemplates(d.templates))
+      .catch(() => {});
+  }, [load]);
+
+  async function act(body: Record<string, unknown>) {
+    setBusy(true);
+    try {
+      await api(`/api/projects/${projectId}/materials`, { method: "POST", json: body });
+      await load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const doneCount = materials.filter((m) => m.received).length;
+
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-bold text-slate-100">📦 חומרים מהלקוח</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {requestedAt
+              ? `נשלחה בקשה · ${remindersSent} תזכורות`
+              : "טרם נשלחה בקשה"}
+            {materials.length ? ` · ${doneCount}/${materials.length} התקבלו` : ""}
+          </p>
+        </div>
+        {materials.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => act({ action: "toggleReceived", received: !received })}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                received ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-800 text-slate-400"
+              }`}
+            >
+              {received ? "✓ חומרים התקבלו" : "סמן: חומרים התקבלו"}
+            </button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => act({ action: "send" })}>
+              <Icon name="megaphone" className="h-3.5 w-3.5" />
+              {requestedAt ? "שלח תזכורת" : "שלח בקשה"}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      {materials.length === 0 ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="החלת רשימת חומרים">
+            <Select value={tpl} onChange={(e) => setTpl(e.target.value)} className="!w-52">
+              <option value="">— בחרו תבנית —</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.items.length})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button
+            size="sm"
+            disabled={!tpl || busy}
+            onClick={async () => {
+              await act({ action: "applyTemplate", templateId: tpl });
+              await act({ action: "send" });
+            }}
+          >
+            החל ושלח ללקוח
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1.5">
+            {materials.map((m) => (
+              <div key={m.id} className="flex items-center gap-2">
+                <button
+                  onClick={() => act({ action: "toggleItem", itemId: m.id, received: !m.received })}
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
+                    m.received
+                      ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                      : "border-slate-600 text-transparent"
+                  }`}
+                >
+                  ✓
+                </button>
+                <span className={`flex-1 text-sm ${m.received ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                  {m.label}
+                </span>
+                <button
+                  onClick={() =>
+                    fetch(`/api/projects/${projectId}/materials?itemId=${m.id}`, { method: "DELETE" }).then(load)
+                  }
+                  className="rounded p-1 text-slate-600 hover:text-red-400"
+                >
+                  <Icon name="trash" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Input
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newItem.trim()) {
+                  e.preventDefault();
+                  act({ action: "addItem", label: newItem.trim() });
+                  setNewItem("");
+                }
+              }}
+              placeholder="+ פריט חומרים"
+              className="!w-52 !py-1 text-xs"
+            />
+          </div>
+        </>
+      )}
     </Card>
   );
 }

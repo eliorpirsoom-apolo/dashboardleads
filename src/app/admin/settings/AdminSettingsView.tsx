@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
+import MaterialTemplatesManager from "@/components/settings/MaterialTemplatesManager";
 
 interface AdminUser {
   id: string;
@@ -108,6 +109,8 @@ export default function AdminSettingsView() {
           ))}
         </div>
       </Card>
+
+      <MaterialTemplatesManager />
 
       <AuditLogCard />
 

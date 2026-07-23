@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendMessage, type Channel } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
 import { maybeSendMorningDigest } from "@/lib/digest";
+import { sendDueMaterialReminders } from "@/lib/materials";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -117,5 +118,13 @@ export async function GET(req: Request) {
     console.error("[digest]", err);
   }
 
-  return NextResponse.json({ processed: due.length, sent, failed, digest });
+  // תזכורות "מכולת" — חומרים שטרם התקבלו.
+  let materialReminders = 0;
+  try {
+    materialReminders = await sendDueMaterialReminders();
+  } catch (err) {
+    console.error("[materials]", err);
+  }
+
+  return NextResponse.json({ processed: due.length, sent, failed, digest, materialReminders });
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/fetcher";
 import { formatCurrency } from "@/lib/format";
-import { Button, Card, Chip, EmptyState, Field, Input, Textarea } from "@/components/ui";
+import { Button, Card, Chip, EmptyState, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 
@@ -196,11 +196,19 @@ function CreateProjectModal({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [materialTemplateId, setMaterialTemplateId] = useState("");
+  const [templates, setTemplates] = useState<{ id: string; name: string; items: string[] }[]>([]);
   const [units, setUnits] = useState<UnitDraft[]>([
     { name: "", rooms: "", price: "", totalUnits: "" },
   ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    api<{ templates: { id: string; name: string; items: string[] }[] }>("/api/material-templates")
+      .then((d) => setTemplates(d.templates))
+      .catch(() => {});
+  }, []);
 
   function setUnit(i: number, patch: Partial<UnitDraft>) {
     setUnits(units.map((u, idx) => (idx === i ? { ...u, ...patch } : u)));
@@ -217,6 +225,7 @@ function CreateProjectModal({
           clientId,
           name,
           description: description || null,
+          materialTemplateId: materialTemplateId || null,
           unitTypes: units
             .filter((u) => u.name.trim())
             .map((u) => ({
@@ -245,6 +254,22 @@ function CreateProjectModal({
         </Field>
         <Field label="תיאור (אופציונלי)">
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+        </Field>
+
+        <Field label="רשימת חומרים לשליחה ללקוח (אופציונלי)">
+          <Select value={materialTemplateId} onChange={(e) => setMaterialTemplateId(e.target.value)}>
+            <option value="">— בלי שליחת חומרים —</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.items.length} פריטים)
+              </option>
+            ))}
+          </Select>
+          {materialTemplateId ? (
+            <p className="mt-1 text-[11px] text-cyan-400/80">
+              ✉️ בפתיחת הפרויקט תישלח ללקוח בקשת החומרים אוטומטית, עם תזכורות עד קבלה.
+            </p>
+          ) : null}
         </Field>
 
         <div className={isRealestate ? "" : "hidden"}>
