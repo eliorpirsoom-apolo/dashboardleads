@@ -13,9 +13,25 @@ export async function POST(req: Request) {
   if (!sumitConfigured()) return NextResponse.json({ error: "not configured" }, { status: 400 });
 
   const { email } = await req.json().catch(() => ({}));
-
-  // ננסה וריאנטים של גוף הבקשה כדי לגרום להצעות מחיר/טיוטות להופיע.
   const { sumitCall } = await import("@/lib/integrations/sumit");
+
+  // עם IncludeDrafts — מאתרים את המסמך של eitan ומזהים את ה-Type המדויק.
+  const draftList = await sumitCall<{ Documents: any[] }>("/accounting/documents/list/", {
+    Page: 1,
+    PageSize: 100,
+    IncludeDrafts: true,
+  });
+  const draftDocs = draftList.data?.Documents ?? [];
+  const eitanDocs: any[] = [];
+  for (const d of draftDocs) {
+    const e = await sumitDocumentEmail(d.DocumentID);
+    if (email && e === email.toLowerCase().trim()) {
+      eitanDocs.push({ Type: d.Type, DocumentNumber: d.DocumentNumber, value: d.DocumentValue, url: !!d.DocumentDownloadURL });
+    }
+  }
+  const draftTypeCounts: Record<string, number> = {};
+  for (const d of draftDocs) draftTypeCounts[String(d.Type)] = (draftTypeCounts[String(d.Type)] || 0) + 1;
+
   const variants: { name: string; body: Record<string, unknown> }[] = [
     { name: "default", body: { Page: 1 } },
     { name: "IncludeDrafts", body: { Page: 1, IncludeDrafts: true } },
@@ -67,5 +83,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ totalDocs: docs.length, typeSummary, matchesForEmail: matches, variantResults });
+  return NextResponse.json({ eitanDocs, draftTypeCounts, matchesForEmail: matches, variantResults });
 }
