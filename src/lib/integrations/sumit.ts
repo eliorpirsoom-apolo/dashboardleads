@@ -80,17 +80,29 @@ export interface SumitDoc {
   DocumentDownloadURL: string;
 }
 
-/** כל המסמכים בחשבון (מדפדף עד maxPages). */
-export async function sumitListDocuments(maxPages = 20): Promise<SumitDoc[]> {
+/** כל המסמכים בחשבון. מדפדף, אך עוצר גם אם עמוד לא מחזיר מסמכים חדשים
+ *  (הגנה מפני API שמתעלם מפרמטר הדף ומחזיר את אותו עמוד). דדופ לפי DocumentID. */
+export async function sumitListDocuments(maxPages = 50): Promise<SumitDoc[]> {
+  const seen = new Set<number>();
   const out: SumitDoc[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const r = await sumitCall<{ Documents: SumitDoc[]; HasNextPage: boolean }>(
       "/accounting/documents/list/",
-      { Page: page }
+      { Page: page, PageSize: 100 }
     );
-    if (!r.ok || !r.data?.Documents?.length) break;
-    out.push(...r.data.Documents);
-    if (!r.data.HasNextPage) break;
+    const batch = r.data?.Documents ?? [];
+    if (!r.ok || batch.length === 0) break;
+    let added = 0;
+    for (const d of batch) {
+      if (!seen.has(d.DocumentID)) {
+        seen.add(d.DocumentID);
+        out.push(d);
+        added++;
+      }
+    }
+    // עמוד ללא מסמכים חדשים = ה-API לא מדפדף → עצירה.
+    if (added === 0) break;
+    if (r.data && r.data.HasNextPage === false) break;
   }
   return out;
 }
