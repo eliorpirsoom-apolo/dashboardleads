@@ -164,13 +164,25 @@ function asBool(v: any): boolean {
   return ["true", "1", "yes", "on", "כן"].includes(s);
 }
 
-// GET — connection test for Make/Zapier setup wizards.
+// GET — בדיקת חיבור ל-Make/Zapier; אך אם יש פרמטרים ב-query string (ספקים
+// כמו פייקול ששולחים שיחה ב-GET), מפנים אותם לעיבוד הרגיל של POST כדי שהשיחה
+// תיקלט ותירשם ביומן במקום להתעלם ממנה.
 export async function GET(
-  _req: Request,
-  { params }: { params: { token: string } }
+  req: Request,
+  ctx: { params: { token: string } }
 ) {
+  const url = new URL(req.url);
+  const sp = url.searchParams;
+  if ([...sp.keys()].length > 0) {
+    const proxied = new Request(url.origin + url.pathname, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: sp.toString(),
+    });
+    return POST(proxied, ctx);
+  }
   const source = await prisma.leadSource.findUnique({
-    where: { token: params.token },
+    where: { token: ctx.params.token },
     select: { name: true, active: true },
   });
   if (!source || !source.active) {
