@@ -78,16 +78,14 @@ async function sendSms(to: string, body: string) {
   const url =
     process.env.SMS_API_URL || "https://api.multisend.co.il/MultiSendAPI/sendsms";
   const digits = to.replace(/[^\d+]/g, "");
-  const isIsraeli =
-    digits.startsWith("0") || digits.startsWith("972") || digits.startsWith("+972");
+  // מטען מינימלי מוכח: user,password,from,recipient,message (בלי message_type —
+  // ברירת המחדל היא SMS; ערכי ה-enum שתועדו במקום אחר נדחו על-ידי ה-API).
   const params = new URLSearchParams({
     user: process.env.MULTISEND_USER!,
     password: process.env.MULTISEND_PASSWORD!,
     from: process.env.SMS_FROM || "Apollo",
     recipient: digits,
     message: body,
-    message_type: "2", // 2 = SMS
-    international: isIsraeli ? "0" : "1",
   });
   const res = await fetch(url, {
     method: "POST",
