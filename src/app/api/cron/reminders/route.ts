@@ -4,6 +4,7 @@ import { sendMessage, type Channel } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
 import { maybeSendMorningDigest } from "@/lib/digest";
 import { sendDueMaterialReminders } from "@/lib/materials";
+import { maybeAutoSyncSumit } from "@/lib/integrations/sumitSync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -126,5 +127,23 @@ export async function GET(req: Request) {
     console.error("[materials]", err);
   }
 
-  return NextResponse.json({ processed: due.length, sent, failed, digest, materialReminders });
+  // 📄 סנכרון SUMIT אוטומטי — פעם בשעה (חד-כיווני: מסמכים מ-SUMIT → דשבורד).
+  // רץ אחרון כדי שלא יחסום את שאר המשימות. ?sumit=force לבדיקה מיידית.
+  let sumitSync: unknown = null;
+  try {
+    sumitSync = await maybeAutoSyncSumit(
+      new URL(req.url).searchParams.get("sumit") === "force"
+    );
+  } catch (err) {
+    console.error("[sumit-sync]", err);
+  }
+
+  return NextResponse.json({
+    processed: due.length,
+    sent,
+    failed,
+    digest,
+    materialReminders,
+    sumitSync,
+  });
 }

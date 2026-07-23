@@ -24,6 +24,25 @@ export interface SumitSyncResult {
 const GETDETAILS_BUDGET = 25; // מגבלת קריאות getdetails לריצה
 const QUOTE_WINDOW_DAYS = 14; // מייבאים הצעות מחיר רק מהחלון האחרון
 
+// סנכרון אוטומטי פעם בשעה — רוכב על מנוע התזכורות (שרץ כל 5 דקות).
+// מריצים רק כשהדקה בישראל היא 0–4, כך שבדיוק הרצה אחת בשעה מבצעת סנכרון.
+// כך מסמך שמונפק ב-SUMIT מופיע בדשבורד תוך שעה, בלי הגדרה חיצונית נוספת.
+export async function maybeAutoSyncSumit(
+  force = false
+): Promise<SumitSyncResult | null> {
+  if (!sumitConfigured()) return null;
+  if (!force) {
+    const minuteIL = Number(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Jerusalem",
+        minute: "2-digit",
+      }).format(new Date())
+    );
+    if (minuteIL >= 5) return null; // רק בתחילת כל שעה
+  }
+  return syncSumit();
+}
+
 export async function syncSumit(): Promise<SumitSyncResult> {
   if (!sumitConfigured()) throw new Error("SUMIT לא מוגדר");
 
