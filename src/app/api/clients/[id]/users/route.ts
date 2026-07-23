@@ -5,6 +5,7 @@ import { handle, readJson, ApiError } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { hashPassword } from "@/lib/auth";
+import { sendWelcome } from "@/lib/welcome";
 
 export const dynamic = "force-dynamic";
 
@@ -43,5 +44,14 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   });
 
   await audit(actor, "user_created", "user", user.id, `${user.email} (לקוח: ${client.name})`);
-  return NextResponse.json({ user }, { status: 201 });
+
+  // מייל "ברוכים הבאים" — כדי שהלקוח יידע שנפתח לו דשבורד.
+  const welcome = await sendWelcome({
+    clientId: params.id,
+    name: user.name,
+    email: user.email,
+    phone: body.phone || null,
+  }).catch(() => null);
+
+  return NextResponse.json({ user, welcome }, { status: 201 });
 });

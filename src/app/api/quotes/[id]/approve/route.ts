@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
 import { createDefaultStatuses } from "@/lib/defaults";
 import { audit } from "@/lib/audit";
+import { sendWelcome } from "@/lib/welcome";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   if (alreadyEng) return NextResponse.json({ engagement: alreadyEng, already: true });
 
   const result = await prisma.$transaction(async (tx) => {
+    let newUser: { name: string; email: string; phone: string | null } | null = null;
     // 1. לקוח: קיים או חדש.
     let clientId = body.clientId || quote.clientId || null;
     if (!clientId) {
@@ -62,7 +64,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
       // 2. משתמש ללקוח — כניסה עם Google בלבד (בלי סיסמה).
       const email = (body.email || quote.email || "").toLowerCase().trim();
       if (email && !(await tx.user.findUnique({ where: { email } }))) {
-        await tx.user.create({
+        const u = await tx.user.create({
           data: {
             email,
             name: body.contactName || body.company || quote.recipient,
@@ -72,6 +74,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
             passwordHash: null,
           },
         });
+        newUser = { name: u.name, email: u.email, phone: u.phone };
       }
     }
 
@@ -98,9 +101,25 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
         },
       },
     });
-    return { engagement, clientId };
+    return { engagement, clientId, newUser };
   });
 
   await audit(actor, "quote_approved", "quote", quote.id, quote.recipient);
-  return NextResponse.json(result, { status: 201 });
+
+  // מייל "ברוכים הבאים" ללקוח החדש (מחוץ לטרנזקציה — לא חוסם את הפתיחה).
+  let welcome = null;
+  const nu = result.newUser;
+  if (nu?.email) {
+    welcome = await sendWelcome({
+      clientId: result.clientId,
+      name: nu.name,
+      email: nu.email,
+      phone: nu.phone,
+    }).catch((e) => {
+      console.error("[welcome]", e);
+      return null;
+    });
+  }
+
+  return NextResponse.json({ ...result, welcome }, { status: 201 });
 });

@@ -30,10 +30,29 @@ export default function UsersManager({
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [resetUser, setResetUser] = useState<ClientUser | null>(null);
+  const [welcoming, setWelcoming] = useState<string | null>(null);
 
   async function toggleActive(u: ClientUser) {
     await api(`/api/users/${u.id}`, { method: "PATCH", json: { active: !u.active } });
     router.refresh();
+  }
+
+  async function sendWelcome(u: ClientUser) {
+    setWelcoming(u.id);
+    try {
+      const r = await api<{ sent: { email: boolean; sms: boolean; whatsapp: boolean } }>(
+        `/api/users/${u.id}/welcome`,
+        { method: "POST" }
+      );
+      const ch = [r.sent.email && "מייל", r.sent.sms && "SMS", r.sent.whatsapp && "וואטסאפ"]
+        .filter(Boolean)
+        .join(" + ");
+      alert(ch ? `הזמנה נשלחה ל${u.name} (${ch})` : "ההזמנה נרשמה ביומן (בדקו הגדרות מייל)");
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setWelcoming(null);
+    }
   }
 
   return (
@@ -64,6 +83,15 @@ export default function UsersManager({
               {u.lastLoginAt ? `כניסה אחרונה: ${formatDateTime(u.lastLoginAt)}` : "טרם התחבר"}
             </span>
             <div className="mr-auto flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={welcoming === u.id}
+                onClick={() => sendWelcome(u)}
+                title="שליחת מייל הזמנה להתחברות"
+              >
+                {welcoming === u.id ? "שולח…" : u.lastLoginAt ? "שלח שוב" : "שלח הזמנה"}
+              </Button>
               <Button variant="ghost" size="sm" onClick={() => setResetUser(u)}>
                 איפוס סיסמה
               </Button>
