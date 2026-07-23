@@ -67,5 +67,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ totalDocs: docs.length, typeSummary, matchesForEmail: matches });
+  return NextResponse.json({ totalDocs: docs.length, typeSummary, matchesForEmail: matches, variantResults });
 }
