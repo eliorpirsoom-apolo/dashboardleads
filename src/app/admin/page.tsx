@@ -65,7 +65,7 @@ export default async function AdminDashboard() {
     ),
     prisma.quote.findMany({
       where: { status: { in: ["sent", "followup"] } },
-      orderBy: { updatedAt: "asc" },
+      orderBy: { sentAt: "desc" },
       take: 30,
       include: { client: { select: { name: true } } },
     }),

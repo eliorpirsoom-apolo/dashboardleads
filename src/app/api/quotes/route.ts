@@ -21,8 +21,8 @@ export const GET = handle(async (req) => {
 
   const quotes = await prisma.quote.findMany({
     where,
-    // פתוחות: הכי "מוזנחת" קודם — לפי עדכון אחרון.
-    orderBy: status === "open" ? { updatedAt: "asc" } : { sentAt: "desc" },
+    // תמיד מהתאריך החדש ביותר לישן ביותר.
+    orderBy: { sentAt: "desc" },
     take: 200,
     include: { client: { select: { id: true, name: true } } },
   });
