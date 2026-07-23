@@ -126,6 +126,8 @@ model Client {
   notes        String?
   color        String?
   logoKey      String? // company logo file key in storage
+  // מזהה הלקוח ב-SUMIT (מתמלא אוטומטית בסנכרון לפי התאמת מייל).
+  sumitCustomerId Int?
   // Round-robin new leads between the client's sales agents on intake.
   autoAssignLeads Boolean @default(false)
   active       Boolean  @default(true)
@@ -438,13 +440,17 @@ model Document {
   id           String    @id @default(cuid())
   client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId     String
-  category     String // "agreement" | "invoice" | "receipt_facebook" | "receipt_google" | "floor_plan" | "contract" | "logo" | "other"
+  category     String // "agreement" | "invoice" | "receipt_*" | financial types from SUMIT | ...
   title        String
   month        String? // "2026-07" — receipts are grouped by month
-  fileKey      String // key in storage
+  fileKey      String? // key in storage (null for external/SUMIT docs)
   fileName     String
   mimeType     String
   size         Int       @default(0)
+  // מסמכים חיצוניים (SUMIT): קישור ישיר + מזהה למניעת כפילות.
+  provider     String?   // null = הועלה אצלנו | "sumit"
+  externalId   String?   // מזהה המסמך במערכת החיצונית
+  externalUrl  String?   // קישור להורדה
   project      Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   projectId    String?
   unitType     UnitType? @relation(fields: [unitTypeId], references: [id], onDelete: SetNull)
@@ -455,6 +461,7 @@ model Document {
 
   contracts Contract[]
 
+  @@unique([provider, externalId])
   @@index([clientId, category])
   @@index([clientId, month])
 }

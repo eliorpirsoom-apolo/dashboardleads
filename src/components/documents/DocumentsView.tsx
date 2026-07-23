@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDate, formatMonthKey } from "@/lib/format";
-import { DOCUMENT_CATEGORIES } from "@/lib/defaults";
+import { DOCUMENT_CATEGORIES, documentCategoryLabel } from "@/lib/defaults";
 import { Button, EmptyState, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
@@ -17,6 +17,7 @@ interface Doc {
   mimeType: string;
   size: number;
   createdAt: string;
+  provider: string | null;
   uploadedBy: { name: string } | null;
   project: { name: string } | null;
 }
@@ -73,16 +74,22 @@ export default function DocumentsView({
     }
   }
 
-  // Receipts are grouped by month; other categories by category.
+  // סידור לפי סוג המסמך: כל קטגוריה בקבוצה משלה. קבלות הפרסום
+  // (פייסבוק/גוגל) נשארות מקובצות לפי חודש בתוך הסוג שלהן.
   const groups = useMemo(() => {
     const map = new Map<string, Doc[]>();
     for (const d of docs) {
-      const key = d.month
-        ? formatMonthKey(d.month)
-        : DOCUMENT_CATEGORIES.find((c) => c.value === d.category)?.label ?? "אחר";
+      const isAdReceipt = d.category === "receipt_facebook" || d.category === "receipt_google";
+      const key =
+        isAdReceipt && d.month
+          ? `${documentCategoryLabel(d.category)} · ${formatMonthKey(d.month)}`
+          : documentCategoryLabel(d.category);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(d);
     }
+    // בתוך כל קבוצה — חדש קודם.
+    for (const arr of map.values())
+      arr.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return [...map.entries()];
   }, [docs]);
 
@@ -142,7 +149,8 @@ export default function DocumentsView({
                       {d.title}
                     </a>
                     <p className="text-[11px] text-slate-500">
-                      {formatDate(d.createdAt)} · {sizeLabel(d.size)}
+                      {formatDate(d.createdAt)}
+                      {d.size > 0 ? ` · ${sizeLabel(d.size)}` : ""}
                       {d.uploadedBy ? ` · ${d.uploadedBy.name}` : ""}
                     </p>
                   </div>
@@ -154,7 +162,7 @@ export default function DocumentsView({
                   >
                     <Icon name="download" className="h-4 w-4" />
                   </a>
-                  {canDelete ? (
+                  {canDelete && !d.provider ? (
                     <button
                       onClick={() => remove(d.id)}
                       className="rounded p-1.5 text-slate-500 hover:text-red-400"
@@ -162,6 +170,10 @@ export default function DocumentsView({
                     >
                       <Icon name="trash" className="h-4 w-4" />
                     </button>
+                  ) : d.provider === "sumit" ? (
+                    <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500" title="מסונכרן מ-SUMIT">
+                      SUMIT
+                    </span>
                   ) : null}
                 </div>
               ))}

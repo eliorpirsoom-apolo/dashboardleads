@@ -16,6 +16,6 @@ export const DELETE = handle(async (_req, { params }: { params: { id: string } }
   }
 
   await prisma.document.delete({ where: { id: params.id } });
-  await deleteObject(doc.fileKey);
+  if (doc.fileKey) await deleteObject(doc.fileKey);
   return NextResponse.json({ ok: true });
 });

@@ -13,6 +13,10 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
   if (!doc) throw new ApiError(404, "קובץ לא נמצא");
   scopeClientId(user, doc.clientId);
 
+  // מסמך חיצוני (SUMIT) — הפניה לקישור ההורדה של הספק.
+  if (doc.externalUrl) return NextResponse.redirect(doc.externalUrl);
+  if (!doc.fileKey) throw new ApiError(404, "למסמך אין קובץ");
+
   const signed = await presignDownload(doc.fileKey, doc.fileName);
   if (signed) return NextResponse.redirect(signed);
 

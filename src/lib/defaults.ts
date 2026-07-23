@@ -35,8 +35,26 @@ export const DOCUMENT_CATEGORIES = [
   { value: "other", label: "אחר" },
 ] as const;
 
+// קטגוריות פיננסיות שמגיעות מ-SUMIT (בנוסף לקטגוריות ההעלאה הידניות).
+export const FINANCIAL_CATEGORY_LABELS: Record<string, string> = {
+  tax_invoice_receipt: "חשבוניות מס/קבלה",
+  tax_invoice: "חשבוניות מס",
+  receipt: "קבלות",
+  credit_invoice: "חשבוניות זיכוי",
+  donation_receipt: "קבלות תרומה",
+  proforma: "חשבונות עסקה",
+  payment_request: "דרישות תשלום",
+  order: "הזמנות",
+  proposal: "הצעות מחיר",
+  financial_other: "מסמכים פיננסיים",
+};
+
 export function documentCategoryLabel(value: string): string {
-  return DOCUMENT_CATEGORIES.find((c) => c.value === value)?.label ?? value;
+  return (
+    DOCUMENT_CATEGORIES.find((c) => c.value === value)?.label ??
+    FINANCIAL_CATEGORY_LABELS[value] ??
+    value
+  );
 }
 
 export const CHANNELS = [

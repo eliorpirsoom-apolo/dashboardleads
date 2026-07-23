@@ -112,6 +112,8 @@ export default function AdminSettingsView() {
 
       <MaterialTemplatesManager />
 
+      <SumitCard />
+
       <AuditLogCard />
 
       {showCreate ? (
@@ -124,6 +126,64 @@ export default function AdminSettingsView() {
         />
       ) : null}
     </div>
+  );
+}
+
+// חיבור SUMIT — סנכרון מסמכים והצעות מחיר.
+function SumitCard() {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string>("");
+
+  useEffect(() => {
+    api<{ configured: boolean }>("/api/integrations/sumit/sync")
+      .then((d) => setConfigured(d.configured))
+      .catch(() => setConfigured(false));
+  }, []);
+
+  async function sync() {
+    setBusy(true);
+    setResult("");
+    try {
+      const r = await api<{
+        documentsSeen: number;
+        documentsLinked: number;
+        quotesLinked: number;
+        clientsMatched: number;
+        unmatchedCustomers: number;
+      }>("/api/integrations/sumit/sync", { method: "POST" });
+      setResult(
+        `נמשכו ${r.documentsSeen} מסמכים · ${r.documentsLinked} שויכו ל-${r.clientsMatched} לקוחות · ` +
+          `${r.quotesLinked} הצעות · ${r.unmatchedCustomers} לקוחות ללא התאמה`
+      );
+    } catch (e: any) {
+      setResult("שגיאה: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-100">SUMIT — הנהלת חשבונות</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            משיכת חשבוניות, קבלות והצעות מחיר. משויכות ללקוח לפי מייל ומופיעות בדשבורד שלו.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Chip color={configured ? "#34d399" : "#64748b"}>
+            {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
+          </Chip>
+          <Button size="sm" disabled={busy || !configured} onClick={sync}>
+            <Icon name="chart" className="h-4 w-4" />
+            {busy ? "מסנכרן…" : "סנכרון עכשיו"}
+          </Button>
+        </div>
+      </div>
+      {result ? <p className="text-xs text-slate-400">{result}</p> : null}
+    </Card>
   );
 }
 
