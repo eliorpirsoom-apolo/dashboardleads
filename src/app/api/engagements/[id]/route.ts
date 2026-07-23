@@ -30,3 +30,13 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   });
   return NextResponse.json({ engagement });
 });
+
+// DELETE /api/engagements/[id] — מחיקת ליווי מהמודול "נכנס לעבודה".
+// המשימות המשויכות נמחקות בקסקייד; ההצעה עצמה נשמרת (quoteId → null).
+export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
+  await requireAdmin();
+  const existing = await prisma.engagement.findUnique({ where: { id: params.id } });
+  if (!existing) throw new ApiError(404, "ליווי לא נמצא");
+  await prisma.engagement.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true });
+});

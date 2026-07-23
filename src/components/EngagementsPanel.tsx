@@ -63,6 +63,17 @@ export default function EngagementsPanel() {
     setNewTask((p) => ({ ...p, [engagementId]: "" }));
     load();
   }
+  async function deleteTask(id: string) {
+    if (!confirm("למחוק את המשימה?")) return;
+    await api(`/api/engagement-tasks/${id}`, { method: "DELETE" });
+    load();
+  }
+  async function deleteEngagement(id: string, name: string) {
+    if (!confirm(`למחוק את הליווי של "${name}"? כל משימות האונבורדינג יימחקו. ההצעה עצמה תישאר.`))
+      return;
+    await api(`/api/engagements/${id}`, { method: "DELETE" });
+    load();
+  }
 
   if (rows.length === 0) {
     return (
@@ -108,12 +119,20 @@ export default function EngagementsPanel() {
                     <p className="mt-0.5 max-w-[160px] truncate text-[11px] text-slate-500" title={e.title}>
                       {e.title}
                     </p>
-                    <button
-                      onClick={() => patchEngagement(e.id, { status: "done" })}
-                      className="mt-1 text-[10px] text-slate-600 hover:text-emerald-400"
-                    >
-                      סיום ליווי ✓
-                    </button>
+                    <div className="mt-1 flex gap-2">
+                      <button
+                        onClick={() => patchEngagement(e.id, { status: "done" })}
+                        className="text-[10px] text-slate-600 hover:text-emerald-400"
+                      >
+                        סיום ליווי ✓
+                      </button>
+                      <button
+                        onClick={() => deleteEngagement(e.id, e.client.name)}
+                        className="text-[10px] text-slate-600 hover:text-rose-400"
+                      >
+                        מחק ליווי
+                      </button>
+                    </div>
                   </td>
                   <td className="px-3 py-3">
                     <Input
@@ -168,6 +187,13 @@ export default function EngagementsPanel() {
                               </option>
                             ))}
                           </select>
+                          <button
+                            onClick={() => deleteTask(t.id)}
+                            title="מחק משימה"
+                            className="shrink-0 text-slate-600 hover:text-rose-400"
+                          >
+                            <Icon name="trash" className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       ))}
                     </div>
