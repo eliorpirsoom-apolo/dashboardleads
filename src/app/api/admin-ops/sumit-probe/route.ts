@@ -63,10 +63,21 @@ export async function POST(req: Request) {
     }
   }
 
+  // מייל לדוגמה של לקוח SUMIT — לאימות התאמה (QA).
+  let sampleEmail: string | null = null;
+  let sampleName: string | null = null;
+  if (docs[0]?.DocumentID) {
+    const { sumitDocumentEmail } = await import("@/lib/integrations/sumit");
+    sampleEmail = await sumitDocumentEmail(docs[0].DocumentID);
+    sampleName = docs[0].CustomerName ?? null;
+  }
+
   return NextResponse.json({
     documentTypes: byType,
     totalOnPage: docs.length,
     detailsShape,
     customerSearch: customers,
+    sampleEmail,
+    sampleName,
   });
 }
