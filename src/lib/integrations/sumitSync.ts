@@ -74,19 +74,21 @@ export async function syncSumit(): Promise<SumitSyncResult> {
   result.clientsMatched = matchedClientIds.size;
 
   for (const d of docs) {
-    const clientId = custToClient.get(d.CustomerID);
-    if (!clientId) continue;
+    const clientId = custToClient.get(d.CustomerID) ?? null;
     const { category, label } = sumitDocType(d.Type);
 
-    // מסמך פיננסי → טבלת Documents (dedupe לפי provider+externalId).
-    await upsertDocument(clientId, d, category, label);
-    result.documentsLinked++;
-
-    // הצעת מחיר → מודול ההצעות.
+    // הצעת מחיר → מודול ההצעות. גם אם הנמען עדיין לא לקוח ב-CRM
+    // (הצעות נשלחות דווקא למתעניינים חדשים) — clientId יכול להיות null.
     if (category === "proposal") {
       await upsertQuoteFromSumit(clientId, d, label);
       result.quotesLinked++;
+      continue;
     }
+
+    // מסמכים פיננסיים אחרים → דשבורד הלקוח (רק אם הותאם לקוח).
+    if (!clientId) continue;
+    await upsertDocument(clientId, d, category, label);
+    result.documentsLinked++;
   }
 
   return result;
@@ -126,14 +128,14 @@ async function upsertDocument(
   });
 }
 
-async function upsertQuoteFromSumit(clientId: string, d: SumitDoc, label: string) {
+async function upsertQuoteFromSumit(clientId: string | null, d: SumitDoc, label: string) {
   // dedupe לפי סמן במקור בהערות (ה-PDF עצמו זמין דרך מסמך ההצעה).
   const marker = `[sumit:${d.DocumentID}]`;
   const existing = await prisma.quote.findFirst({ where: { notes: { contains: marker } } });
   const data = {
     clientId,
-    recipient: d.CustomerName,
-    title: `${label} #${d.DocumentNumber}`,
+    recipient: d.CustomerName || "מתעניין",
+    title: d.DocumentNumber ? `${label} #${d.DocumentNumber}` : label,
     amount: d.DocumentValue || null,
   };
   if (existing) {

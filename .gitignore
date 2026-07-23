@@ -43,3 +43,6 @@ yarn-error.log*
 
 # generated sqlite mirror schema
 /prisma/schema.sqlite.prisma
+
+.vercel
+.env*

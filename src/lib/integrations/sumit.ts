@@ -52,17 +52,22 @@ export async function sumitCall<T = any>(
 }
 
 // --- סוגי מסמכים ב-SUMIT → קטגוריה + תווית עברית --------------------------
-// (enum OfficeGuy; type 1 = חשבונית מס/קבלה בחשבון הזה. קל לעדכן.)
+// enum רשמי מה-Swagger: Accounting_Typed_DocumentType.
 export const SUMIT_DOC_TYPES: Record<number, { category: string; label: string }> = {
+  0: { category: "tax_invoice", label: "חשבונית מס" },
   1: { category: "tax_invoice_receipt", label: "חשבונית מס/קבלה" },
-  2: { category: "tax_invoice", label: "חשבונית מס" },
-  3: { category: "receipt", label: "קבלה" },
-  4: { category: "credit_invoice", label: "חשבונית זיכוי" },
-  5: { category: "donation_receipt", label: "קבלה על תרומה" },
-  8: { category: "proforma", label: "חשבון עסקה" },
-  9: { category: "payment_request", label: "דרישת תשלום" },
-  10: { category: "order", label: "הזמנה" },
-  11: { category: "proposal", label: "הצעת מחיר" },
+  2: { category: "receipt", label: "קבלה" },
+  3: { category: "proforma", label: "חשבון עסקה (פרופורמה)" },
+  4: { category: "donation_receipt", label: "קבלה על תרומה" },
+  5: { category: "credit_invoice", label: "חשבונית זיכוי" },
+  6: { category: "credit_invoice_receipt", label: "זיכוי מס/קבלה" },
+  7: { category: "credit_receipt", label: "קבלת זיכוי" },
+  8: { category: "order", label: "הזמנה" },
+  9: { category: "delivery_note", label: "תעודת משלוח" },
+  10: { category: "goods_return", label: "תעודת החזרה" },
+  11: { category: "purchase_order", label: "הזמנת רכש" },
+  12: { category: "proposal", label: "הצעת מחיר" },
+  13: { category: "payment_request", label: "דרישת תשלום" },
 };
 
 export function sumitDocType(type: number): { category: string; label: string } {
@@ -80,16 +85,17 @@ export interface SumitDoc {
   DocumentDownloadURL: string;
 }
 
-/** כל המסמכים בחשבון. מדפדף, אך עוצר גם אם עמוד לא מחזיר מסמכים חדשים
- *  (הגנה מפני API שמתעלם מפרמטר הדף ומחזיר את אותו עמוד). דדופ לפי DocumentID. */
-export async function sumitListDocuments(maxPages = 50): Promise<SumitDoc[]> {
+/** כל המסמכים בחשבון (כולל טיוטות/הצעות). דפדוף נכון לפי הסכמה הרשמית:
+ *  Paging{StartIndex,PageSize} + IncludeDrafts. דדופ לפי DocumentID. */
+export async function sumitListDocuments(includeDrafts = true): Promise<SumitDoc[]> {
+  const PAGE = 100;
   const seen = new Set<number>();
   const out: SumitDoc[] = [];
-  for (let page = 1; page <= maxPages; page++) {
-    const r = await sumitCall<{ Documents: SumitDoc[]; HasNextPage: boolean }>(
-      "/accounting/documents/list/",
-      { Page: page, PageSize: 100 }
-    );
+  for (let start = 0; start < 10000; start += PAGE) {
+    const r = await sumitCall<{ Documents: SumitDoc[] }>("/accounting/documents/list/", {
+      IncludeDrafts: includeDrafts,
+      Paging: { StartIndex: start, PageSize: PAGE },
+    });
     const batch = r.data?.Documents ?? [];
     if (!r.ok || batch.length === 0) break;
     let added = 0;
@@ -100,9 +106,7 @@ export async function sumitListDocuments(maxPages = 50): Promise<SumitDoc[]> {
         added++;
       }
     }
-    // עמוד ללא מסמכים חדשים = ה-API לא מדפדף → עצירה.
-    if (added === 0) break;
-    if (r.data && r.data.HasNextPage === false) break;
+    if (added === 0 || batch.length < PAGE) break;
   }
   return out;
 }
