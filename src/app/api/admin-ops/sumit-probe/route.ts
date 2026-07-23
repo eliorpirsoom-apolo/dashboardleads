@@ -32,6 +32,20 @@ export async function POST(req: Request) {
   const draftTypeCounts: Record<string, number> = {};
   for (const d of draftDocs) draftTypeCounts[String(d.Type)] = (draftTypeCounts[String(d.Type)] || 0) + 1;
 
+  // פירוט מסמכי טיוטה (type 12 ו-2) — שם/מייל הלקוח כדי להבין את ההתאמה.
+  const draftDetails: any[] = [];
+  for (const d of draftDocs.filter((x: any) => x.Type === 12 || x.Type === 2)) {
+    const r = await sumitCall<any>("/accounting/documents/getdetails/", { DocumentID: d.DocumentID });
+    const cust = r.data?.Document?.Customer ?? {};
+    draftDetails.push({
+      Type: d.Type,
+      DocumentNumber: d.DocumentNumber,
+      custName: cust.Name ?? null,
+      custEmail: cust.EmailAddress ?? null,
+      custPhone: cust.Phone ?? null,
+    });
+  }
+
   // גילוי פרמטר הדפדוף הנכון: משווים DocumentID ראשון מול עמוד 1.
   const firstId = draftDocs[0]?.DocumentID;
   const pagingTries: { name: string; body: Record<string, unknown> }[] = [
@@ -107,5 +121,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ eitanDocs, draftTypeCounts, firstId, paging });
+  return NextResponse.json({ draftTypeCounts, draftDetails });
 }
