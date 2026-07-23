@@ -32,6 +32,30 @@ export async function POST(req: Request) {
   const draftTypeCounts: Record<string, number> = {};
   for (const d of draftDocs) draftTypeCounts[String(d.Type)] = (draftTypeCounts[String(d.Type)] || 0) + 1;
 
+  // גילוי פרמטר הדפדוף הנכון: משווים DocumentID ראשון מול עמוד 1.
+  const firstId = draftDocs[0]?.DocumentID;
+  const pagingTries: { name: string; body: Record<string, unknown> }[] = [
+    { name: "Page:2", body: { Page: 2, IncludeDrafts: true } },
+    { name: "PageNumber:2", body: { PageNumber: 2, IncludeDrafts: true } },
+    { name: "Skip:10", body: { Skip: 10, IncludeDrafts: true } },
+    { name: "Offset:10", body: { Offset: 10, IncludeDrafts: true } },
+    { name: "StartIndex:10", body: { StartIndex: 10, IncludeDrafts: true } },
+    { name: "From:10", body: { From: 10, IncludeDrafts: true } },
+    { name: "Sort:DateDesc", body: { IncludeDrafts: true, SortBy: "Date", SortDirection: "Descending" } },
+  ];
+  const paging: any[] = [];
+  for (const t of pagingTries) {
+    const r = await sumitCall<{ Documents: any[] }>("/accounting/documents/list/", t.body);
+    const ds = r.data?.Documents ?? [];
+    paging.push({
+      name: t.name,
+      count: ds.length,
+      firstId: ds[0]?.DocumentID,
+      shifted: ds[0]?.DocumentID !== firstId,
+      types: [...new Set(ds.map((d: any) => d.Type))],
+    });
+  }
+
   const variants: { name: string; body: Record<string, unknown> }[] = [
     { name: "default", body: { Page: 1 } },
     { name: "IncludeDrafts", body: { Page: 1, IncludeDrafts: true } },
@@ -83,5 +107,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ eitanDocs, draftTypeCounts, matchesForEmail: matches, variantResults });
+  return NextResponse.json({ eitanDocs, draftTypeCounts, firstId, paging });
 }
