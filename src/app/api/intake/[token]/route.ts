@@ -69,7 +69,7 @@ export const dynamic = "force-dynamic";
 
 const ALIASES: Record<string, string[]> = {
   fullName: ["fullname", "full_name", "full-name", "name", "שם", "שם מלא", "שם פרטי", "שם ומשפחה", "first_name", "your-name", "field_name"],
-  phone: ["phone", "טלפון", "טלפון נייד", "נייד", "מספר טלפון", "מס' טלפון", "phone_number", "phone-number", "phone number", "tel", "mobile", "your-phone", "caller", "caller_number", "caller_id", "callerid", "ani", "src", "source_number", "מספר מתקשר", "ממספר", "from"],
+  phone: ["phone", "טלפון", "טלפון נייד", "נייד", "מספר טלפון", "מס' טלפון", "phone_number", "phone-number", "phone number", "tel", "mobile", "your-phone", "caller", "caller_number", "caller_id", "callerid", "cli", "ani", "src", "source_number", "מספר מתקשר", "ממספר", "from"],
   email: ["email", "מייל", "אימייל", "כתובת מייל", "דוא\"ל", "email address", "your-email", "e-mail", "mail"],
   city: ["city", "עיר", "location"],
   campaignLabel: ["campaign", "campaign_name", "קמפיין", "utm_campaign", "שם קבוצה", "group", "group_name"],
@@ -79,11 +79,11 @@ const ALIASES: Record<string, string[]> = {
   platform: ["platform", "פלטפורמה"],
   consent: ["consent", "הסכמה", "marketing_consent", "newsletter", "accept_marketing"],
   callDurationSec: ["duration", "call_duration", "משך שיחה", "duration_seconds", "seconds", "שניות", "סה\"כ שניות", "talk_time", "talktime", "airtime", "זמן אוויר", "billsec"],
-  callRecordingUrl: ["recording", "recording_url", "recording_link", "הקלטה", "call_recording", "record", "record_url", "audio", "audio_url", "url_recording", "link"],
+  callRecordingUrl: ["recording", "recording_url", "recording_link", "הקלטה", "call_recording", "record", "record_url", "audio", "audio_url", "url_recording", "link", "dlink", "dlinkdirect"],
   callStatus: ["call_status", "סטטוס שיחה", "disposition", "status", "מענה", "ענה", "answered", "call_result", "result", "סטטוס", "וזמן מענה"],
-  callAdNumber: ["did", "dialed", "dialed_number", "checkcall", "check_call", "checkcall_number", "מספר checkcall", "מספר פרסומי", "campaign_number", "virtual_number", "dnis", "publish_number", "מספר קו", "line_number"],
-  callTargetNumber: ["target", "target_number", "מספר יעד", "מספר טלפון ביעד", "agent_number", "forward_to", "answered_by", "extension", "destination", "dest", "to"],
-  callTargetName: ["target_name", "שם יעד", "agent", "agent_name", "שם נציג", "שם היעד"],
+  callAdNumber: ["did", "ddi", "dialed", "dialed_number", "checkcall", "check_call", "checkcall_number", "מספר checkcall", "מספר פרסומי", "campaign_number", "virtual_number", "dnis", "publish_number", "מספר קו", "line_number"],
+  callTargetNumber: ["target", "target_number", "מספר יעד", "מספר טלפון ביעד", "agent_number", "forward_to", "answered_by", "extension", "destination", "dest", "callee", "to"],
+  callTargetName: ["target_name", "שם יעד", "agent", "agent_name", "שם נציג", "שם היעד", "custname", "cust_name", "customer_name"],
   callTranscript: ["transcript", "תמלול", "תמלול שיחה", "call_transcript", "text"],
   callSummary: ["summary", "סיכום", "סיכום שיחה", "call_summary", "abstract"],
   externalId: ["id", "lead_id", "external_id", "call_id", "callid", "checkcall_id", "unique_id", "uniqueid", "uid", "recordid", "entry_id"],
@@ -169,6 +169,25 @@ function asBool(v: any): boolean {
   return ["true", "1", "yes", "on", "כן"].includes(s);
 }
 
+// סטטוס מענה של CheckCall/פייקול → עברית (עם נפילה חזרה לערך הגולמי).
+function normalizeCallStatus(v: any): string {
+  const s = String(v ?? "").toUpperCase().trim().replace(/[\s-]+/g, "_");
+  const map: Record<string, string> = {
+    ANSWER: "נענתה",
+    ANSWERED: "נענתה",
+    NO_ANSWER: "לא נענתה",
+    NOANSWER: "לא נענתה",
+    MISSED: "לא נענתה",
+    BUSY: "תפוס",
+    CANCEL: "בוטלה",
+    CANCELLED: "בוטלה",
+    FAILED: "נכשלה",
+    REJECTED: "נדחתה",
+    VOICEMAIL: "תא קולי",
+  };
+  return map[s] ?? String(v);
+}
+
 // GET — בדיקת חיבור ל-Make/Zapier; אך אם יש פרמטרים ב-query string (ספקים
 // כמו פייקול ששולחים שיחה ב-GET), מפנים אותם לעיבוד הרגיל של POST כדי שהשיחה
 // תיקלט ותירשם ביומן במקום להתעלם ממנה.
@@ -251,24 +270,47 @@ export async function POST(
   payload = flattenFormShapes(payload);
 
   try {
-    // תמלול/סיכום מגיעים מפייקול כ-webhook נפרד אחרי השיחה — מצרפים אותם לליד
-    // הקיים לפי externalId (מזהה השיחה) במקום ליצור ליד חדש.
+    // --- נתוני שיחה (CheckCall/פייקול) — מחושבים פעם אחת, לעדכון וליצירה ---
     const transcript = pick(payload, "callTranscript");
     const summary = pick(payload, "callSummary");
     const extId = pick(payload, "externalId");
-    if ((transcript || summary) && extId) {
+    const recRaw = pick(payload, "callRecordingUrl");
+    const recUrl =
+      recRaw && /^https?:\/\//i.test(String(recRaw)) ? String(recRaw).slice(0, 500) : null;
+    const durationRaw = pick(payload, "callDurationSec");
+    const durationNum = durationRaw ? Number(durationRaw) || null : null;
+    const statusRaw = pick(payload, "callStatus");
+    const statusVal = statusRaw ? normalizeCallStatus(statusRaw) : null;
+    const adNum = pick(payload, "callAdNumber")
+      ? String(pick(payload, "callAdNumber")).trim().slice(0, 40)
+      : null;
+    const targetNum = pick(payload, "callTargetNumber")
+      ? String(pick(payload, "callTargetNumber")).trim().slice(0, 40)
+      : null;
+    const targetName = pick(payload, "callTargetName")
+      ? String(pick(payload, "callTargetName")).trim().slice(0, 120)
+      : null;
+
+    // כל webhook נוסף על אותה שיחה (START→END, או התמלול/סיכום שמגיע אח"כ) —
+    // מזוהה לפי externalId (מזהה השיחה) ומעדכן את הליד הקיים במקום ליצור כפילות.
+    if (extId) {
       const existing = await prisma.lead.findFirst({
         where: { clientId: source.clientId, externalId: String(extId) },
         orderBy: { createdAt: "desc" },
       });
       if (existing) {
-        await prisma.lead.update({
-          where: { id: existing.id },
-          data: {
-            ...(transcript ? { callTranscript: String(transcript).slice(0, 20000) } : {}),
-            ...(summary ? { callSummary: String(summary).slice(0, 8000) } : {}),
-          },
-        });
+        const upd: Record<string, any> = {};
+        if (recUrl) upd.callRecordingUrl = recUrl;
+        if (durationNum != null) upd.callDurationSec = durationNum;
+        if (statusVal) upd.callStatus = statusVal;
+        if (adNum) upd.callAdNumber = adNum;
+        if (targetNum) upd.callTargetNumber = targetNum;
+        if (targetName) upd.callTargetName = targetName;
+        if (transcript) upd.callTranscript = String(transcript).slice(0, 20000);
+        if (summary) upd.callSummary = String(summary).slice(0, 8000);
+        if (Object.keys(upd).length) {
+          await prisma.lead.update({ where: { id: existing.id }, data: upd });
+        }
         await prisma.intakeLog.create({
           data: {
             sourceId: source.id,
@@ -277,6 +319,10 @@ export async function POST(
             leadId: existing.id,
             payload: rawPayload,
           },
+        });
+        await prisma.leadSource.update({
+          where: { id: source.id },
+          data: { lastSeenAt: new Date() },
         });
         return NextResponse.json({ ok: true, updated: true, leadId: existing.id });
       }
@@ -303,8 +349,9 @@ export async function POST(
       );
     }
 
-    // Dedupe within 24h by phone/email.
-    const dup = await findDuplicateLead(source.clientId, phone, email);
+    // Dedupe within 24h by phone/email — לא לשיחות (כל שיחה נפרדת = ליד;
+    // כפילות webhook לאותה שיחה כבר טופלה לפי externalId למעלה).
+    const dup = source.kind === "call" ? null : await findDuplicateLead(source.clientId, phone, email);
     if (dup) {
       await prisma.intakeLog.create({
         data: {
@@ -333,7 +380,6 @@ export async function POST(
       }
     }
 
-    const duration = pick(payload, "callDurationSec");
     // שיוך מטפל: מקור של פרויקט → הסוכן הראשי של הפרויקט (או סבב בין סוכני
     // הפרויקט אם הלקוח הפעיל שיוך אוטומטי). מקור בלי פרויקט → סבב כלל-לקוחי.
     let assigneeId: string | null = null;
@@ -382,22 +428,12 @@ export async function POST(
         ? String(pick(payload, "adName")).slice(0, 160)
         : null,
       consent: asBool(pick(payload, "consent")),
-      callDurationSec: duration ? Number(duration) || null : null,
-      callRecordingUrl: pick(payload, "callRecordingUrl")
-        ? String(pick(payload, "callRecordingUrl"))
-        : null,
-      callStatus: pick(payload, "callStatus")
-        ? String(pick(payload, "callStatus")).slice(0, 60)
-        : null,
-      callAdNumber: pick(payload, "callAdNumber")
-        ? String(pick(payload, "callAdNumber")).slice(0, 40)
-        : null,
-      callTargetNumber: pick(payload, "callTargetNumber")
-        ? String(pick(payload, "callTargetNumber")).slice(0, 40)
-        : null,
-      callTargetName: pick(payload, "callTargetName")
-        ? String(pick(payload, "callTargetName")).slice(0, 120)
-        : null,
+      callDurationSec: durationNum,
+      callRecordingUrl: recUrl,
+      callStatus: statusVal,
+      callAdNumber: adNum,
+      callTargetNumber: targetNum,
+      callTargetName: targetName,
       callTranscript: transcript ? String(transcript).slice(0, 20000) : null,
       callSummary: summary ? String(summary).slice(0, 8000) : null,
       receivedAt: new Date(),
