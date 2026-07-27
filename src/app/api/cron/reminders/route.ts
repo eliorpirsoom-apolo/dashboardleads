@@ -5,7 +5,10 @@ import { formatDateTime } from "@/lib/format";
 import { maybeSendMorningDigest } from "@/lib/digest";
 import { sendDueMaterialReminders } from "@/lib/materials";
 import { maybeAutoSyncSumit } from "@/lib/integrations/sumitSync";
-import { processPendingCallTranscriptions } from "@/lib/transcription";
+import {
+  processPendingCallTranscriptions,
+  downloadPendingRecordings,
+} from "@/lib/transcription";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -139,7 +142,14 @@ export async function GET(req: Request) {
     console.error("[sumit-sync]", err);
   }
 
-  // 🎙️ תמלול + סיכום שיחות מההקלטה — עצמאי (OpenAI). מעבד מעט לידים לריצה.
+  // 🎙️ הקלטות: קודם שומרים כל הקלטה חדשה ל-R2 (ללא תלות במפתח תמלול),
+  // ואז — אם מוגדר OpenAI — מתמללים ומסכמים.
+  let recordings: unknown = null;
+  try {
+    recordings = await downloadPendingRecordings();
+  } catch (err) {
+    console.error("[recording-download]", err);
+  }
   let transcriptions: unknown = null;
   try {
     transcriptions = await processPendingCallTranscriptions();
@@ -154,6 +164,7 @@ export async function GET(req: Request) {
     digest,
     materialReminders,
     sumitSync,
+    recordings,
     transcriptions,
   });
 }

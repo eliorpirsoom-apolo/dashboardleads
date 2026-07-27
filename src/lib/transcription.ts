@@ -20,7 +20,8 @@ async function downloadAudio(
 ): Promise<{ bytes: Buffer; mime: string; ext: string }> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`הורדת הקלטה נכשלה: HTTP ${res.status}`);
-  const mime = res.headers.get("content-type")?.split(";")[0] || "audio/mpeg";
+  const mime = res.headers.get("content-type")?.split(";")[0]?.trim() || "audio/mpeg";
+  if (mime.includes("text/html")) throw new Error("הקישור אינו קובץ שמע (התקבל דף HTML)");
   const buf = Buffer.from(await res.arrayBuffer());
   const extFromMime: Record<string, string> = {
     "audio/mpeg": "mp3",
@@ -141,6 +142,62 @@ async function processLead(lead: {
     },
   });
   return "done";
+}
+
+/** מוריד את ההקלטה מ-callRecordingUrl ושומר עותק קבוע ב-R2. מחזיר את המפתח. */
+export async function saveRecordingToR2(lead: {
+  id: string;
+  callRecordingUrl: string | null;
+}): Promise<string | null> {
+  const url = lead.callRecordingUrl;
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  const { bytes, mime, ext } = await downloadAudio(url);
+  if (bytes.length === 0) return null;
+  const key = `agency/recordings/${lead.id}.${ext}`;
+  await putObject(key, bytes, mime);
+  return key;
+}
+
+export interface RecordingRunResult {
+  processed: number;
+  saved: number;
+  failed: number;
+}
+
+/**
+ * שומר ל-R2 הקלטות של שיחות שטרם נשמרו — ללא תלות במפתח תמלול, כך שההקלטה
+ * נשמרת לצמיתות ומתנגנת בדשבורד גם כשהתמלול כבוי. רץ מה-cron.
+ */
+export async function downloadPendingRecordings(limit = 3): Promise<RecordingRunResult> {
+  const result: RecordingRunResult = { processed: 0, saved: 0, failed: 0 };
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const pending = await prisma.lead.findMany({
+    where: {
+      kind: "call",
+      callRecordingKey: null,
+      callRecordingUrl: { startsWith: "http" },
+      createdAt: { gte: weekAgo },
+    },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+    select: { id: true, callRecordingUrl: true },
+  });
+  for (const lead of pending) {
+    result.processed++;
+    try {
+      const key = await saveRecordingToR2(lead);
+      if (key) {
+        await prisma.lead.update({ where: { id: lead.id }, data: { callRecordingKey: key } });
+        result.saved++;
+      } else {
+        result.failed++;
+      }
+    } catch (err) {
+      result.failed++;
+      console.error("[recording-download]", lead.id, err);
+    }
+  }
+  return result;
 }
 
 export interface TranscriptionRunResult {

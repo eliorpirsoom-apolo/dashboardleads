@@ -79,7 +79,7 @@ const ALIASES: Record<string, string[]> = {
   platform: ["platform", "פלטפורמה"],
   consent: ["consent", "הסכמה", "marketing_consent", "newsletter", "accept_marketing"],
   callDurationSec: ["duration", "call_duration", "משך שיחה", "duration_seconds", "seconds", "שניות", "סה\"כ שניות", "talk_time", "talktime", "airtime", "זמן אוויר", "billsec"],
-  callRecordingUrl: ["recording", "recording_url", "recording_link", "הקלטה", "call_recording", "record", "record_url", "audio", "audio_url", "url_recording", "link", "dlink", "dlinkdirect"],
+  callRecordingUrl: ["dlinkdirect", "recording", "recording_url", "recording_link", "הקלטה", "call_recording", "record", "record_url", "audio", "audio_url", "url_recording", "dlink", "link"],
   callStatus: ["call_status", "סטטוס שיחה", "disposition", "status", "מענה", "ענה", "answered", "call_result", "result", "סטטוס", "וזמן מענה"],
   callAdNumber: ["did", "ddi", "dialed", "dialed_number", "checkcall", "check_call", "checkcall_number", "מספר checkcall", "מספר פרסומי", "campaign_number", "virtual_number", "dnis", "publish_number", "מספר קו", "line_number"],
   callTargetNumber: ["target", "target_number", "מספר יעד", "מספר טלפון ביעד", "agent_number", "forward_to", "answered_by", "extension", "destination", "dest", "callee", "to"],
