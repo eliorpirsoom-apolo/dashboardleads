@@ -161,7 +161,7 @@ export default async function AdminDashboard() {
           {recentLeads.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-600">אין לידים עדיין</p>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="thin-scroll flex max-h-80 flex-col gap-2 overflow-y-auto pl-1">
               {recentLeads.map((l) => (
                 <Link
                   key={l.id}
