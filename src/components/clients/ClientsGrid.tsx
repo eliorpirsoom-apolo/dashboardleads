@@ -124,6 +124,7 @@ export function ClientFormModal({
     contactPhone: string | null;
     color: string | null;
     notes: string | null;
+    birthday?: string | null;
   };
   onClose: () => void;
   onSaved: (id: string) => void;
@@ -137,6 +138,7 @@ export function ClientFormModal({
     contactPhone: existing?.contactPhone ?? "",
     color: existing?.color ?? "#22d3ee",
     notes: existing?.notes ?? "",
+    birthday: existing?.birthday ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -190,6 +192,9 @@ export function ClientFormModal({
             <Input dir="ltr" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
           </Field>
         </div>
+        <Field label="תאריך לידה (לברכת יום הולדת אוטומטית)" hint="נשלחת ברכה במייל וב-SMS בבוקר יום ההולדת">
+          <Input dir="ltr" type="date" value={form.birthday} onChange={(e) => setForm({ ...form, birthday: e.target.value })} />
+        </Field>
         <div className="grid grid-cols-[1fr_auto] items-end gap-3">
           <Field label="אימייל">
             <Input dir="ltr" type="email" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} />

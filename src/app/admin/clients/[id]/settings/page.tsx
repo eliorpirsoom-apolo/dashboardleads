@@ -47,6 +47,7 @@ export default async function ClientSettingsPage({
           active: client.active,
           autoAssignLeads: client.autoAssignLeads,
           logoKey: client.logoKey,
+          birthday: client.birthday,
         }}
       />
       <UsersManager clientId={client.id} users={client.users} />

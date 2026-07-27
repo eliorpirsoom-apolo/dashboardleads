@@ -24,6 +24,7 @@ export default function ClientEditCard({
     active: boolean;
     autoAssignLeads: boolean;
     logoKey: string | null;
+    birthday?: string | null;
   };
 }) {
   const router = useRouter();

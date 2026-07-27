@@ -9,6 +9,7 @@ import {
   processPendingCallTranscriptions,
   downloadPendingRecordings,
 } from "@/lib/transcription";
+import { sendDueBirthdayGreetings } from "@/lib/birthday";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -131,6 +132,16 @@ export async function GET(req: Request) {
     console.error("[materials]", err);
   }
 
+  // 🎂 ברכות יום הולדת ללקוחות — פעם ביום ב-09:00 (שעון ישראל). ?birthday=force לבדיקה.
+  let birthdays = 0;
+  try {
+    birthdays = await sendDueBirthdayGreetings(
+      new URL(req.url).searchParams.get("birthday") === "force"
+    );
+  } catch (err) {
+    console.error("[birthday]", err);
+  }
+
   // 📄 סנכרון SUMIT אוטומטי — פעם בשעה (חד-כיווני: מסמכים מ-SUMIT → דשבורד).
   // רץ אחרון כדי שלא יחסום את שאר המשימות. ?sumit=force לבדיקה מיידית.
   let sumitSync: unknown = null;
@@ -163,6 +174,7 @@ export async function GET(req: Request) {
     failed,
     digest,
     materialReminders,
+    birthdays,
     sumitSync,
     recordings,
     transcriptions,

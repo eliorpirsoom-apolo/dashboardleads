@@ -45,6 +45,7 @@ const UpdateClient = z.object({
   color: z.string().max(20).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   logoKey: z.string().max(300).nullable().optional(),
+  birthday: z.string().max(10).nullable().optional().or(z.literal("")),
   autoAssignLeads: z.boolean().optional(),
   active: z.boolean().optional(),
 });
@@ -55,7 +56,11 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   const body = UpdateClient.parse(await readJson(req));
   const client = await prisma.client.update({
     where: { id: params.id },
-    data: { ...body, contactEmail: body.contactEmail === "" ? null : body.contactEmail },
+    data: {
+      ...body,
+      contactEmail: body.contactEmail === "" ? null : body.contactEmail,
+      birthday: body.birthday === "" ? null : body.birthday,
+    },
   });
   if (body.active !== undefined) {
     await audit(

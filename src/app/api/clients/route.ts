@@ -58,6 +58,7 @@ const CreateClient = z.object({
   contactPhone: z.string().max(30).optional().nullable(),
   color: z.string().max(20).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
+  birthday: z.string().max(10).optional().nullable().or(z.literal("")),
 });
 
 // POST /api/clients — create a client + its default statuses. Manager only.
@@ -70,7 +71,7 @@ export const POST = handle(async (req) => {
 
   const client = await prisma.$transaction(async (tx) => {
     const c = await tx.client.create({
-      data: { ...body, contactEmail: body.contactEmail || null },
+      data: { ...body, contactEmail: body.contactEmail || null, birthday: body.birthday || null },
     });
     await createDefaultStatuses(tx, c.id);
     return c;

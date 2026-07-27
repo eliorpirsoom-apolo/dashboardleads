@@ -126,6 +126,8 @@ model Client {
   notes        String?
   color        String?
   logoKey      String? // company logo file key in storage
+  birthday     String? // תאריך לידה של הלקוח (YYYY-MM-DD) — לברכת יום הולדת אוטומטית
+  lastBirthdayGreetYear Int? // השנה האחרונה שבה נשלחה ברכה (למניעת כפילות)
   // מזהה הלקוח ב-SUMIT (מתמלא אוטומטית בסנכרון לפי התאמת מייל).
   sumitCustomerId Int?
   // Round-robin new leads between the client's sales agents on intake.
