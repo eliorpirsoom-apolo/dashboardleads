@@ -45,8 +45,10 @@ async function downloadAudio(
 async function transcribeAudio(bytes: Buffer, ext: string, mime: string): Promise<string> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), `recording.${ext}`);
-  form.append("model", process.env.OPENAI_STT_MODEL || "whisper-1");
+  form.append("model", process.env.OPENAI_STT_MODEL || "gpt-4o-transcribe");
   form.append("language", "he");
+  // רמז הקשר משפר דיוק בעברית ומצמצם חזרות/המצאות.
+  form.append("prompt", "שיחת טלפון בעברית בין נציג מכירות של משרד פרסום/נדל\"ן לבין ליד או לקוח.");
   const res = await fetch(`${OPENAI_BASE}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -69,7 +71,9 @@ async function summarizeCall(
   const sys =
     "אתה עוזר במשרד פרסום ישראלי. תסכם שיחת טלפון עם ליד/לקוח בעברית, " +
     "בראשי פרקים קצרים (3–6 בולטים המתחילים ב-•). התמקד בכוונת המתקשר, מה שביקש, " +
-    "תקציב/פרטים רלוונטיים, והצעד הבא הנדרש. בלי הקדמות — רק הבולטים.";
+    "תקציב/פרטים רלוונטיים, והצעד הבא הנדרש. בלי הקדמות — רק הבולטים. " +
+    "הסתמך אך ורק על מה שנאמר בתמלול — אל תמציא פרטים. אם התמלול קצר, לא ברור או " +
+    "רועש מכדי להבין — כתוב בולט אחד: '• התמלול אינו ברור דיו להפקת סיכום.'";
   const user =
     `סכם את השיחה הבאה${meta.targetName ? ` (יעד: ${meta.targetName})` : ""}` +
     `${meta.durationSec ? `, משך ${meta.durationSec} שניות` : ""}:\n\n${transcript}`;
