@@ -84,6 +84,8 @@ interface FullLead {
   callTargetName: string | null;
   callTranscript: string | null;
   callSummary: string | null;
+  callRecordingKey: string | null;
+  callTranscriptStatus: string | null;
   messages: {
     id: string;
     channel: string;
@@ -399,15 +401,28 @@ export default function LeadDrawer({
                   </div>
                 </div>
 
-                {lead.callRecordingUrl ? (
+                {lead.callRecordingKey || lead.callRecordingUrl ? (
                   <div>
                     <p className="mb-1 text-xs text-slate-500">הקלטה</p>
-                    <audio controls preload="none" src={lead.callRecordingUrl} className="w-full">
-                      <a href={lead.callRecordingUrl} target="_blank">
-                        הורדת ההקלטה
-                      </a>
-                    </audio>
+                    <audio
+                      controls
+                      preload="none"
+                      src={lead.callRecordingKey ? `/api/recordings/${lead.id}` : lead.callRecordingUrl!}
+                      className="w-full"
+                    />
                   </div>
+                ) : null}
+
+                {!lead.callTranscript &&
+                (lead.callRecordingKey || lead.callRecordingUrl) &&
+                lead.callTranscriptStatus !== "no_audio" ? (
+                  <p className="text-[11px] text-slate-500">
+                    {lead.callTranscriptStatus === "failed"
+                      ? "⚠️ תמלול נכשל — ננסה שוב בריצה הבאה"
+                      : lead.callTranscriptStatus === "pending"
+                        ? "⏳ מתמלל את השיחה…"
+                        : "⏳ התמלול והסיכום יופקו אוטומטית תוך מספר דקות"}
+                  </p>
                 ) : null}
 
                 {lead.callSummary ? (

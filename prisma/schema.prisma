@@ -283,8 +283,10 @@ model Lead {
   callAdNumber     String? // מספר פרסומי (ה-DID/CheckCall שאליו התקשרו)
   callTargetNumber String? // מספר הטלפון ביעד (למי נותבה השיחה)
   callTargetName   String? // שם היעד/נציג
-  callTranscript   String? // תמלול מלא (מפייקול)
-  callSummary      String? // סיכום שיחה בראשי פרקים (מפייקול)
+  callTranscript   String? // תמלול מלא (מפייקול או מתמלול עצמי מההקלטה)
+  callSummary      String? // סיכום שיחה בראשי פרקים
+  callRecordingKey String? // מפתח R2 של קובץ ההקלטה ששמרנו אצלנו (עותק קבוע)
+  callTranscriptStatus String? // null=טרם, "pending", "done", "failed", "no_audio"
 
   receivedAt DateTime @default(now())
   archived   Boolean  @default(false)
