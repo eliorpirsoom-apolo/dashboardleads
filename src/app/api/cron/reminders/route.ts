@@ -44,7 +44,7 @@ export async function GET(req: Request) {
         include: {
           assignee: true,
           client: true,
-          lead: { select: { fullName: true, phone: true, number: true } },
+          lead: { select: { fullName: true, phone: true, email: true, number: true } },
         },
       },
     },
@@ -57,41 +57,53 @@ export async function GET(req: Request) {
     const { task } = reminder;
     const channel = reminder.channel as Channel;
 
-    // Resolve recipients: assignee → client users → admins.
+    const toLead = reminder.target === "lead";
+    const typeLabel =
+      task.type === "meeting" ? "פגישה" : task.type === "contract" ? "חתימת חוזה" : "משימה";
+
+    // נמענים: יעד "lead" → הלקוח הסופי (לפי הליד). אחרת: הסוכן → משתמשי הלקוח → מנהלים.
     let recipients: { to: string }[] = [];
-    if (task.assignee) {
-      const to =
-        channel === "email" ? task.assignee.email : task.assignee.phone ?? "";
+    if (toLead) {
+      const to = channel === "email" ? task.lead?.email ?? "" : task.lead?.phone ?? "";
       if (to) recipients = [{ to }];
-    }
-    if (recipients.length === 0) {
-      const users = await prisma.user.findMany({
-        where: task.clientId
-          ? { clientId: task.clientId, active: true }
-          : { role: "ADMIN", active: true },
-      });
-      recipients = users
-        .map((u) => ({ to: channel === "email" ? u.email : u.phone ?? "" }))
-        .filter((r) => r.to);
+    } else {
+      if (task.assignee) {
+        const to = channel === "email" ? task.assignee.email : task.assignee.phone ?? "";
+        if (to) recipients = [{ to }];
+      }
+      if (recipients.length === 0) {
+        const users = await prisma.user.findMany({
+          where: task.clientId
+            ? { clientId: task.clientId, active: true }
+            : { role: "ADMIN", active: true },
+        });
+        recipients = users
+          .map((u) => ({ to: channel === "email" ? u.email : u.phone ?? "" }))
+          .filter((r) => r.to);
+      }
     }
 
-    const typeLabel = task.type === "meeting" ? "פגישה" : "משימה";
-    const leadLine = task.lead
-      ? `\nליד: ${task.lead.fullName ?? ""} (#${task.lead.number}) ${task.lead.phone ?? ""}`
-      : "";
-    const body =
-      `תזכורת: ${typeLabel} — ${task.title}\n` +
-      `מועד: ${formatDateTime(task.dueAt)}` +
-      (task.location ? `\nמיקום: ${task.location}` : "") +
-      leadLine +
-      (task.description ? `\n\n${task.description}` : "");
+    // הודעה מותאמת: פנייה ישירה ללקוח, או תזכורת פנימית לסוכן.
+    const orgName = task.client?.name ?? "אפולו פרסום";
+    const body = toLead
+      ? `שלום${task.lead?.fullName ? ` ${task.lead.fullName}` : ""},\n` +
+        `תזכורת ל${typeLabel} שנקבעה ל-${formatDateTime(task.dueAt)}.` +
+        (task.location ? `\nמיקום: ${task.location}` : "") +
+        `\n\nנתראה,\n${orgName}`
+      : `תזכורת: ${typeLabel} — ${task.title}\n` +
+        `מועד: ${formatDateTime(task.dueAt)}` +
+        (task.location ? `\nמיקום: ${task.location}` : "") +
+        (task.lead
+          ? `\nליד: ${task.lead.fullName ?? ""} (#${task.lead.number}) ${task.lead.phone ?? ""}`
+          : "") +
+        (task.description ? `\n\n${task.description}` : "");
 
     let ok = false;
     for (const r of recipients) {
       const res = await sendMessage({
         channel,
         to: r.to,
-        subject: `תזכורת: ${task.title}`,
+        subject: toLead ? `תזכורת ל${typeLabel}` : `תזכורת: ${task.title}`,
         body,
         kind: "reminder",
         clientId: task.clientId,

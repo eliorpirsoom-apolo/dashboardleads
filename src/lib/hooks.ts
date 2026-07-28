@@ -1,5 +1,46 @@
 import { prisma } from "./prisma";
 import { sendMessage, renderTemplate, type Channel } from "./messaging";
+import { parseMsgConfig, effectiveFlags, effectiveChannels } from "./messagingConfig";
+
+// התראת "ליד חדש" למשתמשי הלקוח — לפי הרשאות הדיוור (leadAlerts + ערוצים אפקטיביים).
+async function sendNewLeadAlert(leadId: string): Promise<void> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    include: {
+      client: { select: { name: true, messagingConfig: true } },
+      source: { select: { name: true } },
+    },
+  });
+  if (!lead) return;
+  const cfg = parseMsgConfig(lead.client?.messagingConfig);
+  if (!effectiveFlags(cfg).leadAlerts) return;
+  const channels = effectiveChannels(cfg);
+  if (channels.length === 0) return;
+
+  const users = await prisma.user.findMany({
+    where: { clientId: lead.clientId, active: true },
+    select: { email: true, phone: true },
+  });
+  const body =
+    `📩 ליד חדש${lead.source?.name ? ` מ-${lead.source.name}` : ""}:\n` +
+    `${lead.fullName ?? "ללא שם"}${lead.phone ? ` · ${lead.phone}` : ""}` +
+    `${lead.email ? ` · ${lead.email}` : ""}`;
+  for (const ch of channels) {
+    for (const u of users) {
+      const to = ch === "email" ? u.email : u.phone ?? "";
+      if (!to) continue;
+      await sendMessage({
+        channel: ch as Channel,
+        to,
+        subject: "ליד חדש 📩",
+        body,
+        kind: "automation",
+        clientId: lead.clientId,
+        leadId: lead.id,
+      }).catch(() => {});
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Domain hooks — fired on lead lifecycle events.
@@ -106,6 +147,7 @@ export async function onLeadCreated(leadId: string): Promise<void> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) return;
   await fireAutomations(lead.clientId, "lead_created", leadId, null);
+  await sendNewLeadAlert(leadId).catch((e) => console.error("[lead-alert]", e));
 }
 
 async function fireAutomations(

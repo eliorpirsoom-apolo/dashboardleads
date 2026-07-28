@@ -80,6 +80,8 @@ const CreateTask = z.object({
   // ריבוי ערוצי תזכורת (SMS/וואטסאפ/מייל — גם וגם) במועד אחיד.
   reminderChannels: z.array(z.enum(["email", "sms", "whatsapp"])).optional(),
   reminderMinutesBefore: z.number().int().min(0).max(60 * 24 * 14).optional(),
+  // למי לשלוח את התזכורת: הסוכן/משרד ו/או הליד עצמו.
+  reminderTargets: z.array(z.enum(["agent", "lead"])).optional(),
 });
 
 // POST /api/tasks — create task/meeting with optional reminder.
@@ -114,17 +116,21 @@ export const POST = handle(async (req) => {
   const dueAt = new Date(body.dueAt);
   if (isNaN(dueAt.getTime())) throw new ApiError(400, "מועד לא תקין");
 
-  // תזכורות: ריבוי ערוצים (reminderChannels) עדיף; אחרת התאימות לאחור (reminder).
-  const reminderRows: { channel: string; remindAt: Date }[] = [];
+  // תזכורות: ריבוי ערוצים (reminderChannels) × יעדים (סוכן/ליד); אחרת תאימות לאחור.
+  const reminderRows: { channel: string; target: string; remindAt: Date }[] = [];
   if (body.reminderChannels && body.reminderChannels.length) {
     const mb = body.reminderMinutesBefore ?? 0;
     const remindAt = new Date(dueAt.getTime() - mb * 60_000);
-    for (const channel of [...new Set(body.reminderChannels)]) {
-      reminderRows.push({ channel, remindAt });
+    const targets = body.reminderTargets && body.reminderTargets.length ? body.reminderTargets : ["agent"];
+    for (const target of [...new Set(targets)]) {
+      for (const channel of [...new Set(body.reminderChannels)]) {
+        reminderRows.push({ channel, target, remindAt });
+      }
     }
   } else if (body.reminder) {
     reminderRows.push({
       channel: body.reminder.channel,
+      target: "agent",
       remindAt: new Date(dueAt.getTime() - body.reminder.minutesBefore * 60_000),
     });
   }

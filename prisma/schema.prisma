@@ -128,6 +128,9 @@ model Client {
   logoKey      String? // company logo file key in storage
   birthday     String? // תאריך לידה של הלקוח (YYYY-MM-DD) — לברכת יום הולדת אוטומטית
   lastBirthdayGreetYear Int? // השנה האחרונה שבה נשלחה ברכה (למניעת כפילות)
+  // הרשאות דיוור (JSON): { allowed:{broadcast,leadAlerts,email,sms,whatsapp}, enabled:{...} }.
+  // המשרד מגדיר allowed; הלקוח מגדיר enabled. אפקטיבי = allowed ∧ enabled.
+  messagingConfig String?
   // מזהה הלקוח ב-SUMIT (מתמלא אוטומטית בסנכרון לפי התאמת מייל).
   sumitCustomerId Int?
   // Round-robin new leads between the client's sales agents on intake.
@@ -432,6 +435,7 @@ model Reminder {
   task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   taskId    String
   channel   String    @default("email") // "email" | "sms" | "whatsapp"
+  target    String    @default("agent") // "agent" (סוכן/משרד) | "lead" (הלקוח הסופי)
   remindAt  DateTime
   status    String    @default("pending") // "pending" | "sent" | "failed" | "skipped"
   sentAt    DateTime?

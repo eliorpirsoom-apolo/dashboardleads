@@ -8,6 +8,8 @@ import AutomationsManager from "@/components/settings/AutomationsManager";
 import IntegrationsCard from "@/components/settings/IntegrationsCard";
 import IntakeLogCard from "@/components/settings/IntakeLogCard";
 import ClientEditCard from "./ClientEditCard";
+import MessagingPermsCard from "@/components/settings/MessagingPermsCard";
+import { parseMsgConfig } from "@/lib/messagingConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,11 @@ export default async function ClientSettingsPage({
           birthday: client.birthday,
         }}
       />
+      <MessagingPermsCard
+        clientId={client.id}
+        allowed={parseMsgConfig(client.messagingConfig).allowed}
+      />
+
       <UsersManager clientId={client.id} users={client.users} />
       <SourcesManager clientId={client.id} />
       <IntakeLogCard clientId={client.id} />

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui";
 import StatusEditor from "@/components/settings/StatusEditor";
 import CustomFieldsEditor from "@/components/settings/CustomFieldsEditor";
 import AutomationsManager from "@/components/settings/AutomationsManager";
+import MessagingPrefsCard from "@/components/settings/MessagingPrefsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function AppSettingsPage() {
         subtitle="סטטוסים, שדות מותאמים והודעות אוטומטיות — בשליטה שלך"
       />
       <div className="flex flex-col gap-4">
+        <MessagingPrefsCard />
         <StatusEditor clientId={user.clientId!} />
         <CustomFieldsEditor clientId={user.clientId!} />
         <AutomationsManager clientId={user.clientId!} />

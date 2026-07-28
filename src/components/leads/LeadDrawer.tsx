@@ -133,6 +133,8 @@ export default function LeadDrawer({
     email: true,
     sms: false,
     whatsapp: false,
+    toAgent: true,
+    toLead: false,
   });
 
   const load = useCallback(async () => {
@@ -170,6 +172,10 @@ export default function LeadDrawer({
       sched.sms ? "sms" : null,
       sched.whatsapp ? "whatsapp" : null,
     ].filter(Boolean) as string[];
+    const targets = [
+      sched.toAgent ? "agent" : null,
+      sched.toLead ? "lead" : null,
+    ].filter(Boolean) as string[];
     setBusy(true);
     setError("");
     try {
@@ -185,6 +191,7 @@ export default function LeadDrawer({
           durationMin: sched.type === "meeting" ? 60 : null,
           reminderChannels: channels,
           reminderMinutesBefore: Number(sched.minutesBefore) || 0,
+          reminderTargets: targets.length ? targets : ["agent"],
         },
       });
       setSched((s) => ({ ...s, dueAt: "" }));
@@ -753,6 +760,23 @@ export default function LeadDrawer({
                       className="h-3.5 w-3.5 accent-cyan-500"
                     />
                     {c.l}
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                <span>אל:</span>
+                {[
+                  { k: "toAgent", l: "הסוכן / אני" },
+                  { k: "toLead", l: "הליד" },
+                ].map((t) => (
+                  <label key={t.k} className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={(sched as any)[t.k]}
+                      onChange={(e) => setSched({ ...sched, [t.k]: e.target.checked })}
+                      className="h-3.5 w-3.5 accent-cyan-500"
+                    />
+                    {t.l}
                   </label>
                 ))}
               </div>

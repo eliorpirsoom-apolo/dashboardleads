@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { parseMsgConfig, serializeMsgConfig } from "@/lib/messagingConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -48,18 +49,43 @@ const UpdateClient = z.object({
   birthday: z.string().max(10).nullable().optional().or(z.literal("")),
   autoAssignLeads: z.boolean().optional(),
   active: z.boolean().optional(),
+  // הרשאות דיוור שהמשרד מגדיר ("מותר").
+  messagingAllowed: z
+    .object({
+      broadcast: z.boolean(),
+      leadAlerts: z.boolean(),
+      email: z.boolean(),
+      sms: z.boolean(),
+      whatsapp: z.boolean(),
+    })
+    .partial()
+    .optional(),
 });
 
 // PATCH /api/clients/[id] — agency manager only (profile edits, deactivation).
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
   const actor = await requireManager();
-  const body = UpdateClient.parse(await readJson(req));
+  const { messagingAllowed, ...body } = UpdateClient.parse(await readJson(req));
+
+  // עדכון שכבת "מותר" בהרשאות הדיוור (משרד בלבד), בלי לדרוס את "פעיל" של הלקוח.
+  let messagingConfig: string | undefined;
+  if (messagingAllowed) {
+    const cur = await prisma.client.findUnique({
+      where: { id: params.id },
+      select: { messagingConfig: true },
+    });
+    const cfg = parseMsgConfig(cur?.messagingConfig);
+    cfg.allowed = { ...cfg.allowed, ...messagingAllowed };
+    messagingConfig = serializeMsgConfig(cfg);
+  }
+
   const client = await prisma.client.update({
     where: { id: params.id },
     data: {
       ...body,
       contactEmail: body.contactEmail === "" ? null : body.contactEmail,
       birthday: body.birthday === "" ? null : body.birthday,
+      ...(messagingConfig !== undefined ? { messagingConfig } : {}),
     },
   });
   if (body.active !== undefined) {

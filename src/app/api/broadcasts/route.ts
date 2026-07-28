@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { assertNotAgent } from "@/lib/permissions";
 import { sendMessage, renderTemplate, type Channel } from "@/lib/messaging";
+import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
 import { emailUnsubFooter } from "@/lib/unsubscribe";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,21 @@ export const POST = handle(async (req) => {
   assertNotAgent(user);
   const body = CreateBroadcast.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
+
+  // הרשאת דיוור: לקוח רשאי לדוור רק אם המשרד התיר "דיוור" והערוץ, והלקוח הפעיל.
+  if (user.role !== "ADMIN") {
+    const c = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { messagingConfig: true },
+    });
+    const eff = effectiveFlags(parseMsgConfig(c?.messagingConfig));
+    if (!eff.broadcast) {
+      throw new ApiError(403, "דיוור ללקוחות אינו מופעל עבור החשבון. פנו למנהל המערכת.");
+    }
+    if (!eff[body.channel]) {
+      throw new ApiError(403, `ערוץ ${body.channel} אינו מופעל לדיוור עבור החשבון.`);
+    }
+  }
 
   const leads = await prisma.lead.findMany({
     where: {
