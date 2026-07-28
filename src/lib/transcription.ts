@@ -18,11 +18,21 @@ const OPENAI_BASE = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 async function downloadAudio(
   url: string
 ): Promise<{ bytes: Buffer; mime: string; ext: string }> {
-  const res = await fetch(url);
+  // חלק מהספקים (callindex) חוסמים בקשות בלי User-Agent ומחזירים דף במקום שמע.
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; ApolloCRM/1.0)", Accept: "*/*" },
+  });
   if (!res.ok) throw new Error(`הורדת הקלטה נכשלה: HTTP ${res.status}`);
-  const mime = res.headers.get("content-type")?.split(";")[0]?.trim() || "audio/mpeg";
-  if (mime.includes("text/html")) throw new Error("הקישור אינו קובץ שמע (התקבל דף HTML)");
   const buf = Buffer.from(await res.arrayBuffer());
+  // זיהוי HTML לפי תוכן — לא לפי Content-Type (callindex מחזיר header משובש).
+  const head = buf.subarray(0, 64).toString("utf8").trim().toLowerCase();
+  if (head.startsWith("<!doctype") || head.startsWith("<html") || head.startsWith("<?xml")) {
+    throw new Error("הקישור אינו קובץ שמע (התקבל דף)");
+  }
+  // mime נקי: מחלצים type/subtype תקין מה-header (עמיד ל-"Content-type: audio/mpeg").
+  const rawCt = res.headers.get("content-type") || "";
+  const m = rawCt.match(/(audio|application|video)\/[a-z0-9.+-]+/i);
+  const mime = m ? m[0].toLowerCase() : "audio/mpeg";
   const extFromMime: Record<string, string> = {
     "audio/mpeg": "mp3",
     "audio/mp3": "mp3",
@@ -35,8 +45,8 @@ async function downloadAudio(
   };
   let ext = extFromMime[mime] || "";
   if (!ext) {
-    const m = url.split("?")[0].match(/\.(mp3|wav|m4a|ogg|webm|mp4)$/i);
-    ext = m ? m[1].toLowerCase() : "mp3";
+    const um = url.split("?")[0].match(/\.(mp3|wav|m4a|ogg|webm|mp4)$/i);
+    ext = um ? um[1].toLowerCase() : "mp3";
   }
   return { bytes: buf, mime, ext };
 }
