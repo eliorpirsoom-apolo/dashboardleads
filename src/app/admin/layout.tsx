@@ -4,6 +4,7 @@ import { ADMIN_NAV } from "@/lib/nav";
 import Sidebar from "@/components/Sidebar";
 import BirthdayBanner from "@/components/BirthdayBanner";
 import { FridayBanner } from "@/components/FestiveBanners";
+import Footer from "@/components/Footer";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function AdminLayout({
         <BirthdayBanner />
         <FridayBanner />
         {children}
+        <Footer />
       </main>
     </div>
   );

@@ -126,6 +126,14 @@ export default function LeadDrawer({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sched, setSched] = useState({
+    type: "callback",
+    dueAt: "",
+    minutesBefore: "60",
+    email: true,
+    sms: false,
+    whatsapp: false,
+  });
 
   const load = useCallback(async () => {
     try {
@@ -147,6 +155,47 @@ export default function LeadDrawer({
       setError(e.message);
     }
   }, [leadId]);
+
+  async function scheduleTask() {
+    if (!lead || !sched.dueAt) return;
+    const who = lead.fullName || lead.phone || "ליד";
+    const title =
+      sched.type === "meeting"
+        ? `פגישה — ${who}`
+        : sched.type === "contract"
+          ? `חתימת חוזה — ${who}`
+          : `לחזור ל${who}`;
+    const channels = [
+      sched.email ? "email" : null,
+      sched.sms ? "sms" : null,
+      sched.whatsapp ? "whatsapp" : null,
+    ].filter(Boolean) as string[];
+    setBusy(true);
+    setError("");
+    try {
+      await api("/api/tasks", {
+        method: "POST",
+        json: {
+          leadId: lead.id,
+          clientId: lead.clientId,
+          assigneeId: lead.assigneeId || null,
+          type: sched.type,
+          title,
+          dueAt: new Date(sched.dueAt).toISOString(),
+          durationMin: sched.type === "meeting" ? 60 : null,
+          reminderChannels: channels,
+          reminderMinutesBefore: Number(sched.minutesBefore) || 0,
+        },
+      });
+      setSched((s) => ({ ...s, dueAt: "" }));
+      await load();
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -656,6 +705,78 @@ export default function LeadDrawer({
                 <Button onClick={save} disabled={busy}>{busy ? "שומר…" : "שמירת שינויים"}</Button>
               </div>
             ) : null}
+
+            {/* Schedule a future task/reminder for this lead */}
+            <h3 className="mb-2 mt-6 text-sm font-bold text-slate-300">תזמון משימה ותזכורת</h3>
+            <div className="flex flex-col gap-2.5 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { v: "callback", l: "לחזור לליד", icon: "phone" },
+                  { v: "meeting", l: "פגישה", icon: "calendar" },
+                  { v: "contract", l: "תאריך חוזה", icon: "doc" },
+                ].map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => setSched({ ...sched, type: o.v })}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
+                      sched.type === o.v
+                        ? "bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-500/40"
+                        : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Icon name={o.icon} className="h-3.5 w-3.5" />
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+              <Input
+                type="datetime-local"
+                dir="ltr"
+                value={sched.dueAt}
+                onChange={(e) => setSched({ ...sched, dueAt: e.target.value })}
+                className="!py-1.5 text-sm"
+              />
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                <span>תזכורת ב־</span>
+                {[
+                  { k: "email", l: "מייל" },
+                  { k: "sms", l: "SMS" },
+                  { k: "whatsapp", l: "וואטסאפ" },
+                ].map((c) => (
+                  <label key={c.k} className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={(sched as any)[c.k]}
+                      onChange={(e) => setSched({ ...sched, [c.k]: e.target.checked })}
+                      className="h-3.5 w-3.5 accent-cyan-500"
+                    />
+                    {c.l}
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={sched.minutesBefore}
+                  onChange={(e) => setSched({ ...sched, minutesBefore: e.target.value })}
+                  className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-300"
+                >
+                  <option value="0">בזמן עצמו</option>
+                  <option value="15">15 דק׳ לפני</option>
+                  <option value="60">שעה לפני</option>
+                  <option value="180">3 שעות לפני</option>
+                  <option value="1440">יום לפני</option>
+                </select>
+                <Button
+                  size="sm"
+                  className="mr-auto"
+                  disabled={busy || !sched.dueAt || (!sched.email && !sched.sms && !sched.whatsapp)}
+                  onClick={scheduleTask}
+                >
+                  {busy ? "קובע…" : "קביעה + תזכורת"}
+                </Button>
+              </div>
+            </div>
 
             {/* Open tasks linked to this lead */}
             {lead.tasks.length > 0 ? (

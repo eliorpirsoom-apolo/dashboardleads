@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientNavFor } from "@/lib/nav";
 import Sidebar from "@/components/Sidebar";
+import Footer from "@/components/Footer";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function AppLayout({
       />
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
         {children}
+        <Footer />
       </main>
     </div>
   );

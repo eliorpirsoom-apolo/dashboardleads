@@ -62,7 +62,8 @@ const CreateTask = z.object({
   clientId: z.string().nullable().optional(),
   title: z.string().min(1, "חסרה כותרת").max(200),
   description: z.string().max(2000).nullable().optional(),
-  type: z.enum(["task", "meeting"]).default("task"),
+  // "task"|"meeting" קיימים; "callback"=חזרה לליד, "contract"=תאריך חוזה.
+  type: z.enum(["task", "meeting", "callback", "contract"]).default("task"),
   ownerSide: z.enum(["agency", "client"]).default("agency"),
   assigneeId: z.string().nullable().optional(),
   leadId: z.string().nullable().optional(),
@@ -76,6 +77,9 @@ const CreateTask = z.object({
     })
     .nullable()
     .optional(),
+  // ריבוי ערוצי תזכורת (SMS/וואטסאפ/מייל — גם וגם) במועד אחיד.
+  reminderChannels: z.array(z.enum(["email", "sms", "whatsapp"])).optional(),
+  reminderMinutesBefore: z.number().int().min(0).max(60 * 24 * 14).optional(),
 });
 
 // POST /api/tasks — create task/meeting with optional reminder.
@@ -110,6 +114,21 @@ export const POST = handle(async (req) => {
   const dueAt = new Date(body.dueAt);
   if (isNaN(dueAt.getTime())) throw new ApiError(400, "מועד לא תקין");
 
+  // תזכורות: ריבוי ערוצים (reminderChannels) עדיף; אחרת התאימות לאחור (reminder).
+  const reminderRows: { channel: string; remindAt: Date }[] = [];
+  if (body.reminderChannels && body.reminderChannels.length) {
+    const mb = body.reminderMinutesBefore ?? 0;
+    const remindAt = new Date(dueAt.getTime() - mb * 60_000);
+    for (const channel of [...new Set(body.reminderChannels)]) {
+      reminderRows.push({ channel, remindAt });
+    }
+  } else if (body.reminder) {
+    reminderRows.push({
+      channel: body.reminder.channel,
+      remindAt: new Date(dueAt.getTime() - body.reminder.minutesBefore * 60_000),
+    });
+  }
+
   const task = await prisma.task.create({
     data: {
       clientId,
@@ -123,18 +142,7 @@ export const POST = handle(async (req) => {
       durationMin: body.durationMin ?? (body.type === "meeting" ? 60 : null),
       location: body.location || null,
       createdById: user.id,
-      ...(body.reminder
-        ? {
-            reminders: {
-              create: {
-                channel: body.reminder.channel,
-                remindAt: new Date(
-                  dueAt.getTime() - body.reminder.minutesBefore * 60_000
-                ),
-              },
-            },
-          }
-        : {}),
+      ...(reminderRows.length ? { reminders: { create: reminderRows } } : {}),
     },
     include: { reminders: true },
   });
