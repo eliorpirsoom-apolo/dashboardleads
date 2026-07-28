@@ -41,11 +41,11 @@ async function downloadAudio(
   return { bytes: buf, mime, ext };
 }
 
-/** תמלול עברית דרך Whisper. */
-async function transcribeAudio(bytes: Buffer, ext: string, mime: string): Promise<string> {
+/** קריאת תמלול בודדת למודל נתון. */
+async function whisperRequest(model: string, bytes: Buffer, ext: string, mime: string): Promise<string> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), `recording.${ext}`);
-  form.append("model", process.env.OPENAI_STT_MODEL || "gpt-4o-transcribe");
+  form.append("model", model);
   form.append("language", "he");
   // רמז הקשר משפר דיוק בעברית ומצמצם חזרות/המצאות.
   form.append("prompt", "שיחת טלפון בעברית בין נציג מכירות של משרד פרסום/נדל\"ן לבין ליד או לקוח.");
@@ -55,11 +55,23 @@ async function transcribeAudio(bytes: Buffer, ext: string, mime: string): Promis
     body: form,
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`Whisper HTTP ${res.status}: ${text.slice(0, 200)}`);
+  if (!res.ok) throw new Error(`STT(${model}) HTTP ${res.status}: ${text.slice(0, 200)}`);
   try {
     return JSON.parse(text).text ?? "";
   } catch {
     return text;
+  }
+}
+
+/** תמלול עברית — מנסה את המודל המוגדר, ונופל אוטומטית ל-whisper-1 המוכח בכל כשל. */
+async function transcribeAudio(bytes: Buffer, ext: string, mime: string): Promise<string> {
+  const primary = process.env.OPENAI_STT_MODEL || "gpt-4o-transcribe";
+  try {
+    return await whisperRequest(primary, bytes, ext, mime);
+  } catch (err) {
+    if (primary === "whisper-1") throw err;
+    console.error(`[stt] ${primary} נכשל — נופל ל-whisper-1:`, err);
+    return await whisperRequest("whisper-1", bytes, ext, mime);
   }
 }
 
@@ -220,11 +232,16 @@ export async function processPendingCallTranscriptions(
   const result: TranscriptionRunResult = { processed: 0, done: 0, failed: 0 };
   if (!transcriptionConfigured()) return result;
 
+  // כולל ניסיון חוזר לכשלים/תקועים מ-7 הימים האחרונים (חלון בטיחות).
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const pending = await prisma.lead.findMany({
     where: {
       kind: "call",
-      callTranscriptStatus: null,
       callRecordingUrl: { startsWith: "http" },
+      OR: [
+        { callTranscriptStatus: null },
+        { callTranscriptStatus: { in: ["failed", "pending"] }, createdAt: { gte: weekAgo } },
+      ],
     },
     orderBy: { createdAt: "asc" },
     take: limit,
