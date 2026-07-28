@@ -34,7 +34,7 @@ export function smsConfigured(): boolean {
 
 export function whatsappConfigured(): boolean {
   return Boolean(
-    process.env.WHATSAPP_API_TOKEN && process.env.WHATSAPP_PHONE_ID
+    process.env.GREENAPI_ID_INSTANCE && process.env.GREENAPI_API_TOKEN
   );
 }
 
@@ -114,25 +114,24 @@ async function sendWhatsapp(to: string, body: string) {
     console.log(`[whatsapp:not-configured] to=${to}: ${body}`);
     return { skipped: true as const };
   }
-  // WhatsApp Business Cloud API (Meta).
-  const url =
-    process.env.WHATSAPP_API_URL ||
-    `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
-  const intl = to.startsWith("0") ? `972${to.slice(1)}` : to.replace("+", "");
-  const res = await fetch(url, {
+  // Green API (וואטסאפ לא-רשמי): POST {apiUrl}/waInstance{id}/sendMessage/{token}.
+  const id = process.env.GREENAPI_ID_INSTANCE!;
+  const token = process.env.GREENAPI_API_TOKEN!;
+  const base = (process.env.GREENAPI_API_URL || "https://api.green-api.com").replace(/\/$/, "");
+  // מספר ישראלי → פורמט בינ"ל בלי + וללא 0 מוביל, סיומת @c.us.
+  const digits = to.replace(/\D/g, "");
+  const intl = digits.startsWith("972")
+    ? digits
+    : digits.startsWith("0")
+      ? `972${digits.slice(1)}`
+      : digits;
+  const res = await fetch(`${base}/waInstance${id}/sendMessage/${token}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: intl,
-      type: "text",
-      text: { body },
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chatId: `${intl}@c.us`, message: body }),
   });
-  if (!res.ok) throw new Error(`WhatsApp API HTTP ${res.status}`);
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Green API HTTP ${res.status}: ${text.slice(0, 200)}`);
   return { skipped: false as const };
 }
 

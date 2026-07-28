@@ -116,6 +116,8 @@ export default function AdminSettingsView() {
 
       <SmsCard />
 
+      <WhatsAppCard />
+
       <AuditLogCard />
 
       {showCreate ? (
@@ -253,6 +255,64 @@ function SmsCard() {
         >
           <Icon name="phone" className="h-4 w-4" />
           {busy ? "שולח…" : "שלח SMS בדיקה"}
+        </Button>
+      </div>
+      {result ? <p className="mt-2 text-xs text-slate-400">{result}</p> : null}
+    </Card>
+  );
+}
+
+// חיבור וואטסאפ (Green API) — בדיקת שליחה חיה.
+function WhatsAppCard() {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string>("");
+
+  useEffect(() => {
+    api<{ configured: boolean }>("/api/integrations/whatsapp/test")
+      .then((d) => setConfigured(d.configured))
+      .catch(() => setConfigured(false));
+  }, []);
+
+  async function sendTest() {
+    setBusy(true);
+    setResult("");
+    try {
+      const r = await api<{ status: string }>("/api/integrations/whatsapp/test", {
+        method: "POST",
+        json: { to: phone.trim() },
+      });
+      setResult(r.status === "sent" ? `נשלחה הודעת בדיקה ל-${phone} ✓` : `הסטטוס: ${r.status}`);
+    } catch (e: any) {
+      setResult("שגיאה: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-100">וואטסאפ — Green API</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            הגדרה במשתני סביבה: GREENAPI_ID_INSTANCE, GREENAPI_API_TOKEN (ואופציונלי GREENAPI_API_URL).
+          </p>
+        </div>
+        <Chip color={configured ? "#34d399" : "#64748b"}>
+          {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
+        </Chip>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-48">
+          <Field label="מספר לבדיקה">
+            <Input dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0501234567" />
+          </Field>
+        </div>
+        <Button size="sm" disabled={busy || !configured || phone.trim().length < 9} onClick={sendTest}>
+          <Icon name="whatsapp" className="h-4 w-4" />
+          {busy ? "שולח…" : "שלח וואטסאפ בדיקה"}
         </Button>
       </div>
       {result ? <p className="mt-2 text-xs text-slate-400">{result}</p> : null}
