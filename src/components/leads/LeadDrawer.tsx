@@ -464,7 +464,8 @@ export default function LeadDrawer({
 
                 {!lead.callTranscript &&
                 (lead.callRecordingKey || lead.callRecordingUrl) &&
-                lead.callTranscriptStatus !== "no_audio" ? (
+                lead.callTranscriptStatus !== "no_audio" &&
+                lead.callTranscriptStatus !== "no_speech" ? (
                   <p className="text-[11px] text-slate-500">
                     {lead.callTranscriptStatus === "failed"
                       ? "⚠️ תמלול נכשל — ננסה שוב בריצה הבאה"

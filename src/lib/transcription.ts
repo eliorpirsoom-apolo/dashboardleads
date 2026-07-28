@@ -147,11 +147,16 @@ async function processLead(lead: {
 
   const transcript = await transcribeAudio(bytes, ext, mime);
   if (!transcript.trim()) {
+    // התמלול הצליח אך אין דיבור (שיחה קצרה/שקטה) — סטטוס סופי, בלי ניסיון חוזר.
     await prisma.lead.update({
       where: { id: lead.id },
-      data: { callRecordingKey: key, callTranscript: "", callTranscriptStatus: "failed" },
+      data: {
+        callRecordingKey: key,
+        callSummary: "• לא זוהה דיבור בהקלטה.",
+        callTranscriptStatus: "no_speech",
+      },
     });
-    return "failed";
+    return "done";
   }
   const summary = await summarizeCall(transcript, {
     targetName: lead.callTargetName,
