@@ -251,7 +251,28 @@ function CreateBriefModal({
     dueAt: "",
   });
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState("");
+
+  async function aiBrief() {
+    if (!form.brief.trim()) {
+      setError("כתבו כמה נקודות ואז לחצו ״נסח עם AI״");
+      return;
+    }
+    setAiBusy(true);
+    setError("");
+    try {
+      const d = await api<{ brief: string }>("/api/studio/ai-brief", {
+        method: "POST",
+        json: { title: form.title, briefType: form.briefType, notes: form.brief },
+      });
+      if (d.brief) setForm((f) => ({ ...f, brief: d.brief }));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -309,12 +330,23 @@ function CreateBriefModal({
           <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
         </Field>
         <Field label="בריף מפורט למעצב/ת">
+          <div className="mb-1 flex justify-end">
+            <button
+              type="button"
+              onClick={aiBrief}
+              disabled={aiBusy}
+              className="flex items-center gap-1 rounded-lg bg-violet-500/15 px-2 py-1 text-[11px] font-medium text-violet-300 hover:bg-violet-500/25 disabled:opacity-50"
+            >
+              <Icon name="edit" className="h-3.5 w-3.5" />
+              {aiBusy ? "מנסח…" : "✨ נסח עם AI"}
+            </button>
+          </div>
           <textarea
             value={form.brief}
             onChange={(e) => setForm({ ...form, brief: e.target.value })}
-            rows={4}
+            rows={5}
             className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
-            placeholder="מטרה, מסר, סגנון, טקסטים, צבעים, מה חובה לכלול…"
+            placeholder="כתבו נקודות גולמיות — ואז ״נסח עם AI״ יסדר אותן לבריף מלא. מטרה, מסר, סגנון, טקסטים, צבעים, מה חובה לכלול…"
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">

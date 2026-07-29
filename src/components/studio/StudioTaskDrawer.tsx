@@ -47,6 +47,7 @@ export default function StudioTaskDrawer({
   const [t, setT] = useState<Detail | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [qc, setQc] = useState<Record<number, boolean>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -99,7 +100,45 @@ export default function StudioTaskDrawer({
     load();
   }
 
+  async function approveFinal() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/design-tasks/${taskId}`, { method: "PATCH", json: { status: "approved" } });
+      await load();
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function rejectToFix() {
+    if (!t) return;
+    setBusy(true);
+    try {
+      await api(`/api/design-tasks/${taskId}`, {
+        method: "PATCH",
+        json: { status: "in_progress", round: t.round + 1 },
+      });
+      await load();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const QC_ITEMS = [
+    "הטקסטים תקינים ומאושרים",
+    "מידות ופורמט נכונים",
+    "מיתוג, לוגו וצבעים לפי המותג",
+    "ללא שגיאות כתיב/עיצוב",
+    "איכות הקבצים תקינה למסירה",
+  ];
+
   if (!t) return null;
+  const inQc = t.status === "final_review" || t.status === "qc";
+  const allChecked = QC_ITEMS.every((_, i) => qc[i]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-start" onClick={onClose}>
@@ -167,6 +206,38 @@ export default function StudioTaskDrawer({
           <Icon name="whatsapp" className="h-4 w-4" />
           שליחה ללקוח לאישור
         </Button>
+
+        {/* QC checklist — לפני אישור סופי */}
+        {inQc ? (
+          <div className="mb-4 rounded-xl border border-yellow-800/40 bg-yellow-950/10 p-3">
+            <p className="mb-2 text-xs font-bold text-yellow-300">בקרת איכות (QC) לפני אישור סופי</p>
+            <div className="mb-2 flex flex-col gap-1.5">
+              {QC_ITEMS.map((it, i) => (
+                <label key={i} className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={!!qc[i]}
+                    onChange={(e) => setQc((p) => ({ ...p, [i]: e.target.checked }))}
+                    className="h-4 w-4 accent-emerald-500"
+                  />
+                  {it}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={busy || !allChecked} onClick={approveFinal}>
+                <Icon name="check" className="h-4 w-4" />
+                אישור סופי
+              </Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={rejectToFix}>
+                החזרה לתיקון
+              </Button>
+            </div>
+            {!allChecked ? (
+              <p className="mt-1 text-[11px] text-slate-500">סמנו את כל הפריטים כדי לאשר סופית.</p>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* Feedback history */}
         <p className="mb-1 text-xs font-bold text-slate-400">פידבק מהלקוח</p>

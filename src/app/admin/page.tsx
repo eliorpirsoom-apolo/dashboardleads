@@ -71,6 +71,15 @@ export default async function AdminDashboard() {
     }),
   ]);
 
+  // נתוני סטודיו לסקירה.
+  const [studioInProgress, studioAwaitingClient, studioAwaitingQc, studioOverdue] =
+    await Promise.all([
+      prisma.designTask.count({ where: { status: "in_progress" } }),
+      prisma.designTask.count({ where: { status: "sent_to_client" } }),
+      prisma.designTask.count({ where: { status: { in: ["final_review", "qc"] } } }),
+      prisma.designTask.count({ where: { overdue: true, status: { not: "approved" } } }),
+    ]);
+
   // פגישות היום: אירועי Google עם שעה (לא יום-שלם) + פגישות מהמערכת.
   const todayMeetings = [
     ...gcal.events
@@ -316,6 +325,35 @@ export default async function AdminDashboard() {
           )}
         </Card>
       </div>
+
+      {/* 🎨 סטודיו — סקירה מהירה */}
+      <Card className="mt-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-100">🎨 סטודיו</h2>
+          <Link href="/admin/studio" className="text-xs text-cyan-400 hover:underline">
+            ללוח הסטודיו ←
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "בעבודה", value: studioInProgress, color: "#22d3ee" },
+            { label: "ממתין ללקוח", value: studioAwaitingClient, color: "#f59e0b" },
+            { label: "ממתין לאישור סופי", value: studioAwaitingQc, color: "#a78bfa" },
+            { label: "באיחור", value: studioOverdue, color: "#f87171" },
+          ].map((s) => (
+            <Link
+              key={s.label}
+              href="/admin/studio"
+              className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-center transition hover:border-cyan-500/40"
+            >
+              <div className="text-2xl font-bold" style={{ color: s.color }}>
+                {s.value}
+              </div>
+              <div className="mt-0.5 text-[11px] text-slate-500">{s.label}</div>
+            </Link>
+          ))}
+        </div>
+      </Card>
 
       {/* 🚀 נכנס לעבודה — רוחב מלא */}
       <EngagementsPanel />
