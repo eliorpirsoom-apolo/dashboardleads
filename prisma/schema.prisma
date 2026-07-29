@@ -57,6 +57,10 @@ model User {
   clientAssignments ClientAssignment[]
   projectAssignments ProjectAssignment[]
   calendarConnection CalendarConnection?
+  designTasks        DesignTask[] @relation("DesignTaskDesigner")
+  designTasksQc      DesignTask[] @relation("DesignTaskQc")
+  designTasksCreated DesignTask[] @relation("DesignTaskCreator")
+  designAssets       DesignAsset[]
   engagementTasks EngagementTask[] @relation("EngagementTaskAssignee")
 
   @@index([clientId])
@@ -165,6 +169,7 @@ model Client {
   ganttPlan        GanttPlan?
   messageTemplates MessageTemplate[]
   clientAssignments ClientAssignment[]
+  designTasks       DesignTask[]
 
   @@index([name])
   @@index([type])
@@ -631,6 +636,7 @@ model Project {
   assignments      ProjectAssignment[]
   sources          LeadSource[]
   materials        ProjectMaterial[]
+  designTasks      DesignTask[]
 
   @@unique([clientId, name])
   @@index([clientId])
@@ -979,4 +985,76 @@ model SyncLog {
   message        String?
 
   @@index([startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// מודול סטודיו ועיצוב (צד משרד) — מחזור מבריף ועד אישור סופי.
+// סטטוסים: scheduled → in_progress → sent_to_client → client_feedback →
+//          final_review → qc → approved. דגל overdue + מונה round לתיקונים.
+// ---------------------------------------------------------------------------
+
+model DesignTask {
+  id          String   @id @default(cuid())
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId   String?
+  title       String
+  briefType   String   @default("post") // landing|logo|post|banner|print|branding
+  brief       String? // הבריף המפורט למעצב
+  specs       String? // מידות/פורמט/דגשים טכניים
+  priority    String   @default("normal") // low|normal|high
+  designer    User?    @relation("DesignTaskDesigner", fields: [designerId], references: [id], onDelete: SetNull)
+  designerId  String?
+  scheduledAt DateTime? // הסלוט בלו"ז של המעצב/ת
+  dueAt       DateTime? // דדליין ללקוח
+  status      String   @default("scheduled")
+  round       Int      @default(1) // סבב תיקונים נוכחי
+  overdue     Boolean  @default(false)
+  qcBy        User?    @relation("DesignTaskQc", fields: [qcById], references: [id], onDelete: SetNull)
+  qcById      String?
+  qcAt        DateTime?
+  approvedAt  DateTime?
+  createdBy   User?    @relation("DesignTaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  clientNotifiedAt DateTime? // מתי נשלח ללקוח לאישור (לחישוב תזכורות)
+  remindersSent    Int    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assets   DesignAsset[]
+  feedback DesignFeedback[]
+
+  @@index([status])
+  @@index([designerId, scheduledAt])
+  @@index([clientId])
+}
+
+model DesignAsset {
+  id           String     @id @default(cuid())
+  designTask   DesignTask @relation(fields: [designTaskId], references: [id], onDelete: Cascade)
+  designTaskId String
+  round        Int        @default(1)
+  fileKey      String?
+  fileName     String?
+  mimeType     String?
+  note         String?
+  uploadedBy   User?      @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById String?
+  createdAt    DateTime   @default(now())
+
+  @@index([designTaskId])
+}
+
+model DesignFeedback {
+  id           String     @id @default(cuid())
+  designTask   DesignTask @relation(fields: [designTaskId], references: [id], onDelete: Cascade)
+  designTaskId String
+  round        Int        @default(1)
+  decision     String // "approved" | "changes"
+  text         String?
+  authorName   String?
+  createdAt    DateTime   @default(now())
+
+  @@index([designTaskId])
 }
