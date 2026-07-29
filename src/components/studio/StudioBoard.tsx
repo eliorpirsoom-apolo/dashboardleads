@@ -118,7 +118,7 @@ export default function StudioBoard({
               {tasks.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-10 text-center text-sm text-slate-600">
-                    אין משימות עיצוב עדיין. לחצו "בריף חדש".
+                    אין משימות עיצוב עדיין. לחצו על ״בריף חדש״.
                   </td>
                 </tr>
               ) : null}
