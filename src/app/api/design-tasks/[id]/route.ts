@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
 import { DESIGN_STATUSES, briefTypeLabel } from "@/lib/studio";
-import { createTaskEvent } from "@/lib/gcal";
+import { createTaskEvent, deleteTaskEvent } from "@/lib/gcal";
 import { sendMessage } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
 import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
@@ -186,6 +186,14 @@ export const DELETE = handle(async (_req, { params }: { params: { id: string } }
   await requireAdmin();
   const cur = await prisma.designTask.findUnique({ where: { id: params.id } });
   if (!cur) throw new ApiError(404, "משימת עיצוב לא נמצאה");
+  // ניקוי ה-Task המקושר ביומן של המעצב/ת (+ אירוע Google) כדי לא להשאיר יתומים.
+  if (cur.calendarTaskId) {
+    const calTask = await prisma.task.findUnique({ where: { id: cur.calendarTaskId } });
+    if (calTask) {
+      await prisma.task.delete({ where: { id: calTask.id } }).catch(() => {});
+      await deleteTaskEvent(calTask).catch(() => {});
+    }
+  }
   await prisma.designTask.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 });
