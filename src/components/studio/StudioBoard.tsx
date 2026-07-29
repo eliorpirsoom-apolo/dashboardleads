@@ -62,6 +62,19 @@ export default function StudioBoard({
     await api(`/api/design-tasks/${id}`, { method: "PATCH", json: data });
     load();
   }
+  async function del(id: string) {
+    if (!confirm("למחוק את משימת העיצוב?")) return;
+    await api(`/api/design-tasks/${id}`, { method: "DELETE" });
+    load();
+  }
+  function toLocalInput(iso: string | null): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const off = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - off).toISOString().slice(0, 16);
+  }
+  const selCls =
+    "w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200";
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,78 +98,109 @@ export default function StudioBoard({
         <span className="text-xs text-slate-500">{tasks.length} משימות</span>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-3">
-        {DESIGN_STATUSES.map((st) => {
-          const col = tasks.filter((t) => t.status === st);
-          return (
-            <div key={st} className="w-72 shrink-0">
-              <div className="mb-2 flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ background: DESIGN_STATUS_COLORS[st] }}
-                />
-                <h3 className="text-sm font-bold text-slate-200">{DESIGN_STATUS_LABELS[st]}</h3>
-                <span className="text-xs text-slate-600">{col.length}</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                {col.map((t) => (
-                  <Card key={t.id} className="!p-3">
-                    <div className="mb-1 flex items-start justify-between gap-2">
-                      <span className="text-sm font-bold text-slate-100">{t.title}</span>
-                      {t.overdue ? <Chip color="#f87171">באיחור</Chip> : null}
-                    </div>
-                    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px]">
-                      {t.client ? (
-                        <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip>
-                      ) : null}
-                      <Chip color="#818cf8">{briefTypeLabel(t.briefType)}</Chip>
-                      <Chip color={PRIORITY_COLOR[t.priority]}>
-                        {DESIGN_PRIORITIES.find((p) => p.value === t.priority)?.label}
-                      </Chip>
-                      {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
-                    </div>
-                    {t.scheduledAt ? (
-                      <p className="mb-2 text-[11px] text-slate-500">
-                        🗓️ {formatDateTime(t.scheduledAt)}
-                      </p>
+      <Card className="!p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[960px] text-right text-sm">
+            <thead>
+              <tr className="border-b border-slate-800 text-xs text-slate-500">
+                <th className="px-3 py-2.5 font-medium">משימה</th>
+                <th className="px-3 py-2.5 font-medium">לקוח</th>
+                <th className="px-3 py-2.5 font-medium">סוג</th>
+                <th className="px-3 py-2.5 font-medium">עדיפות</th>
+                <th className="px-3 py-2.5 font-medium">מעצב/ת</th>
+                <th className="px-3 py-2.5 font-medium">מתוזמן ללו״ז</th>
+                <th className="px-3 py-2.5 font-medium">דדליין</th>
+                <th className="px-3 py-2.5 font-medium">סטטוס</th>
+                <th className="px-3 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-10 text-center text-sm text-slate-600">
+                    אין משימות עיצוב עדיין. לחצו "בריף חדש".
+                  </td>
+                </tr>
+              ) : null}
+              {tasks.map((t) => (
+                <tr key={t.id} className="border-b border-slate-800/60 align-middle hover:bg-slate-900/30">
+                  <td className="px-3 py-2">
+                    <div className="font-medium text-slate-100">{t.title}</div>
+                    {t.overdue || t.round > 1 ? (
+                      <div className="mt-1 flex gap-1">
+                        {t.overdue ? <Chip color="#f87171">באיחור</Chip> : null}
+                        {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
+                      </div>
                     ) : null}
-                    <div className="flex flex-col gap-1.5">
-                      <select
-                        value={t.designer?.id ?? ""}
-                        onChange={(e) => patch(t.id, { designerId: e.target.value || null })}
-                        className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-300"
-                      >
-                        <option value="">— מעצב/ת —</option>
-                        {designers.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={t.status}
-                        onChange={(e) => patch(t.id, { status: e.target.value })}
-                        className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-300"
-                      >
-                        {DESIGN_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {DESIGN_STATUS_LABELS[s]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </Card>
-                ))}
-                {col.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-slate-800 py-4 text-center text-[11px] text-slate-700">
-                    —
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    {t.client ? <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip> : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-slate-300">{briefTypeLabel(t.briefType)}</td>
+                  <td className="px-3 py-2">
+                    <Chip color={PRIORITY_COLOR[t.priority]}>
+                      {DESIGN_PRIORITIES.find((p) => p.value === t.priority)?.label}
+                    </Chip>
+                  </td>
+                  <td className="px-3 py-2 w-40">
+                    <select
+                      value={t.designer?.id ?? ""}
+                      onChange={(e) => patch(t.id, { designerId: e.target.value || null })}
+                      className={selCls}
+                    >
+                      <option value="">— לא משויך —</option>
+                      {designers.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 w-48">
+                    <input
+                      type="datetime-local"
+                      dir="ltr"
+                      value={toLocalInput(t.scheduledAt)}
+                      onChange={(e) =>
+                        patch(t.id, {
+                          scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null,
+                        })
+                      }
+                      className={selCls}
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-400">
+                    {t.dueAt ? formatDateTime(t.dueAt) : "—"}
+                  </td>
+                  <td className="px-3 py-2 w-44">
+                    <select
+                      value={t.status}
+                      onChange={(e) => patch(t.id, { status: e.target.value })}
+                      className={selCls}
+                      style={{ borderColor: DESIGN_STATUS_COLORS[t.status] }}
+                    >
+                      {DESIGN_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {DESIGN_STATUS_LABELS[s]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-left">
+                    <button
+                      onClick={() => del(t.id)}
+                      title="מחיקה"
+                      className="text-slate-600 transition hover:text-rose-400"
+                    >
+                      <Icon name="trash" className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {showCreate ? (
         <CreateBriefModal

@@ -2,9 +2,61 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
-import { DESIGN_STATUSES } from "@/lib/studio";
+import { DESIGN_STATUSES, briefTypeLabel } from "@/lib/studio";
+import { createTaskEvent } from "@/lib/gcal";
+import { sendMessage } from "@/lib/messaging";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+// פעולה: תזמון המשימה ביומן של המעצב/ת (Task מקושר → מופיע בלו"ז ומסתנכרן ל-Google),
+// + התראה למעצב/ת. אידמפוטנטי לפי calendarTaskId.
+async function scheduleInDesignerCalendar(task: any, actorId: string): Promise<void> {
+  if (!task.designerId || !task.scheduledAt) return;
+  const title = `🎨 עיצוב — ${task.title}`;
+  if (task.calendarTaskId) {
+    await prisma.task
+      .update({
+        where: { id: task.calendarTaskId },
+        data: { assigneeId: task.designerId, dueAt: task.scheduledAt, title },
+      })
+      .catch(() => {});
+    return;
+  }
+  const calTask = await prisma.task.create({
+    data: {
+      clientId: task.clientId,
+      title,
+      description: task.brief || null,
+      type: "task",
+      ownerSide: "agency",
+      assigneeId: task.designerId,
+      dueAt: task.scheduledAt,
+      createdById: actorId,
+    },
+  });
+  await prisma.designTask.update({
+    where: { id: task.id },
+    data: { calendarTaskId: calTask.id },
+  });
+  await createTaskEvent({ ...calTask, createdById: actorId }).catch(() => {});
+
+  // התראה למעצב/ת ששובצה משימה.
+  const designer = await prisma.user.findUnique({ where: { id: task.designerId } });
+  if (designer?.email) {
+    await sendMessage({
+      channel: "email",
+      to: designer.email,
+      subject: "🎨 משימת עיצוב תוזמנה לך",
+      body:
+        `שובצה לך משימת עיצוב: ${task.title} (${briefTypeLabel(task.briefType)})\n` +
+        `מועד: ${formatDateTime(task.scheduledAt)}` +
+        (task.brief ? `\n\nבריף:\n${task.brief}` : ""),
+      kind: "reminder",
+      clientId: task.clientId,
+    }).catch(() => {});
+  }
+}
 
 // GET /api/design-tasks/[id] — כרטיס משימת עיצוב מלא.
 export const GET = handle(async (_req, { params }: { params: { id: string } }) => {
@@ -83,6 +135,14 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   }
 
   const task = await prisma.designTask.update({ where: { id: params.id }, data });
+
+  // פעולת סטטוס: כשהמשימה "מתוזמנת" ויש מעצב/ת + מועד → אירוע ביומן שלו/ה + התראה.
+  if (task.status === "scheduled" && task.designerId && task.scheduledAt) {
+    await scheduleInDesignerCalendar(task, user.id).catch((e) =>
+      console.error("[studio:schedule]", e)
+    );
+  }
+
   return NextResponse.json({ task });
 });
 

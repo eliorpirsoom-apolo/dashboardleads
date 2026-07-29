@@ -1019,6 +1019,7 @@ model DesignTask {
   createdById String?
   clientNotifiedAt DateTime? // מתי נשלח ללקוח לאישור (לחישוב תזכורות)
   remindersSent    Int    @default(0)
+  calendarTaskId   String? // ה-Task המקושר ביומן של המעצב/ת (נוצר בתזמון)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
