@@ -37,6 +37,7 @@ const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app/seo", label: "SEO", icon: "search", module: "seo" },
   { href: "/app/broadcasts", label: "הודעות תפוצה", icon: "megaphone", module: "broadcasts", agentBlocked: true },
   { href: "/app/documents", label: "מסמכים", icon: "folder", module: "documents" },
+  { href: "/app/studio", label: "עיצובים לאישור", icon: "edit" },
   { href: "/app/settings", label: "הגדרות", icon: "settings", agentBlocked: true },
   { href: "/app/profile", label: "החשבון שלי", icon: "users" },
 ];

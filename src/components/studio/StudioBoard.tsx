@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
+import StudioTaskDrawer from "@/components/studio/StudioTaskDrawer";
 import {
   DESIGN_STATUSES,
   DESIGN_STATUS_LABELS,
@@ -47,6 +48,7 @@ export default function StudioBoard({
   const [tasks, setTasks] = useState<DTask[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [designerFilter, setDesignerFilter] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const q = designerFilter ? `?designerId=${designerFilter}` : "";
@@ -125,7 +127,12 @@ export default function StudioBoard({
               {tasks.map((t) => (
                 <tr key={t.id} className="border-b border-slate-800/60 align-middle hover:bg-slate-900/30">
                   <td className="px-3 py-2">
-                    <div className="font-medium text-slate-100">{t.title}</div>
+                    <button
+                      onClick={() => setOpenId(t.id)}
+                      className="text-right font-medium text-slate-100 hover:text-cyan-300"
+                    >
+                      {t.title}
+                    </button>
                     {t.overdue || t.round > 1 ? (
                       <div className="mt-1 flex gap-1">
                         {t.overdue ? <Chip color="#f87171">באיחור</Chip> : null}
@@ -212,6 +219,10 @@ export default function StudioBoard({
             load();
           }}
         />
+      ) : null}
+
+      {openId ? (
+        <StudioTaskDrawer taskId={openId} onClose={() => setOpenId(null)} onChanged={load} />
       ) : null}
     </div>
   );

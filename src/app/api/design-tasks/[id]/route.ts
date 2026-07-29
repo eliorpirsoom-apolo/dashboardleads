@@ -6,6 +6,37 @@ import { DESIGN_STATUSES, briefTypeLabel } from "@/lib/studio";
 import { createTaskEvent } from "@/lib/gcal";
 import { sendMessage } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
+import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
+
+const APP_URL = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
+
+// התראה ללקוח שיש עיצוב הממתין לאישור (מייל תמיד; וואטסאפ אם הופעל אצל הלקוח).
+async function notifyClientForApproval(task: any): Promise<void> {
+  const client = await prisma.client.findUnique({
+    where: { id: task.clientId },
+    select: { messagingConfig: true, users: { where: { active: true }, select: { email: true, phone: true } } },
+  });
+  if (!client) return;
+  const eff = effectiveFlags(parseMsgConfig(client.messagingConfig));
+  const body =
+    `יש עיצוב חדש הממתין לאישורך: "${task.title}".\n` +
+    `לצפייה ולמתן אישור/הערות: ${APP_URL}/app/studio`;
+  for (const u of client.users) {
+    if (u.email) {
+      await sendMessage({
+        channel: "email",
+        to: u.email,
+        subject: "🎨 עיצוב ממתין לאישורך",
+        body,
+        kind: "automation",
+        clientId: task.clientId,
+      }).catch(() => {});
+    }
+    if (eff.whatsapp && u.phone) {
+      await sendMessage({ channel: "whatsapp", to: u.phone, body, kind: "automation", clientId: task.clientId }).catch(() => {});
+    }
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +172,10 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     await scheduleInDesignerCalendar(task, user.id).catch((e) =>
       console.error("[studio:schedule]", e)
     );
+  }
+  // פעולת סטטוס: נשלח ללקוח לאישור → התראה ללקוח.
+  if (b.status === "sent_to_client" && cur.status !== "sent_to_client") {
+    await notifyClientForApproval(task).catch((e) => console.error("[studio:notify]", e));
   }
 
   return NextResponse.json({ task });

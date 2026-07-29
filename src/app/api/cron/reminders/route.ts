@@ -10,6 +10,7 @@ import {
   downloadPendingRecordings,
 } from "@/lib/transcription";
 import { sendDueBirthdayGreetings } from "@/lib/birthday";
+import { sendDueDesignApprovalReminders, markOverdueDesignTasks } from "@/lib/studioReminders";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -180,6 +181,18 @@ export async function GET(req: Request) {
     console.error("[transcription]", err);
   }
 
+  // 🎨 סטודיו: תזכורות אישור ללקוח (כל יומיים×3) + סימון משימות באיחור.
+  let studio: unknown = null;
+  try {
+    const [approvalReminders, overdue] = await Promise.all([
+      sendDueDesignApprovalReminders(),
+      markOverdueDesignTasks(),
+    ]);
+    studio = { approvalReminders, overdue };
+  } catch (err) {
+    console.error("[studio]", err);
+  }
+
   return NextResponse.json({
     processed: due.length,
     sent,
@@ -190,5 +203,6 @@ export async function GET(req: Request) {
     sumitSync,
     recordings,
     transcriptions,
+    studio,
   });
 }
