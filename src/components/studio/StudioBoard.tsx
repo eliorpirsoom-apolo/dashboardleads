@@ -49,6 +49,7 @@ export default function StudioBoard({
   const [showCreate, setShowCreate] = useState(false);
   const [designerFilter, setDesignerFilter] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [view, setView] = useState<"table" | "capacity">("table");
 
   const load = useCallback(async () => {
     const q = designerFilter ? `?designerId=${designerFilter}` : "";
@@ -97,9 +98,23 @@ export default function StudioBoard({
             </option>
           ))}
         </select>
-        <span className="text-xs text-slate-500">{tasks.length} משימות</span>
+        <div className="mr-auto flex rounded-lg border border-slate-700 p-0.5 text-xs">
+          <button
+            onClick={() => setView("table")}
+            className={`rounded px-2.5 py-1 ${view === "table" ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400"}`}
+          >
+            טבלה
+          </button>
+          <button
+            onClick={() => setView("capacity")}
+            className={`rounded px-2.5 py-1 ${view === "capacity" ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400"}`}
+          >
+            עומס מעצבות
+          </button>
+        </div>
       </div>
 
+      {view === "table" ? (
       <Card className="!p-0">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-right text-sm">
@@ -208,6 +223,9 @@ export default function StudioBoard({
           </table>
         </div>
       </Card>
+      ) : (
+        <CapacityView tasks={tasks} designers={designers} onOpen={setOpenId} />
+      )}
 
       {showCreate ? (
         <CreateBriefModal
@@ -224,6 +242,58 @@ export default function StudioBoard({
       {openId ? (
         <StudioTaskDrawer taskId={openId} onClose={() => setOpenId(null)} onChanged={load} />
       ) : null}
+    </div>
+  );
+}
+
+function CapacityView({
+  tasks,
+  designers,
+  onOpen,
+}: {
+  tasks: DTask[];
+  designers: Opt[];
+  onOpen: (id: string) => void;
+}) {
+  const active = tasks.filter((t) => t.status !== "approved");
+  const cols = [...designers.map((d) => ({ id: d.id, name: d.name })), { id: "", name: "לא משויך" }];
+  const fmt = (iso: string | null) =>
+    iso
+      ? new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit" }).format(new Date(iso))
+      : "ללא מועד";
+  return (
+    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0,1fr))` }}>
+      {cols.map((c) => {
+        const mine = active
+          .filter((t) => (t.designer?.id ?? "") === c.id)
+          .sort((a, b) => (a.scheduledAt || "z").localeCompare(b.scheduledAt || "z"));
+        return (
+          <Card key={c.id || "none"}>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-200">{c.name}</h3>
+              <Chip color={mine.length > 4 ? "#f87171" : "#34d399"}>{mine.length}</Chip>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {mine.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onOpen(t.id)}
+                  className={`rounded-lg border px-2 py-1.5 text-right text-xs transition hover:border-cyan-500/40 ${
+                    t.overdue ? "border-rose-700/50 bg-rose-950/20" : "border-slate-800 bg-slate-900/40"
+                  }`}
+                >
+                  <div className="truncate font-medium text-slate-200">{t.title}</div>
+                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+                    <span>{fmt(t.scheduledAt)}</span>·<span>{DESIGN_STATUS_LABELS[t.status]}</span>
+                    {t.overdue ? <span className="text-rose-400">· באיחור</span> : null}
+                  </div>
+                </button>
+              ))}
+              {mine.length === 0 ? <p className="text-[11px] text-slate-600">אין משימות פעילות.</p> : null}
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }
