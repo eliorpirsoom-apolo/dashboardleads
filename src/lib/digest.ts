@@ -97,7 +97,7 @@ export async function maybeSendMorningDigest(force = false): Promise<boolean> {
     leadLines +
     dealLines +
     taskLines +
-    `\n\nלמערכת: https://dashboard-leads-apollo13.vercel.app/admin`;
+    `\n\nלמערכת: ${process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app"}/admin`;
 
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN", active: true },

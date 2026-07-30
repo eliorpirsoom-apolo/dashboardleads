@@ -40,6 +40,7 @@ export function verifyUnsubscribeToken(token: string): string | null {
 
 /** Base URL of the app (production URL on Vercel, localhost in dev). */
 export function appBaseUrl(): string {
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;

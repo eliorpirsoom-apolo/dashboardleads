@@ -93,7 +93,7 @@ export async function sendMaterialsRequest(
   const items = project.materials.filter((m) => !m.received);
   if (items.length === 0) return false;
 
-  const appUrl = "https://dashboard-leads-apollo13.vercel.app";
+  const appUrl = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
   const list = items.map((m) => `• ${m.label}`).join("\n");
   const openLine = isReminder
     ? `תזכורת ידידותית 🙂 — כדי שנוכל להתקדם בפרויקט "${project.name}", נשמח לקבל את החומרים הבאים:`
