@@ -22,6 +22,9 @@ export const GET = handle(async () => {
     webhookUrl: j?.webhookUrl ?? null,
     incomingWebhook: j?.incomingWebhook ?? null,
     hasWebhookToken: Boolean(j?.webhookUrlToken),
+    // אורך הטוקן כפי שהשרת רואה אותו (לאבחון בלבד — לא חושף את הערך).
+    serverTokenLen: (process.env.GREENAPI_WEBHOOK_TOKEN || "").length,
+    greenTokenLen: (j?.webhookUrlToken || "").length,
   });
 });
 
