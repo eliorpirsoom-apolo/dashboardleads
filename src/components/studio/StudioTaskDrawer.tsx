@@ -32,9 +32,21 @@ interface Detail {
   status: string;
   round: number;
   client: { id: string; name: string } | null;
+  clientPhone: string | null;
   designer: { id: string; name: string } | null;
   assets: Asset[];
   feedback: Fb[];
+}
+
+// מספר ישראלי → קישור wa.me (פורמט בינ"ל בלי + וללא 0 מוביל).
+function waLink(phone: string, text: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const intl = digits.startsWith("972")
+    ? digits
+    : digits.startsWith("0")
+      ? `972${digits.slice(1)}`
+      : digits;
+  return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
 }
 
 export default function StudioTaskDrawer({
@@ -146,6 +158,14 @@ export default function StudioTaskDrawer({
   const deliverables = t.assets.filter((a) => a.kind === "deliverable");
   const fbAttachments = (fbId: string) =>
     t.assets.filter((a) => a.kind === "feedback" && a.feedbackId === fbId);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const waHref = t.clientPhone
+    ? waLink(
+        t.clientPhone,
+        `שלום${t.client?.name ? ` ${t.client.name}` : ""}, מדברים מאפולו פרסום לגבי העיצוב "${t.title}".` +
+          (t.status === "sent_to_client" ? ` לצפייה ואישור: ${origin}/app/studio` : "")
+      )
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-start" onClick={onClose}>
@@ -166,6 +186,23 @@ export default function StudioTaskDrawer({
             ✕
           </button>
         </div>
+
+        {/* שיחה עם הלקוח בוואטסאפ (נפתח בוואטסאפ של המעצב/ת) */}
+        {waHref ? (
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-600/15 px-3 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-600/25"
+          >
+            <Icon name="whatsapp" className="h-4 w-4" />
+            שיחה עם הלקוח בוואטסאפ
+          </a>
+        ) : (
+          <p className="mb-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs text-slate-500">
+            אין מספר טלפון ללקוח — הוסיפו בכרטיס הלקוח כדי לאפשר שיחת וואטסאפ.
+          </p>
+        )}
 
         {error ? <p className="mb-2 text-sm text-red-400">{error}</p> : null}
 

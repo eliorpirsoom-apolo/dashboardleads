@@ -111,7 +111,19 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
   const task = await prisma.designTask.findUnique({
     where: { id: params.id },
     include: {
-      client: { select: { id: true, name: true, color: true } },
+      client: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          contactPhone: true,
+          users: {
+            where: { active: true, phone: { not: null } },
+            select: { phone: true },
+            take: 1,
+          },
+        },
+      },
       project: { select: { id: true, name: true } },
       designer: { select: { id: true, name: true } },
       qcBy: { select: { id: true, name: true } },
@@ -120,7 +132,9 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
     },
   });
   if (!task) throw new ApiError(404, "משימת עיצוב לא נמצאה");
-  return NextResponse.json({ task });
+  // טלפון ליצירת קשר עם הלקוח (איש קשר, או המשתמש הפעיל הראשון) — לכפתור וואטסאפ.
+  const clientPhone = task.client?.contactPhone || task.client?.users?.[0]?.phone || null;
+  return NextResponse.json({ task: { ...task, clientPhone } });
 });
 
 const UpdateDesignTask = z.object({
