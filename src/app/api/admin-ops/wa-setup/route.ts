@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { handle, requireAdmin, ApiError } from "@/lib/api";
-import { whatsappConfigured } from "@/lib/whatsapp";
+import { whatsappConfigured, ingestInboundWhatsapp } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -11,20 +11,32 @@ function creds() {
   return { id: process.env.GREENAPI_ID_INSTANCE!, token: process.env.GREENAPI_API_TOKEN! };
 }
 
-// GET /api/admin-ops/wa-setup — הצגת הגדרות ה-webhook הנוכחיות ב-Green API.
-export const GET = handle(async () => {
+// GET /api/admin-ops/wa-setup — הגדרות ה-webhook + אבחון (משרד בלבד).
+// ?selftest=1&phone=<phone> — בדיקת קליטה נכנסת מקצה-לקצה דרך הלוגיקה האמיתית.
+export const GET = handle(async (req) => {
   await requireAdmin();
   if (!whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
+  const u = new URL(req.url);
+  if (u.searchParams.get("selftest")) {
+    const phone = u.searchParams.get("phone") || "";
+    const result = await ingestInboundWhatsapp({
+      typeWebhook: "incomingMessageReceived",
+      idMessage: `SELFTEST_${u.searchParams.get("id") || "1"}`,
+      senderData: { chatId: `${phone.replace(/\D/g, "")}@c.us`, senderName: "Self Test" },
+      messageData: { typeMessage: "textMessage", textMessageData: { textMessage: "בדיקת קליטה נכנסת (self-test)" } },
+    });
+    return NextResponse.json({ selftest: result });
+  }
   const { id, token } = creds();
   const res = await fetch(`${base()}/waInstance${id}/getSettings/${token}`);
   const j = await res.json().catch(() => ({}));
+  const envTok = process.env.GREENAPI_WEBHOOK_TOKEN || "";
   return NextResponse.json({
     webhookUrl: j?.webhookUrl ?? null,
     incomingWebhook: j?.incomingWebhook ?? null,
-    hasWebhookToken: Boolean(j?.webhookUrlToken),
-    // אורך הטוקן כפי שהשרת רואה אותו (לאבחון בלבד — לא חושף את הערך).
-    serverTokenLen: (process.env.GREENAPI_WEBHOOK_TOKEN || "").length,
-    greenTokenLen: (j?.webhookUrlToken || "").length,
+    envLen: envTok.length,
+    greenLen: (j?.webhookUrlToken || "").length,
+    aligned: Boolean(envTok) && envTok === (j?.webhookUrlToken || ""),
   });
 });
 

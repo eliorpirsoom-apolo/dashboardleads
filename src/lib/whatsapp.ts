@@ -63,6 +63,41 @@ export async function resolveClientIdByPhone(phone: string): Promise<string | nu
   return null;
 }
 
+// עיבוד הודעת וואטסאפ נכנסת (מ-Green API): חילוץ, זיהוי לקוח, דדופ ושמירה.
+export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boolean; reason?: string }> {
+  if (payload?.typeWebhook !== "incomingMessageReceived") return { stored: false, reason: "type" };
+  const chatId: string = payload?.senderData?.chatId || "";
+  if (!chatId.endsWith("@c.us")) return { stored: false, reason: "not-private" };
+  const phone = chatId.replace("@c.us", "");
+  const idMessage: string | null = payload?.idMessage || null;
+
+  const md = payload?.messageData || {};
+  let body = "";
+  if (md.typeMessage === "textMessage") body = md.textMessageData?.textMessage || "";
+  else if (md.typeMessage === "extendedTextMessage") body = md.extendedTextMessageData?.text || "";
+  else body = "[התקבלה הודעת מדיה/קובץ בוואטסאפ]";
+  if (!body.trim()) return { stored: false, reason: "empty" };
+
+  if (idMessage) {
+    const exists = await prisma.whatsappMessage.findUnique({ where: { waMessageId: idMessage }, select: { id: true } });
+    if (exists) return { stored: false, reason: "dedup" };
+  }
+  const clientId = await resolveClientIdByPhone(phone);
+  if (!clientId) return { stored: false, reason: "no-client" };
+
+  await prisma.whatsappMessage.create({
+    data: {
+      clientId,
+      direction: "in",
+      body: body.trim(),
+      fromPhone: phone,
+      authorName: payload?.senderData?.senderName || null,
+      waMessageId: idMessage,
+    },
+  });
+  return { stored: true };
+}
+
 // טלפון הוואטסאפ של לקוח (איש קשר, או המשתמש הפעיל הראשון עם טלפון).
 export async function clientWhatsappPhone(clientId: string): Promise<string | null> {
   const client = await prisma.client.findUnique({
