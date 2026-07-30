@@ -170,6 +170,7 @@ model Client {
   messageTemplates MessageTemplate[]
   clientAssignments ClientAssignment[]
   designTasks       DesignTask[]
+  whatsappMessages  WhatsappMessage[]
 
   @@index([name])
   @@index([type])
@@ -1062,6 +1063,21 @@ model DesignFeedback {
   createdAt    DateTime   @default(now())
 
   @@index([designTaskId])
+}
+
+// שיחת וואטסאפ דו-כיוונית מול לקוח (פר-לקוח) — חלון ההתכתבות בתוך המערכת.
+model WhatsappMessage {
+  id          String   @id @default(cuid())
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String
+  direction   String // "in" (לקוח→משרד) | "out" (משרד→לקוח)
+  body        String
+  fromPhone   String? // מספר השולח (בהודעה נכנסת)
+  authorName  String? // שם השולח מהמשרד (בהודעה יוצאת)
+  waMessageId String? @unique // idMessage מ-Green API (למניעת כפילויות)
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, createdAt])
 }
 
 // שרשור התכתבות משרד↔לקוח על משימת עיצוב (צ'אט בפורטל).

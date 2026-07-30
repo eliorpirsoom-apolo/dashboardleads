@@ -33,6 +33,14 @@ interface Msg {
   body: string;
   createdAt: string;
 }
+interface WaMsg {
+  id: string;
+  direction: string;
+  body: string;
+  authorName: string | null;
+  fromPhone: string | null;
+  createdAt: string;
+}
 interface Detail {
   id: string;
   title: string;
@@ -128,15 +136,57 @@ export default function StudioTaskDrawer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [qc, setQc] = useState<Record<number, boolean>>({});
-  const [tab, setTab] = useState<"client" | "internal">("client");
+  const [tab, setTab] = useState<"client" | "whatsapp" | "internal">("client");
   const [chatText, setChatText] = useState("");
   const [internalText, setInternalText] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [assetCommentText, setAssetCommentText] = useState("");
+  const [waMsgs, setWaMsgs] = useState<WaMsg[]>([]);
+  const [waPhone, setWaPhone] = useState<string | null>(null);
+  const [waConfigured, setWaConfigured] = useState(true);
+  const [waText, setWaText] = useState("");
+  const [waBusy, setWaBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const refFileRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const clientId = t?.client?.id;
+
+  const loadWa = useCallback(async () => {
+    if (!clientId) return;
+    try {
+      const d = await api<{ messages: WaMsg[]; phone: string | null; configured: boolean }>(`/api/whatsapp/${clientId}`);
+      setWaMsgs(d.messages);
+      setWaPhone(d.phone);
+      setWaConfigured(d.configured);
+    } catch {
+      /* ignore */
+    }
+  }, [clientId]);
+
+  // רענון שרשור הוואטסאפ בזמן שהטאב פתוח (לקליטת הודעות נכנסות).
+  useEffect(() => {
+    if (tab !== "whatsapp" || !clientId) return;
+    loadWa();
+    const iv = setInterval(loadWa, 15000);
+    return () => clearInterval(iv);
+  }, [tab, clientId, loadWa]);
+
+  async function sendWa() {
+    const body = waText.trim();
+    if (!body || !clientId) return;
+    setWaBusy(true);
+    setError("");
+    try {
+      await api(`/api/whatsapp/${clientId}`, { method: "POST", json: { body } });
+      setWaText("");
+      await loadWa();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setWaBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     const d = await api<{ task: Detail }>(`/api/design-tasks/${taskId}`);
@@ -149,7 +199,7 @@ export default function StudioTaskDrawer({
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "end" });
-  }, [tab, t?.messages.length]);
+  }, [tab, t?.messages.length, waMsgs.length]);
 
   async function upload(file: File, kind: "deliverable" | "reference" = "deliverable") {
     if (!t?.client) return;
@@ -425,15 +475,21 @@ export default function StudioTaskDrawer({
           <div className="flex border-b border-slate-800">
             <button
               onClick={() => setTab("client")}
-              className={`flex-1 py-3 text-sm font-medium transition ${tab === "client" ? "border-b-2 border-cyan-400 text-cyan-200" : "text-slate-500 hover:text-slate-300"}`}
+              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "client" ? "border-b-2 border-cyan-400 text-cyan-200" : "text-slate-500 hover:text-slate-300"}`}
             >
-              צ׳אט מול הלקוח{clientMsgs.length ? ` (${clientMsgs.length})` : ""}
+              צ׳אט לקוח{clientMsgs.length ? ` (${clientMsgs.length})` : ""}
+            </button>
+            <button
+              onClick={() => setTab("whatsapp")}
+              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "whatsapp" ? "border-b-2 border-emerald-400 text-emerald-200" : "text-slate-500 hover:text-slate-300"}`}
+            >
+              וואטסאפ{waMsgs.length ? ` (${waMsgs.length})` : ""}
             </button>
             <button
               onClick={() => setTab("internal")}
-              className={`flex-1 py-3 text-sm font-medium transition ${tab === "internal" ? "border-b-2 border-amber-400 text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
+              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "internal" ? "border-b-2 border-amber-400 text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
             >
-              תקשורת פנימית{internalMsgs.length ? ` (${internalMsgs.length})` : ""}
+              פנימי{internalMsgs.length ? ` (${internalMsgs.length})` : ""}
             </button>
           </div>
 
@@ -481,6 +537,46 @@ export default function StudioTaskDrawer({
                   <Button disabled={chatBusy || !chatText.trim()} onClick={sendChat}>שליחה</Button>
                 </div>
                 <p className="mt-1 text-[10px] text-slate-600">הלקוח רואה ומשיב מהקישור / פורטל האישורים שלו.</p>
+              </div>
+            </>
+          ) : tab === "whatsapp" ? (
+            <>
+              <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
+                {!waConfigured ? (
+                  <p className="mb-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-center text-xs text-slate-500">וואטסאפ אינו מחובר במערכת.</p>
+                ) : !waPhone ? (
+                  <p className="mb-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-center text-xs text-slate-500">אין מספר טלפון ללקוח — הוסיפו בכרטיס הלקוח כדי לשלוח וואטסאפ.</p>
+                ) : null}
+                <div className="flex flex-col gap-2">
+                  {waMsgs.map((m) => {
+                    const mine = m.direction === "out";
+                    return (
+                      <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-emerald-700/40 bg-emerald-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}>
+                        <p className="mb-0.5 text-[10px] text-slate-400">{mine ? m.authorName || "המשרד" : "הלקוח (וואטסאפ)"} · {formatDateTime(m.createdAt)}</p>
+                        <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
+                      </div>
+                    );
+                  })}
+                  {waMsgs.length === 0 ? (
+                    <p className="text-center text-xs text-slate-600">אין עדיין הודעות וואטסאפ. שלחו הודעה 👇 — תשובות הלקוח יופיעו כאן.</p>
+                  ) : null}
+                  <div ref={chatEndRef} />
+                </div>
+              </div>
+              <div className="border-t border-slate-800 p-3">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={waText}
+                    onChange={(e) => setWaText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendWa(); } }}
+                    rows={2}
+                    placeholder="הודעת וואטסאפ ללקוח… (Enter לשליחה)"
+                    disabled={!waConfigured || !waPhone}
+                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                  />
+                  <Button disabled={waBusy || !waText.trim() || !waConfigured || !waPhone} onClick={sendWa}>שליחה</Button>
+                </div>
+                <p className="mt-1 text-[10px] text-emerald-300/70">💬 שיחת וואטסאפ אמיתית — נשלח לוואטסאפ של הלקוח, ותשובותיו חוזרות לכאן.</p>
               </div>
             </>
           ) : (
