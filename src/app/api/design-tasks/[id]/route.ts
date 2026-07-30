@@ -129,6 +129,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       qcBy: { select: { id: true, name: true } },
       assets: { orderBy: { createdAt: "desc" } },
       feedback: { orderBy: { createdAt: "desc" } },
+      messages: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!task) throw new ApiError(404, "משימת עיצוב לא נמצאה");

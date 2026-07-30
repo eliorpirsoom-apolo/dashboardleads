@@ -11,12 +11,20 @@ interface Asset {
   fileName: string | null;
   round: number;
 }
+interface Msg {
+  id: string;
+  authorSide: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+}
 interface Task {
   id: string;
   title: string;
   briefType: string;
   round: number;
   assets: Asset[];
+  messages: Msg[];
 }
 
 interface Attach {
@@ -32,6 +40,8 @@ export default function StudioApprovals() {
   const [attach, setAttach] = useState<Record<string, Attach[]>>({});
   const [upId, setUpId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [chatText, setChatText] = useState<Record<string, string>>({});
+  const [chatBusy, setChatBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -66,6 +76,21 @@ export default function StudioApprovals() {
       alert(e.message);
     } finally {
       setUpId(null);
+    }
+  }
+
+  async function sendChat(id: string) {
+    const body = (chatText[id] ?? "").trim();
+    if (!body) return;
+    setChatBusy(id);
+    try {
+      await api(`/api/design-tasks/${id}/messages`, { method: "POST", json: { body } });
+      setChatText((p) => ({ ...p, [id]: "" }));
+      await load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setChatBusy(null);
     }
   }
 
@@ -176,6 +201,48 @@ export default function StudioApprovals() {
             <Button variant="ghost" disabled={busy === t.id} onClick={() => decide(t.id, "changes")}>
               בקשת תיקונים
             </Button>
+          </div>
+
+          {/* התכתבות מול הסטודיו */}
+          <div className="mt-4 border-t border-slate-800 pt-3">
+            <p className="mb-2 text-sm font-bold text-slate-300">התכתבות מול הסטודיו</p>
+            <div className="mb-2 flex max-h-64 flex-col gap-2 overflow-y-auto">
+              {t.messages.map((m) => {
+                const mine = m.authorSide === "client";
+                return (
+                  <div
+                    key={m.id}
+                    className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-700/40 bg-cyan-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}
+                  >
+                    <p className="mb-0.5 text-[10px] text-slate-400">
+                      {m.authorName || (mine ? "אתם" : "הסטודיו")} · {new Date(m.createdAt).toLocaleString("he-IL")}
+                    </p>
+                    <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
+                  </div>
+                );
+              })}
+              {t.messages.length === 0 ? (
+                <p className="text-xs text-slate-600">כאן תוכלו לכתוב לסטודיו ולקבל תשובות.</p>
+              ) : null}
+            </div>
+            <div className="flex items-end gap-2">
+              <textarea
+                value={chatText[t.id] ?? ""}
+                onChange={(e) => setChatText((p) => ({ ...p, [t.id]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChat(t.id);
+                  }
+                }}
+                rows={2}
+                placeholder="כתבו הודעה לסטודיו… (Enter לשליחה)"
+                className="max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+              />
+              <Button disabled={chatBusy === t.id || !(chatText[t.id] ?? "").trim()} onClick={() => sendChat(t.id)}>
+                שליחה
+              </Button>
+            </div>
           </div>
         </Card>
       ))}

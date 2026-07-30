@@ -1025,6 +1025,7 @@ model DesignTask {
 
   assets   DesignAsset[]
   feedback DesignFeedback[]
+  messages DesignMessage[]
 
   @@index([status])
   @@index([designerId, scheduledAt])
@@ -1057,6 +1058,20 @@ model DesignFeedback {
   decision     String // "approved" | "changes"
   text         String?
   authorName   String?
+  createdAt    DateTime   @default(now())
+
+  @@index([designTaskId])
+}
+
+// שרשור התכתבות משרד↔לקוח על משימת עיצוב (צ'אט בפורטל).
+model DesignMessage {
+  id           String     @id @default(cuid())
+  designTask   DesignTask @relation(fields: [designTaskId], references: [id], onDelete: Cascade)
+  designTaskId String
+  authorSide   String // "agency" | "client"
+  authorId     String?
+  authorName   String?
+  body         String
   createdAt    DateTime   @default(now())
 
   @@index([designTaskId])
