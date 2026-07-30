@@ -35,13 +35,15 @@ const NewMessage = z.object({ body: z.string().min(1, "הודעה ריקה").max
 export const POST = handle(async (req, { params }: { params: { id: string } }) => {
   const { user, task } = await resolveTask(params.id);
   const b = NewMessage.parse(await readJson(req));
+  const body = b.body.trim();
+  if (!body) throw new ApiError(422, "הודעה ריקה");
   const message = await prisma.designMessage.create({
     data: {
       designTaskId: task.id,
       authorSide: user.role === "ADMIN" ? "agency" : "client",
       authorId: user.id,
       authorName: user.name,
-      body: b.body.trim(),
+      body,
     },
   });
   return NextResponse.json({ message }, { status: 201 });
