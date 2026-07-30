@@ -80,3 +80,37 @@ export async function notifyNewDesignMessage(
     }).catch(() => {});
   }
 }
+
+// התראה על הודעה בערוץ הפנימי (משרד): נשלחת לצוות המשימה (מעצב/ת + פותח/ת הבריף) מלבד השולח.
+export async function notifyInternalDesignMessage(
+  taskId: string,
+  authorId: string,
+  body: string
+): Promise<void> {
+  const task = await prisma.designTask.findUnique({
+    where: { id: taskId },
+    select: {
+      title: true,
+      clientId: true,
+      designer: { select: { id: true, email: true } },
+      createdBy: { select: { id: true, email: true } },
+    },
+  });
+  if (!task) return;
+  const snippet = body.length > 300 ? `${body.slice(0, 300)}…` : body;
+  const recipients = new Map<string, string>(); // email → dedup
+  for (const u of [task.designer, task.createdBy]) {
+    if (u?.email && u.id !== authorId) recipients.set(u.email, u.email);
+  }
+  const url = `${STUDIO_APP_URL}/admin/studio`;
+  for (const email of recipients.keys()) {
+    await sendMessage({
+      channel: "email",
+      to: email,
+      subject: `🗂️ עדכון פנימי על עיצוב — ${task.title}`,
+      body: `הודעה פנימית חדשה על "${task.title}":\n${snippet}\n\nלמערכת: ${url}`,
+      kind: "automation",
+      clientId: task.clientId,
+    }).catch(() => {});
+  }
+}

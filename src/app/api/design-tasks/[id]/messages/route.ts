@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, readJson, ApiError } from "@/lib/api";
-import { notifyNewDesignMessage } from "@/lib/studioLinks";
+import { notifyNewDesignMessage, notifyInternalDesignMessage } from "@/lib/studioLinks";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +21,14 @@ async function resolveTask(taskId: string) {
 }
 
 // GET /api/design-tasks/[id]/messages — שרשור ההתכתבות (מוקדם→מאוחר).
+// לקוח רואה רק ערוץ "client"; ההתכתבות הפנימית (internal) חשופה למשרד בלבד.
 export const GET = handle(async (_req, { params }: { params: { id: string } }) => {
-  await resolveTask(params.id);
+  const { user } = await resolveTask(params.id);
   const messages = await prisma.designMessage.findMany({
-    where: { designTaskId: params.id },
+    where: {
+      designTaskId: params.id,
+      ...(user.role === "ADMIN" ? {} : { channel: "client" }),
+    },
     orderBy: { createdAt: "asc" },
   });
   return NextResponse.json({ messages });
@@ -33,6 +37,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
 const NewMessage = z.object({
   body: z.string().min(1, "הודעה ריקה").max(3000),
   assetId: z.string().nullable().optional(), // הערה ממוקדת על תוצר ספציפי
+  channel: z.enum(["client", "internal"]).default("client"), // "internal" = משרד בלבד
 });
 
 // POST /api/design-tasks/[id]/messages — הוספת הודעה לשרשור (משרד או לקוח).
@@ -41,10 +46,15 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   const b = NewMessage.parse(await readJson(req));
   const body = b.body.trim();
   if (!body) throw new ApiError(422, "הודעה ריקה");
-  // אם ההודעה מקושרת לתוצר — לוודא שהוא שייך למשימה.
-  if (b.assetId) {
+  // התכתבות פנימית — משרד בלבד. לקוח אינו יכול לכתוב/לקרוא ערוץ internal.
+  if (b.channel === "internal" && user.role !== "ADMIN") {
+    throw new ApiError(403, "התכתבות פנימית מותרת לצוות המשרד בלבד");
+  }
+  // הערה ממוקדת על תוצר קיימת רק בערוץ הלקוח.
+  const assetId = b.channel === "client" ? b.assetId || null : null;
+  if (assetId) {
     const asset = await prisma.designAsset.findFirst({
-      where: { id: b.assetId, designTaskId: task.id },
+      where: { id: assetId, designTaskId: task.id },
       select: { id: true },
     });
     if (!asset) throw new ApiError(404, "תוצר לא נמצא");
@@ -53,14 +63,19 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   const message = await prisma.designMessage.create({
     data: {
       designTaskId: task.id,
-      assetId: b.assetId || null,
+      channel: b.channel,
+      assetId,
       authorSide,
       authorId: user.id,
       authorName: user.name,
       body,
     },
   });
-  // התראה לצד השני (לא חוסם את התגובה).
-  notifyNewDesignMessage(task.id, authorSide, body).catch((e) => console.error("[studio:msg-notify]", e));
+  // התראה (לא חוסם): לקוח↔משרד, או פנימי בין צוות המשרד.
+  if (b.channel === "internal") {
+    notifyInternalDesignMessage(task.id, user.id, body).catch((e) => console.error("[studio:msg-notify]", e));
+  } else {
+    notifyNewDesignMessage(task.id, authorSide, body).catch((e) => console.error("[studio:msg-notify]", e));
+  }
   return NextResponse.json({ message }, { status: 201 });
 });

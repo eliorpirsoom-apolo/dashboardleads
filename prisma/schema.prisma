@@ -1069,6 +1069,7 @@ model DesignMessage {
   id           String     @id @default(cuid())
   designTask   DesignTask @relation(fields: [designTaskId], references: [id], onDelete: Cascade)
   designTaskId String
+  channel      String  @default("client") // "client" (מעצב↔לקוח) | "internal" (משרד בלבד: מעצב↔מנהל תיק)
   assetId      String? // אם מוגדר — הערה ממוקדת על תוצר ספציפי; אחרת צ'אט כללי
   authorSide   String // "agency" | "client"
   authorId     String?

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Chip } from "@/components/ui";
@@ -26,6 +26,7 @@ interface Fb {
 }
 interface Msg {
   id: string;
+  channel: string;
   assetId: string | null;
   authorSide: string;
   authorName: string | null;
@@ -46,17 +47,6 @@ interface Detail {
   assets: Asset[];
   feedback: Fb[];
   messages: Msg[];
-}
-
-// מספר ישראלי → קישור wa.me (פורמט בינ"ל בלי + וללא 0 מוביל).
-function waLink(phone: string, text: string): string {
-  const digits = phone.replace(/\D/g, "");
-  const intl = digits.startsWith("972")
-    ? digits
-    : digits.startsWith("0")
-      ? `972${digits.slice(1)}`
-      : digits;
-  return `https://wa.me/${intl}?text=${encodeURIComponent(text)}`;
 }
 
 function isImage(a: Asset): boolean {
@@ -138,8 +128,9 @@ export default function StudioTaskDrawer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [qc, setQc] = useState<Record<number, boolean>>({});
-  const [tab, setTab] = useState<"updates" | "chat">("chat");
+  const [tab, setTab] = useState<"client" | "internal">("client");
   const [chatText, setChatText] = useState("");
+  const [internalText, setInternalText] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [assetCommentText, setAssetCommentText] = useState("");
@@ -157,7 +148,7 @@ export default function StudioTaskDrawer({
   }, [load]);
 
   useEffect(() => {
-    if (tab === "chat") chatEndRef.current?.scrollIntoView({ block: "end" });
+    chatEndRef.current?.scrollIntoView({ block: "end" });
   }, [tab, t?.messages.length]);
 
   async function upload(file: File, kind: "deliverable" | "reference" = "deliverable") {
@@ -206,8 +197,23 @@ export default function StudioTaskDrawer({
     if (!body) return;
     setChatBusy(true);
     try {
-      await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body } });
+      await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body, channel: "client" } });
       setChatText("");
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  async function sendInternal() {
+    const body = internalText.trim();
+    if (!body) return;
+    setChatBusy(true);
+    try {
+      await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body, channel: "internal" } });
+      setInternalText("");
       await load();
     } catch (e: any) {
       setError(e.message);
@@ -267,58 +273,21 @@ export default function StudioTaskDrawer({
     "איכות הקבצים תקינה למסירה",
   ];
 
-  // פיד עדכונים כרונולוגי (חדש→ישן): הודעות, פידבק והעלאות קבצים.
-  const feed = useMemo(() => {
-    if (!t) return [];
-    const items: { id: string; at: string; type: "message" | "feedback" | "asset"; label: string; body: string | null }[] = [];
-    for (const m of t.messages) {
-      items.push({
-        id: `m${m.id}`,
-        at: m.createdAt,
-        type: "message",
-        label: m.authorSide === "client" ? `💬 ${m.authorName || "הלקוח"} (לקוח)` : `💬 ${m.authorName || "המשרד"} (משרד)`,
-        body: m.body,
-      });
-    }
-    for (const f of t.feedback) {
-      items.push({
-        id: `f${f.id}`,
-        at: f.createdAt,
-        type: "feedback",
-        label: f.decision === "approved" ? "✅ הלקוח אישר את העיצוב" : `✏️ הלקוח ביקש שינויים (סבב ${f.round})`,
-        body: f.text,
-      });
-    }
-    for (const a of t.assets) {
-      const kindLabel = a.kind === "reference" ? "רפרנס" : a.kind === "feedback" ? "צרופת לקוח" : "תוצר";
-      items.push({
-        id: `a${a.id}`,
-        at: a.createdAt,
-        type: "asset",
-        label: `📎 הועלה ${kindLabel}`,
-        body: a.fileName,
-      });
-    }
-    return items.sort((x, y) => (x.at < y.at ? 1 : -1));
-  }, [t]);
-
   if (!t) return null;
   const inQc = t.status === "final_review" || t.status === "qc";
   const allChecked = QC_ITEMS.every((_, i) => qc[i]);
   const references = t.assets.filter((a) => a.kind === "reference");
   const deliverables = t.assets.filter((a) => a.kind === "deliverable");
   const clientAttachments = t.assets.filter((a) => a.kind === "feedback");
-  const assetMsgs = (id: string) => t.messages.filter((m) => m.assetId === id);
-  const generalMsgs = t.messages.filter((m) => !m.assetId);
+  const assetMsgs = (id: string) => t.messages.filter((m) => m.channel === "client" && m.assetId === id);
+  const clientMsgs = t.messages.filter((m) => m.channel === "client" && !m.assetId);
+  const internalMsgs = t.messages.filter((m) => m.channel === "internal");
   const openAssetName = deliverables.find((a) => a.id === openAsset)?.fileName;
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const waHref = t.clientPhone
-    ? waLink(
-        t.clientPhone,
-        `שלום${t.client?.name ? ` ${t.client.name}` : ""}, מדברים מאפולו פרסום לגבי העיצוב "${t.title}".` +
-          (t.status === "sent_to_client" ? ` לצפייה ואישור: ${origin}/app/studio` : "")
-      )
-    : null;
+  // שרשור הלקוח: הודעות + החלטות אישור/שינויים, לפי סדר כרונולוגי.
+  const clientThread: { id: string; at: string; msg: Msg | null; fb: Fb | null }[] = [
+    ...clientMsgs.map((m) => ({ id: `m${m.id}`, at: m.createdAt, msg: m, fb: null as Fb | null })),
+    ...t.feedback.map((f) => ({ id: `f${f.id}`, at: f.createdAt, msg: null as Msg | null, fb: f })),
+  ].sort((a, b) => (a.at < b.at ? -1 : 1));
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
@@ -332,17 +301,6 @@ export default function StudioTaskDrawer({
             {t.round > 1 ? ` · סבב ${t.round}` : ""}
           </p>
         </div>
-        {waHref ? (
-          <a
-            href={waHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-600/15 px-3 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-600/25 sm:flex"
-          >
-            <Icon name="whatsapp" className="h-4 w-4" />
-            וואטסאפ ללקוח
-          </a>
-        ) : null}
         <button
           onClick={onClose}
           className="rounded-lg border border-slate-800 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-900 hover:text-slate-100"
@@ -357,18 +315,6 @@ export default function StudioTaskDrawer({
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Main column */}
         <main className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-          {waHref ? (
-            <a
-              href={waHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-600/15 px-3 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-600/25 sm:hidden"
-            >
-              <Icon name="whatsapp" className="h-4 w-4" />
-              וואטסאפ ללקוח
-            </a>
-          ) : null}
-
           {t.brief ? (
             <div className="mb-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
               <p className="mb-1 text-xs font-bold text-slate-400">בריף</p>
@@ -474,46 +420,41 @@ export default function StudioTaskDrawer({
           ) : null}
         </main>
 
-        {/* Side column: updates + chat */}
+        {/* Side column: two in-system channels — client chat + internal (agency) chat */}
         <aside className="flex min-h-0 flex-1 flex-col border-t border-slate-800 lg:max-w-[440px] lg:flex-none lg:border-r lg:border-t-0">
           <div className="flex border-b border-slate-800">
             <button
-              onClick={() => setTab("chat")}
-              className={`flex-1 py-3 text-sm font-medium transition ${tab === "chat" ? "border-b-2 border-cyan-400 text-cyan-200" : "text-slate-500 hover:text-slate-300"}`}
+              onClick={() => setTab("client")}
+              className={`flex-1 py-3 text-sm font-medium transition ${tab === "client" ? "border-b-2 border-cyan-400 text-cyan-200" : "text-slate-500 hover:text-slate-300"}`}
             >
-              צ׳אט מול הלקוח
+              צ׳אט מול הלקוח{clientMsgs.length ? ` (${clientMsgs.length})` : ""}
             </button>
             <button
-              onClick={() => setTab("updates")}
-              className={`flex-1 py-3 text-sm font-medium transition ${tab === "updates" ? "border-b-2 border-cyan-400 text-cyan-200" : "text-slate-500 hover:text-slate-300"}`}
+              onClick={() => setTab("internal")}
+              className={`flex-1 py-3 text-sm font-medium transition ${tab === "internal" ? "border-b-2 border-amber-400 text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
             >
-              עדכונים ({feed.length})
+              תקשורת פנימית{internalMsgs.length ? ` (${internalMsgs.length})` : ""}
             </button>
           </div>
 
-          {tab === "updates" ? (
-            <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
-              <div className="flex flex-col gap-2">
-                {feed.map((it) => (
-                  <div key={it.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="font-medium text-slate-300">{it.label}</span>
-                      <span className="mr-auto text-slate-600">{formatDateTime(it.at)}</span>
-                    </div>
-                    {it.body ? <p className="mt-1 whitespace-pre-line text-sm text-slate-200">{it.body}</p> : null}
-                  </div>
-                ))}
-                {feed.length === 0 ? <p className="text-xs text-slate-600">אין עדכונים עדיין.</p> : null}
-              </div>
-            </div>
-          ) : (
+          {tab === "client" ? (
             <>
               <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
                 <div className="flex flex-col gap-2">
-                  {generalMsgs.map((m) => {
+                  {clientThread.map((it) => {
+                    if (it.fb) {
+                      const ok = it.fb.decision === "approved";
+                      return (
+                        <div key={it.id} className={`self-center rounded-full border px-3 py-1 text-center text-[11px] ${ok ? "border-emerald-700/40 bg-emerald-600/10 text-emerald-300" : "border-orange-700/40 bg-orange-600/10 text-orange-300"}`}>
+                          {ok ? "✅ הלקוח אישר את העיצוב" : `✏️ הלקוח ביקש שינויים (סבב ${it.fb.round})`}
+                          {it.fb.text ? <span className="text-slate-300"> — {it.fb.text}</span> : null}
+                        </div>
+                      );
+                    }
+                    const m = it.msg!;
                     const mine = m.authorSide === "agency";
                     return (
-                      <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-700/40 bg-cyan-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}>
+                      <div key={it.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-700/40 bg-cyan-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}>
                         <p className="mb-0.5 text-[10px] text-slate-400">
                           {m.authorName || (mine ? "המשרד" : "הלקוח")} · {formatDateTime(m.createdAt)}
                         </p>
@@ -521,7 +462,7 @@ export default function StudioTaskDrawer({
                       </div>
                     );
                   })}
-                  {generalMsgs.length === 0 ? (
+                  {clientThread.length === 0 ? (
                     <p className="text-center text-xs text-slate-600">אין עדיין הודעות. פתחו שיחה עם הלקוח 👇</p>
                   ) : null}
                   <div ref={chatEndRef} />
@@ -532,21 +473,45 @@ export default function StudioTaskDrawer({
                   <textarea
                     value={chatText}
                     onChange={(e) => setChatText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        sendChat();
-                      }
-                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                     rows={2}
                     placeholder="כתבו הודעה ללקוח… (Enter לשליחה)"
                     className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
                   />
-                  <Button disabled={chatBusy || !chatText.trim()} onClick={sendChat}>
-                    שליחה
-                  </Button>
+                  <Button disabled={chatBusy || !chatText.trim()} onClick={sendChat}>שליחה</Button>
                 </div>
-                <p className="mt-1 text-[10px] text-slate-600">הלקוח רואה ומשיב מפורטל האישורים שלו.</p>
+                <p className="mt-1 text-[10px] text-slate-600">הלקוח רואה ומשיב מהקישור / פורטל האישורים שלו.</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
+                <div className="flex flex-col gap-2">
+                  {internalMsgs.map((m) => (
+                    <div key={m.id} className="max-w-[90%] self-start rounded-2xl border border-amber-700/40 bg-amber-950/20 px-3 py-2">
+                      <p className="mb-0.5 text-[10px] text-amber-300/80">{m.authorName || "משרד"} · {formatDateTime(m.createdAt)}</p>
+                      <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
+                    </div>
+                  ))}
+                  {internalMsgs.length === 0 ? (
+                    <p className="text-center text-xs text-slate-600">התכתבות פנימית בין המעצב/ת למנהל התיק. הלקוח לא רואה זאת.</p>
+                  ) : null}
+                  <div ref={chatEndRef} />
+                </div>
+              </div>
+              <div className="border-t border-slate-800 p-3">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={internalText}
+                    onChange={(e) => setInternalText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInternal(); } }}
+                    rows={2}
+                    placeholder="הודעה פנימית (המעצב/ת ↔ מנהל התיק)… (Enter לשליחה)"
+                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+                  />
+                  <Button disabled={chatBusy || !internalText.trim()} onClick={sendInternal}>שליחה</Button>
+                </div>
+                <p className="mt-1 text-[10px] text-amber-300/70">🔒 פנימי — צוות המשרד בלבד. הלקוח אינו נחשף לזה.</p>
               </div>
             </>
           )}

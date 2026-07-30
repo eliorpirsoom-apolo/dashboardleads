@@ -23,6 +23,7 @@ export const GET = handle(async (_req, { params }: { params: { token: string } }
         select: { id: true, fileName: true, mimeType: true, round: true },
       },
       messages: {
+        where: { channel: "client" },
         orderBy: { createdAt: "asc" },
         select: { id: true, assetId: true, authorSide: true, authorName: true, body: true, createdAt: true },
       },

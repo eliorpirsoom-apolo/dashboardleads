@@ -17,7 +17,7 @@ export const GET = handle(async () => {
         orderBy: { createdAt: "desc" },
         select: { id: true, fileName: true, round: true },
       },
-      messages: { orderBy: { createdAt: "asc" } },
+      messages: { where: { channel: "client" }, orderBy: { createdAt: "asc" } },
     },
   });
   return NextResponse.json({ tasks });
