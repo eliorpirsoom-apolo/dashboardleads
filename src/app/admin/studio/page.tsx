@@ -14,10 +14,16 @@ export default async function StudioPage() {
     }),
     prisma.user.findMany({
       where: { role: "ADMIN", active: true },
-      select: { id: true, name: true },
+      select: { id: true, name: true, calendarConnection: { select: { active: true } } },
       orderBy: { name: "asc" },
     }),
   ]);
+
+  const designerOpts = designers.map((d) => ({
+    id: d.id,
+    name: d.name,
+    calendarConnected: !!d.calendarConnection?.active,
+  }));
 
   return (
     <>
@@ -25,7 +31,7 @@ export default async function StudioPage() {
         title="סטודיו"
         subtitle="מבריף ועד אישור סופי — תזמון בין המעצבות, אישורי לקוח ובקרת איכות"
       />
-      <StudioBoard clients={clients} designers={designers} />
+      <StudioBoard clients={clients} designers={designerOpts} />
     </>
   );
 }

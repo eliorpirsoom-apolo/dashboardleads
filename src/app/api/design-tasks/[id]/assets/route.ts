@@ -10,6 +10,7 @@ const AddAsset = z.object({
   fileName: z.string().max(200),
   mimeType: z.string().max(100).nullable().optional(),
   note: z.string().max(500).nullable().optional(),
+  kind: z.enum(["reference", "deliverable"]).default("deliverable"),
 });
 
 // POST /api/design-tasks/[id]/assets — רישום תוצר שהועלה (דרך /api/uploads/direct).
@@ -22,6 +23,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   const asset = await prisma.designAsset.create({
     data: {
       designTaskId: task.id,
+      kind: b.kind,
       round: task.round,
       fileKey: b.fileKey,
       fileName: b.fileName,

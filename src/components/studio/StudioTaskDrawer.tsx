@@ -9,6 +9,8 @@ import { DESIGN_STATUS_LABELS, briefTypeLabel } from "@/lib/studio";
 
 interface Asset {
   id: string;
+  kind: string;
+  feedbackId: string | null;
   fileName: string | null;
   round: number;
   createdAt: string;
@@ -49,6 +51,7 @@ export default function StudioTaskDrawer({
   const [error, setError] = useState("");
   const [qc, setQc] = useState<Record<number, boolean>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+  const refFileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const d = await api<{ task: Detail }>(`/api/design-tasks/${taskId}`);
@@ -59,7 +62,7 @@ export default function StudioTaskDrawer({
     load();
   }, [load]);
 
-  async function upload(file: File) {
+  async function upload(file: File, kind: "deliverable" | "reference" = "deliverable") {
     if (!t?.client) return;
     setBusy(true);
     setError("");
@@ -73,7 +76,7 @@ export default function StudioTaskDrawer({
       if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
       await api(`/api/design-tasks/${taskId}/assets`, {
         method: "POST",
-        json: { fileKey: uj.key, fileName: uj.fileName, mimeType: uj.mimeType },
+        json: { fileKey: uj.key, fileName: uj.fileName, mimeType: uj.mimeType, kind },
       });
       await load();
     } catch (e: any) {
@@ -139,6 +142,10 @@ export default function StudioTaskDrawer({
   if (!t) return null;
   const inQc = t.status === "final_review" || t.status === "qc";
   const allChecked = QC_ITEMS.every((_, i) => qc[i]);
+  const references = t.assets.filter((a) => a.kind === "reference");
+  const deliverables = t.assets.filter((a) => a.kind === "deliverable");
+  const fbAttachments = (fbId: string) =>
+    t.assets.filter((a) => a.kind === "feedback" && a.feedbackId === fbId);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-start" onClick={onClose}>
@@ -170,10 +177,41 @@ export default function StudioTaskDrawer({
           </div>
         ) : null}
 
-        {/* Assets */}
+        {/* Reference files — מהמשרד למעצב/ת */}
+        <div className="mb-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+          <div className="mb-1 flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-400">רפרנסים / דוגמאות למעצב/ת ({references.length})</p>
+            <input
+              ref={refFileRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "reference")}
+            />
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => refFileRef.current?.click()}>
+              <Icon name="upload" className="h-4 w-4" />
+              הוספת רפרנס
+            </Button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {references.map((a) => (
+              <div key={a.id} className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-1.5 text-xs">
+                <Icon name="doc" className="h-4 w-4 text-violet-400" />
+                <a href={`/api/design-assets/${a.id}`} target="_blank" className="flex-1 truncate text-slate-200 hover:text-cyan-300">
+                  {a.fileName}
+                </a>
+                <button onClick={() => delAsset(a.id)} className="text-slate-600 hover:text-rose-400">
+                  <Icon name="trash" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            {references.length === 0 ? <p className="text-xs text-slate-600">אין רפרנסים.</p> : null}
+          </div>
+        </div>
+
+        {/* Deliverables — תוצרים מהמעצב/ת ללקוח */}
         <div className="mb-3">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-400">תוצרים ({t.assets.length})</p>
+            <p className="text-xs font-bold text-slate-400">תוצרים ({deliverables.length})</p>
             <input
               ref={fileRef}
               type="file"
@@ -186,7 +224,7 @@ export default function StudioTaskDrawer({
             </Button>
           </div>
           <div className="flex flex-col gap-1.5">
-            {t.assets.map((a) => (
+            {deliverables.map((a) => (
               <div key={a.id} className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-2 text-xs">
                 <Icon name="doc" className="h-4 w-4 text-cyan-400" />
                 <a href={`/api/design-assets/${a.id}`} target="_blank" className="flex-1 truncate text-slate-200 hover:text-cyan-300">
@@ -198,11 +236,11 @@ export default function StudioTaskDrawer({
                 </button>
               </div>
             ))}
-            {t.assets.length === 0 ? <p className="text-xs text-slate-600">אין תוצרים עדיין.</p> : null}
+            {deliverables.length === 0 ? <p className="text-xs text-slate-600">אין תוצרים עדיין.</p> : null}
           </div>
         </div>
 
-        <Button className="mb-4 w-full" disabled={busy || t.assets.length === 0} onClick={sendToClient}>
+        <Button className="mb-4 w-full" disabled={busy || deliverables.length === 0} onClick={sendToClient}>
           <Icon name="whatsapp" className="h-4 w-4" />
           שליחה ללקוח לאישור
         </Button>
@@ -252,6 +290,22 @@ export default function StudioTaskDrawer({
                 <span className="mr-auto text-slate-600">{formatDateTime(f.createdAt)}</span>
               </div>
               {f.text ? <p className="whitespace-pre-line text-sm text-slate-200">{f.text}</p> : null}
+              {fbAttachments(f.id).length > 0 ? (
+                <div className="mt-2 flex flex-col gap-1">
+                  {fbAttachments(f.id).map((a) => (
+                    <a
+                      key={a.id}
+                      href={`/api/design-assets/${a.id}`}
+                      target="_blank"
+                      className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2.5 py-1.5 text-xs text-slate-200 hover:text-cyan-300"
+                    >
+                      <Icon name="doc" className="h-4 w-4 text-orange-400" />
+                      <span className="flex-1 truncate">{a.fileName}</span>
+                      <span className="text-slate-600">צפייה ←</span>
+                    </a>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ))}
           {t.feedback.length === 0 ? <p className="text-xs text-slate-600">טרם התקבל פידבק.</p> : null}

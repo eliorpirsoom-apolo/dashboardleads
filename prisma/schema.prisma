@@ -1035,6 +1035,8 @@ model DesignAsset {
   id           String     @id @default(cuid())
   designTask   DesignTask @relation(fields: [designTaskId], references: [id], onDelete: Cascade)
   designTaskId String
+  kind         String     @default("deliverable") // reference (משרד→מעצב) | deliverable (מעצב→לקוח) | feedback (לקוח→מעצב)
+  feedbackId   String? // אם kind=feedback — ה-DesignFeedback שאליו הקובץ מצורף
   round        Int        @default(1)
   fileKey      String?
   fileName     String?

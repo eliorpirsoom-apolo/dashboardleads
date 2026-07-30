@@ -9,6 +9,16 @@ export const dynamic = "force-dynamic";
 const Feedback = z.object({
   decision: z.enum(["approved", "changes"]),
   text: z.string().max(3000).nullable().optional(),
+  attachments: z
+    .array(
+      z.object({
+        fileKey: z.string().min(1).max(400),
+        fileName: z.string().max(200),
+        mimeType: z.string().max(100).nullable().optional(),
+      })
+    )
+    .max(10)
+    .optional(), // צילומי מסך / דוגמאות עם הוראות תיקון
 });
 
 // POST /api/design-tasks/[id]/feedback — הלקוח מאשר או מבקש שינויים (פידבק כתוב).
@@ -31,7 +41,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
     throw new ApiError(422, "נא לפרט מה לתקן");
   }
 
-  await prisma.designFeedback.create({
+  const fb = await prisma.designFeedback.create({
     data: {
       designTaskId: task.id,
       round: task.round,
@@ -40,6 +50,22 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
       authorName: user.name,
     },
   });
+
+  // צרופות מהלקוח (צילומי מסך/דוגמאות) — נשמרות כ-kind="feedback" ומקושרות לפידבק.
+  if (b.attachments?.length) {
+    await prisma.designAsset.createMany({
+      data: b.attachments.map((a) => ({
+        designTaskId: task.id,
+        kind: "feedback",
+        feedbackId: fb.id,
+        round: task.round,
+        fileKey: a.fileKey,
+        fileName: a.fileName,
+        mimeType: a.mimeType || null,
+        uploadedById: user.id,
+      })),
+    });
+  }
 
   // מעבר סטטוס: אושר → לאישור סופי; שינויים → חזרה לעבודה + סבב חדש.
   const updated = await prisma.designTask.update({
@@ -52,8 +78,11 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
 
   // התראה למעצב/ת (או למשרד) על תגובת הלקוח.
   const label = b.decision === "approved" ? "אישר/ה את העיצוב ✓" : "ביקש/ה תיקונים";
+  const nAtt = b.attachments?.length ?? 0;
   const body =
-    `הלקוח ${label} — "${task.title}".` + (b.text ? `\n\nהערות:\n${b.text.trim()}` : "");
+    `הלקוח ${label} — "${task.title}".` +
+    (b.text ? `\n\nהערות:\n${b.text.trim()}` : "") +
+    (nAtt ? `\n\nצורפו ${nAtt} קבצים (צילומי מסך/דוגמאות) — לצפייה בכרטיס המשימה בסטודיו.` : "");
   if (task.designer?.email) {
     await sendMessage({
       channel: "email",

@@ -13,7 +13,7 @@ export const GET = handle(async () => {
     orderBy: { clientNotifiedAt: "desc" },
     include: {
       assets: {
-        where: { fileKey: { not: null } },
+        where: { fileKey: { not: null }, kind: "deliverable" },
         orderBy: { createdAt: "desc" },
         select: { id: true, fileName: true, round: true },
       },

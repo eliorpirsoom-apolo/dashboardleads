@@ -27,6 +27,12 @@ export const GET = handle(async (req) => {
   return NextResponse.json({ tasks });
 });
 
+const RefAsset = z.object({
+  fileKey: z.string().min(1).max(400),
+  fileName: z.string().max(200),
+  mimeType: z.string().max(100).nullable().optional(),
+});
+
 const CreateDesignTask = z.object({
   clientId: z.string().min(1, "חסר לקוח"),
   projectId: z.string().nullable().optional(),
@@ -38,6 +44,7 @@ const CreateDesignTask = z.object({
   designerId: z.string().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
+  references: z.array(RefAsset).max(15).optional(), // רפרנסים/דוגמאות למעצב/ת
 });
 
 // POST /api/design-tasks — בריף חדש.
@@ -63,5 +70,21 @@ export const POST = handle(async (req) => {
       status: "scheduled",
     },
   });
+
+  // רפרנסים/דוגמאות שהמשרד צירף בעת הבריף — נשמרים כ-kind="reference".
+  if (b.references?.length) {
+    await prisma.designAsset.createMany({
+      data: b.references.map((r) => ({
+        designTaskId: task.id,
+        kind: "reference",
+        round: 1,
+        fileKey: r.fileKey,
+        fileName: r.fileName,
+        mimeType: r.mimeType || null,
+        uploadedById: user.id,
+      })),
+    });
+  }
+
   return NextResponse.json({ task }, { status: 201 });
 });

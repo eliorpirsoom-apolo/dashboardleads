@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
 import { DESIGN_STATUSES, briefTypeLabel } from "@/lib/studio";
-import { createTaskEvent, deleteTaskEvent } from "@/lib/gcal";
+import { createTaskEvent, deleteTaskEvent, syncTaskEvent } from "@/lib/gcal";
 import { sendMessage } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
 import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
@@ -46,12 +46,28 @@ async function scheduleInDesignerCalendar(task: any, actorId: string): Promise<v
   if (!task.designerId || !task.scheduledAt) return;
   const title = `🎨 עיצוב — ${task.title}`;
   if (task.calendarTaskId) {
+    const existing = await prisma.task.findUnique({ where: { id: task.calendarTaskId } });
+    if (!existing) return;
+    const designerChanged =
+      !!existing.googleEventOwnerId && existing.googleEventOwnerId !== task.designerId;
     await prisma.task
       .update({
         where: { id: task.calendarTaskId },
         data: { assigneeId: task.designerId, dueAt: task.scheduledAt, title },
       })
       .catch(() => {});
+    if (designerChanged) {
+      // הוחלף/ה מעצב/ת — מוחקים את האירוע מיומן ה-Google הישן ויוצרים מחדש אצל החדש/ה.
+      await deleteTaskEvent(existing).catch(() => {});
+      await prisma.task
+        .update({ where: { id: task.calendarTaskId }, data: { googleEventId: null, googleEventOwnerId: null } })
+        .catch(() => {});
+      const fresh = await prisma.task.findUnique({ where: { id: task.calendarTaskId } });
+      if (fresh) await createTaskEvent({ ...fresh, createdById: actorId }).catch(() => {});
+    } else {
+      // אותה/ו מעצב/ת — דחיפת עדכון המועד/כותרת לאירוע הקיים ב-Google.
+      await syncTaskEvent(task.calendarTaskId).catch(() => {});
+    }
     return;
   }
   const calTask = await prisma.task.create({
@@ -167,8 +183,9 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 
   const task = await prisma.designTask.update({ where: { id: params.id }, data });
 
-  // פעולת סטטוס: כשהמשימה "מתוזמנת" ויש מעצב/ת + מועד → אירוע ביומן שלו/ה + התראה.
-  if (task.status === "scheduled" && task.designerId && task.scheduledAt) {
+  // פעולת סטטוס: כשיש מעצב/ת + מועד → אירוע ביומן ה-Google שלו/ה + התראה.
+  // נוצר בתזמון הראשון, וממשיך להסתנכרן כל עוד קיימת משימת יומן מקושרת (שינוי מועד/מעצב).
+  if (task.designerId && task.scheduledAt && (task.status === "scheduled" || task.calendarTaskId)) {
     await scheduleInDesignerCalendar(task, user.id).catch((e) =>
       console.error("[studio:schedule]", e)
     );

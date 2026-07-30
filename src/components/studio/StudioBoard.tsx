@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input, Select } from "@/components/ui";
@@ -20,6 +20,7 @@ interface Opt {
   id: string;
   name: string;
   color?: string | null;
+  calendarConnected?: boolean;
 }
 interface DTask {
   id: string;
@@ -79,6 +80,12 @@ export default function StudioBoard({
   const selCls =
     "w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200";
 
+  // מעצבות שיש להן משימות משויכות אך יומן ה-Google שלהן לא מחובר — הלו"ז לא יסתנכרן.
+  const assignedIds = new Set(tasks.map((t) => t.designer?.id).filter(Boolean) as string[]);
+  const unlinked = designers.filter(
+    (d) => assignedIds.has(d.id) && d.calendarConnected === false
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -113,6 +120,13 @@ export default function StudioBoard({
           </button>
         </div>
       </div>
+
+      {unlinked.length > 0 ? (
+        <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-2.5 text-xs text-amber-200">
+          ⚠️ יומן Google לא מחובר עבור: <b>{unlinked.map((d) => d.name).join(", ")}</b>. התזמון יופיע
+          בלו״ז המערכת, אך לא יסתנכרן ליומן ה-Google שלהן. לחיבור — כל מעצב/ת מתחבר/ת פעם אחת דרך ״הגדרות ← יומן Google״.
+        </div>
+      ) : null}
 
       {view === "table" ? (
       <Card className="!p-0">
@@ -323,6 +337,37 @@ function CreateBriefModal({
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState("");
+  const [refs, setRefs] = useState<{ fileKey: string; fileName: string; mimeType: string | null }[]>([]);
+  const [upBusy, setUpBusy] = useState(false);
+  const refInput = useRef<HTMLInputElement>(null);
+
+  async function uploadRefs(files: FileList) {
+    if (!form.clientId) {
+      setError("בחרו לקוח לפני העלאת רפרנסים");
+      return;
+    }
+    setUpBusy(true);
+    setError("");
+    try {
+      const added: { fileKey: string; fileName: string; mimeType: string | null }[] = [];
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("category", "design");
+        fd.append("clientId", form.clientId);
+        const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+        const uj = await up.json();
+        if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
+        added.push({ fileKey: uj.key, fileName: uj.fileName, mimeType: uj.mimeType });
+      }
+      setRefs((p) => [...p, ...added]);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUpBusy(false);
+      if (refInput.current) refInput.current.value = "";
+    }
+  }
 
   async function aiBrief() {
     if (!form.brief.trim()) {
@@ -361,6 +406,7 @@ function CreateBriefModal({
           designerId: form.designerId || null,
           scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
           dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : null,
+          references: refs.length ? refs : undefined,
         },
       });
       onCreated();
@@ -433,6 +479,49 @@ function CreateBriefModal({
             </Select>
           </Field>
         </div>
+
+        <Field label="רפרנסים / דוגמאות למעצב/ת">
+          <input
+            ref={refInput}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => e.target.files?.length && uploadRefs(e.target.files)}
+          />
+          <div className="flex flex-col gap-1.5">
+            {refs.map((r, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-200"
+              >
+                <Icon name="doc" className="h-4 w-4 text-cyan-400" />
+                <span className="flex-1 truncate">{r.fileName}</span>
+                <button
+                  type="button"
+                  onClick={() => setRefs((p) => p.filter((_, j) => j !== i))}
+                  className="text-slate-600 hover:text-rose-400"
+                >
+                  <Icon name="trash" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={upBusy || !form.clientId}
+            onClick={() => refInput.current?.click()}
+            className="mt-1"
+          >
+            <Icon name="upload" className="h-4 w-4" />
+            {upBusy ? "מעלה…" : "העלאת רפרנסים"}
+          </Button>
+          {!form.clientId ? (
+            <p className="mt-1 text-[11px] text-slate-500">בחרו לקוח כדי להעלות רפרנסים.</p>
+          ) : null}
+        </Field>
+
         <div className="grid grid-cols-3 gap-3">
           <Field label="מעצב/ת">
             <Select value={form.designerId} onChange={(e) => setForm({ ...form, designerId: e.target.value })}>
