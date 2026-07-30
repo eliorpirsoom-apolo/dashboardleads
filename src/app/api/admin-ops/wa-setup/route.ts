@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { handle, requireAdmin, ApiError } from "@/lib/api";
-import { whatsappConfigured, ingestInboundWhatsapp } from "@/lib/whatsapp";
+import { whatsappConfigured } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -11,22 +11,10 @@ function creds() {
   return { id: process.env.GREENAPI_ID_INSTANCE!, token: process.env.GREENAPI_API_TOKEN! };
 }
 
-// GET /api/admin-ops/wa-setup — הגדרות ה-webhook + אבחון (משרד בלבד).
-// ?selftest=1&phone=<phone> — בדיקת קליטה נכנסת מקצה-לקצה דרך הלוגיקה האמיתית.
-export const GET = handle(async (req) => {
+// GET /api/admin-ops/wa-setup — הגדרות ה-webhook + אבחון תיאום טוקן (משרד בלבד).
+export const GET = handle(async () => {
   await requireAdmin();
   if (!whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
-  const u = new URL(req.url);
-  if (u.searchParams.get("selftest")) {
-    const phone = u.searchParams.get("phone") || "";
-    const result = await ingestInboundWhatsapp({
-      typeWebhook: "incomingMessageReceived",
-      idMessage: `SELFTEST_${u.searchParams.get("id") || "1"}`,
-      senderData: { chatId: `${phone.replace(/\D/g, "")}@c.us`, senderName: "Self Test" },
-      messageData: { typeMessage: "textMessage", textMessageData: { textMessage: "בדיקת קליטה נכנסת (self-test)" } },
-    });
-    return NextResponse.json({ selftest: result });
-  }
   const { id, token } = creds();
   const res = await fetch(`${base()}/waInstance${id}/getSettings/${token}`);
   const j = await res.json().catch(() => ({}));
