@@ -7,8 +7,7 @@ import { createTaskEvent, deleteTaskEvent, syncTaskEvent } from "@/lib/gcal";
 import { sendMessage } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
 import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
-
-const APP_URL = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
+import { ensureApprovalToken, clientApprovalUrl } from "@/lib/studioLinks";
 
 // התראה ללקוח שיש עיצוב הממתין לאישור (מייל תמיד; וואטסאפ אם הופעל אצל הלקוח).
 async function notifyClientForApproval(task: any): Promise<void> {
@@ -17,10 +16,11 @@ async function notifyClientForApproval(task: any): Promise<void> {
     select: { messagingConfig: true, users: { where: { active: true }, select: { email: true, phone: true } } },
   });
   if (!client) return;
+  const token = task.approvalToken || (await ensureApprovalToken(task.id));
   const eff = effectiveFlags(parseMsgConfig(client.messagingConfig));
   const body =
     `יש עיצוב חדש הממתין לאישורך: "${task.title}".\n` +
-    `לצפייה ולמתן אישור/הערות: ${APP_URL}/app/studio`;
+    `לצפייה ולמתן אישור/הערות (ללא צורך בהתחברות): ${clientApprovalUrl(token)}`;
   for (const u of client.users) {
     if (u.email) {
       await sendMessage({

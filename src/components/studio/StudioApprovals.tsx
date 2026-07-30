@@ -13,6 +13,7 @@ interface Asset {
 }
 interface Msg {
   id: string;
+  assetId: string | null;
   authorSide: string;
   authorName: string | null;
   body: string;
@@ -207,7 +208,7 @@ export default function StudioApprovals() {
           <div className="mt-4 border-t border-slate-800 pt-3">
             <p className="mb-2 text-sm font-bold text-slate-300">התכתבות מול הסטודיו</p>
             <div className="mb-2 flex max-h-64 flex-col gap-2 overflow-y-auto">
-              {t.messages.map((m) => {
+              {t.messages.filter((m) => !m.assetId).map((m) => {
                 const mine = m.authorSide === "client";
                 return (
                   <div
@@ -221,7 +222,7 @@ export default function StudioApprovals() {
                   </div>
                 );
               })}
-              {t.messages.length === 0 ? (
+              {t.messages.filter((m) => !m.assetId).length === 0 ? (
                 <p className="text-xs text-slate-600">כאן תוכלו לכתוב לסטודיו ולקבל תשובות.</p>
               ) : null}
             </div>

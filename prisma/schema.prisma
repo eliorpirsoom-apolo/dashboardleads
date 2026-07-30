@@ -1020,6 +1020,7 @@ model DesignTask {
   clientNotifiedAt DateTime? // מתי נשלח ללקוח לאישור (לחישוב תזכורות)
   remindersSent    Int    @default(0)
   calendarTaskId   String? // ה-Task המקושר ביומן של המעצב/ת (נוצר בתזמון)
+  approvalToken    String? @unique // טוקן קישור-אישור ללקוח ללא התחברות
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1068,6 +1069,7 @@ model DesignMessage {
   id           String     @id @default(cuid())
   designTask   DesignTask @relation(fields: [designTaskId], references: [id], onDelete: Cascade)
   designTaskId String
+  assetId      String? // אם מוגדר — הערה ממוקדת על תוצר ספציפי; אחרת צ'אט כללי
   authorSide   String // "agency" | "client"
   authorId     String?
   authorName   String?

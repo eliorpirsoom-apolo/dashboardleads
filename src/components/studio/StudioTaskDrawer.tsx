@@ -26,6 +26,7 @@ interface Fb {
 }
 interface Msg {
   id: string;
+  assetId: string | null;
   authorSide: string;
   authorName: string | null;
   body: string;
@@ -64,39 +65,62 @@ function isImage(a: Asset): boolean {
 }
 
 // גלריית מדיה — תמונות כתמונות ממוזערות, שאר הקבצים ככרטיסים.
-function MediaGrid({ assets, onDelete }: { assets: Asset[]; onDelete?: (id: string) => void }) {
+function MediaGrid({
+  assets,
+  onDelete,
+  commentCount,
+  onComment,
+  activeId,
+}: {
+  assets: Asset[];
+  onDelete?: (id: string) => void;
+  commentCount?: (id: string) => number;
+  onComment?: (id: string) => void;
+  activeId?: string | null;
+}) {
   if (assets.length === 0) return <p className="text-xs text-slate-600">אין קבצים.</p>;
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {assets.map((a) => (
-        <div key={a.id} className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
-          <a href={`/api/design-assets/${a.id}`} target="_blank" rel="noopener noreferrer" className="block">
-            {isImage(a) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={`/api/design-assets/${a.id}`}
-                alt={a.fileName || "asset"}
-                className="h-28 w-full bg-slate-800 object-cover transition group-hover:opacity-90"
-              />
-            ) : (
-              <div className="flex h-28 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-300">
-                <Icon name="doc" className="h-8 w-8" />
-                <span className="px-2 text-center text-[10px]">קובץ</span>
-              </div>
-            )}
-            <div className="truncate px-2 py-1.5 text-[11px] text-slate-300">{a.fileName}</div>
-          </a>
-          {onDelete ? (
-            <button
-              onClick={() => onDelete(a.id)}
-              title="מחיקה"
-              className="absolute left-1 top-1 rounded-md bg-slate-950/70 p-1 text-slate-400 opacity-0 transition hover:text-rose-400 group-hover:opacity-100"
-            >
-              <Icon name="trash" className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
-        </div>
-      ))}
+      {assets.map((a) => {
+        const n = commentCount?.(a.id) ?? 0;
+        return (
+          <div key={a.id} className={`group relative overflow-hidden rounded-xl border bg-slate-900/40 ${activeId === a.id ? "border-cyan-500/60" : "border-slate-800"}`}>
+            <a href={`/api/design-assets/${a.id}`} target="_blank" rel="noopener noreferrer" className="block">
+              {isImage(a) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/api/design-assets/${a.id}`}
+                  alt={a.fileName || "asset"}
+                  className="h-28 w-full bg-slate-800 object-cover transition group-hover:opacity-90"
+                />
+              ) : (
+                <div className="flex h-28 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-300">
+                  <Icon name="doc" className="h-8 w-8" />
+                  <span className="px-2 text-center text-[10px]">קובץ</span>
+                </div>
+              )}
+              <div className="truncate px-2 py-1.5 text-[11px] text-slate-300">{a.fileName}</div>
+            </a>
+            {onComment ? (
+              <button
+                onClick={() => onComment(a.id)}
+                className="absolute bottom-1 left-1 rounded-md bg-slate-950/70 px-1.5 py-0.5 text-[10px] text-cyan-300 transition hover:bg-slate-900"
+              >
+                💬{n ? ` ${n}` : ""}
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button
+                onClick={() => onDelete(a.id)}
+                title="מחיקה"
+                className="absolute left-1 top-1 rounded-md bg-slate-950/70 p-1 text-slate-400 opacity-0 transition hover:text-rose-400 group-hover:opacity-100"
+              >
+                <Icon name="trash" className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -117,6 +141,8 @@ export default function StudioTaskDrawer({
   const [tab, setTab] = useState<"updates" | "chat">("chat");
   const [chatText, setChatText] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const [openAsset, setOpenAsset] = useState<string | null>(null);
+  const [assetCommentText, setAssetCommentText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const refFileRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -182,6 +208,21 @@ export default function StudioTaskDrawer({
     try {
       await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body } });
       setChatText("");
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  async function sendAssetComment(assetId: string) {
+    const body = assetCommentText.trim();
+    if (!body) return;
+    setChatBusy(true);
+    try {
+      await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body, assetId } });
+      setAssetCommentText("");
       await load();
     } catch (e: any) {
       setError(e.message);
@@ -267,6 +308,9 @@ export default function StudioTaskDrawer({
   const references = t.assets.filter((a) => a.kind === "reference");
   const deliverables = t.assets.filter((a) => a.kind === "deliverable");
   const clientAttachments = t.assets.filter((a) => a.kind === "feedback");
+  const assetMsgs = (id: string) => t.messages.filter((m) => m.assetId === id);
+  const generalMsgs = t.messages.filter((m) => !m.assetId);
+  const openAssetName = deliverables.find((a) => a.id === openAsset)?.fileName;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const waHref = t.clientPhone
     ? waLink(
@@ -356,7 +400,39 @@ export default function StudioTaskDrawer({
                 העלאת תוצר
               </Button>
             </div>
-            <MediaGrid assets={deliverables} onDelete={delAsset} />
+            <MediaGrid
+              assets={deliverables}
+              onDelete={delAsset}
+              commentCount={(id) => assetMsgs(id).length}
+              onComment={(id) => setOpenAsset(openAsset === id ? null : id)}
+              activeId={openAsset}
+            />
+            {openAsset ? (
+              <div className="mt-2 rounded-xl border border-cyan-800/40 bg-slate-900/60 p-3">
+                <p className="mb-2 text-xs font-bold text-cyan-300">הערות על הקובץ: {openAssetName}</p>
+                <div className="mb-2 flex flex-col gap-1.5">
+                  {assetMsgs(openAsset).map((m) => (
+                    <div key={m.id} className={`rounded-lg px-2.5 py-1.5 text-xs ${m.authorSide === "client" ? "self-start bg-slate-800/60 text-slate-100" : "self-end bg-cyan-600/15 text-slate-100"}`}>
+                      <span className="text-[10px] text-slate-400">{m.authorName || (m.authorSide === "client" ? "הלקוח" : "המשרד")} · {formatDateTime(m.createdAt)}</span>
+                      <p className="whitespace-pre-line">{m.body}</p>
+                    </div>
+                  ))}
+                  {assetMsgs(openAsset).length === 0 ? <p className="text-xs text-slate-600">אין הערות על הקובץ הזה.</p> : null}
+                </div>
+                <div className="flex items-end gap-2">
+                  <input
+                    value={assetCommentText}
+                    onChange={(e) => setAssetCommentText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") sendAssetComment(openAsset); }}
+                    placeholder="הערה על הקובץ…"
+                    className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200"
+                  />
+                  <Button size="sm" disabled={chatBusy || !assetCommentText.trim()} onClick={() => sendAssetComment(openAsset)}>
+                    שליחה
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           {/* Client attachments (screenshots with fix instructions) */}
@@ -434,7 +510,7 @@ export default function StudioTaskDrawer({
             <>
               <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
                 <div className="flex flex-col gap-2">
-                  {t.messages.map((m) => {
+                  {generalMsgs.map((m) => {
                     const mine = m.authorSide === "agency";
                     return (
                       <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-700/40 bg-cyan-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}>
@@ -445,7 +521,7 @@ export default function StudioTaskDrawer({
                       </div>
                     );
                   })}
-                  {t.messages.length === 0 ? (
+                  {generalMsgs.length === 0 ? (
                     <p className="text-center text-xs text-slate-600">אין עדיין הודעות. פתחו שיחה עם הלקוח 👇</p>
                   ) : null}
                   <div ref={chatEndRef} />

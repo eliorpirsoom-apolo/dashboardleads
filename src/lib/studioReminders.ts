@@ -1,10 +1,10 @@
 import { prisma } from "./prisma";
 import { sendMessage } from "./messaging";
 import { parseMsgConfig, effectiveFlags } from "./messagingConfig";
+import { clientApprovalUrl } from "./studioLinks";
 
 // תזכורות אישור לקוח לעיצובים + סימון משימות באיחור. רץ מה-cron.
 
-const APP_URL = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
 const DAY = 24 * 60 * 60 * 1000;
 
 // תזכורת ללקוח על עיצוב שממתין לאישור — כל יומיים, עד 3 פעמים.
@@ -34,7 +34,7 @@ export async function sendDueDesignApprovalReminders(): Promise<number> {
     if (now < dueAt) continue;
 
     const eff = effectiveFlags(parseMsgConfig(t.client?.messagingConfig));
-    const body = `תזכורת: העיצוב "${t.title}" ממתין לאישורך. לצפייה ואישור: ${APP_URL}/app/studio`;
+    const body = `תזכורת: העיצוב "${t.title}" ממתין לאישורך. לצפייה ואישור: ${clientApprovalUrl(t.approvalToken)}`;
     for (const u of t.client?.users ?? []) {
       if (u.email) {
         await sendMessage({
