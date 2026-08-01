@@ -42,6 +42,7 @@ const CreateDesignTask = z.object({
   specs: z.string().max(1000).nullable().optional(),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   designerId: z.string().nullable().optional(),
+  groupId: z.string().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
   references: z.array(RefAsset).max(15).optional(), // רפרנסים/דוגמאות למעצב/ת
@@ -54,6 +55,14 @@ export const POST = handle(async (req) => {
   const client = await prisma.client.findUnique({ where: { id: b.clientId } });
   if (!client) throw new ApiError(404, "לקוח לא נמצא");
 
+  const groupId = b.groupId || null;
+  // מוסיפים בסוף הקבוצה (orderIndex הבא).
+  const last = await prisma.designTask.findFirst({
+    where: { groupId },
+    orderBy: { orderIndex: "desc" },
+    select: { orderIndex: true },
+  });
+
   const task = await prisma.designTask.create({
     data: {
       clientId: b.clientId,
@@ -64,6 +73,8 @@ export const POST = handle(async (req) => {
       specs: b.specs || null,
       priority: b.priority,
       designerId: b.designerId || null,
+      groupId,
+      orderIndex: (last?.orderIndex ?? -1) + 1,
       scheduledAt: b.scheduledAt ? new Date(b.scheduledAt) : null,
       dueAt: b.dueAt ? new Date(b.dueAt) : null,
       createdById: user.id,

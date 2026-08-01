@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input, Select } from "@/components/ui";
@@ -32,12 +32,22 @@ interface DTask {
   dueAt: string | null;
   overdue: boolean;
   round: number;
+  groupId: string | null;
+  orderIndex: number;
   client: { id: string; name: string; color: string | null } | null;
   designer: { id: string; name: string } | null;
   _count?: { assets: number; feedback: number };
 }
+interface Group {
+  id: string;
+  name: string;
+  color: string | null;
+  orderIndex: number;
+}
 
 const PRIORITY_COLOR: Record<string, string> = { low: "#64748b", normal: "#38bdf8", high: "#f87171" };
+// פלטת צבעים לכותרות קבוצות (לפי סדר), אם לא הוגדר צבע.
+const GROUP_PALETTE = ["#38bdf8", "#a78bfa", "#34d399", "#f59e0b", "#f472b6", "#22d3ee", "#fb7185", "#84cc16"];
 
 export default function StudioBoard({
   clients,
@@ -51,6 +61,10 @@ export default function StudioBoard({
   const [designerFilter, setDesignerFilter] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<"table" | "capacity">("table");
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null); // `${groupKey}:${taskId|"end"}`
 
   const load = useCallback(async () => {
     const q = designerFilter ? `?designerId=${designerFilter}` : "";
@@ -58,9 +72,17 @@ export default function StudioBoard({
     setTasks(d.tasks);
   }, [designerFilter]);
 
+  const loadGroups = useCallback(async () => {
+    const d = await api<{ groups: Group[] }>("/api/design-groups");
+    setGroups(d.groups);
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
 
   async function patch(id: string, data: Record<string, unknown>) {
     await api(`/api/design-tasks/${id}`, { method: "PATCH", json: data });
@@ -70,6 +92,47 @@ export default function StudioBoard({
     if (!confirm("למחוק את משימת העיצוב?")) return;
     await api(`/api/design-tasks/${id}`, { method: "DELETE" });
     load();
+  }
+
+  async function addGroup() {
+    const name = prompt("שם הקבוצה החדשה:");
+    if (!name?.trim()) return;
+    await api("/api/design-groups", { method: "POST", json: { name: name.trim() } });
+    loadGroups();
+  }
+  async function renameGroup(g: Group) {
+    const name = prompt("שם הקבוצה:", g.name);
+    if (!name?.trim() || name.trim() === g.name) return;
+    await api(`/api/design-groups/${g.id}`, { method: "PATCH", json: { name: name.trim() } });
+    loadGroups();
+  }
+  async function deleteGroup(g: Group) {
+    if (!confirm(`למחוק את הקבוצה ״${g.name}״? המשימות יעברו ל״ללא קבוצה״ (לא יימחקו).`)) return;
+    await api(`/api/design-groups/${g.id}`, { method: "DELETE" });
+    await loadGroups();
+    load();
+  }
+
+  const groupIds = new Set(groups.map((g) => g.id));
+  const effGroup = (t: DTask): string | null => (t.groupId && groupIds.has(t.groupId) ? t.groupId : null);
+  const byOrder = (a: DTask, b: DTask) => a.orderIndex - b.orderIndex || (a.title < b.title ? -1 : 1);
+  const dndEnabled = !designerFilter; // גרירה מושבתת בזמן סינון (שלא לשבש סדר של פריטים מוסתרים)
+
+  async function handleDrop(targetGroupId: string | null, beforeTaskId: string | null) {
+    const id = dragId;
+    setDragId(null);
+    setDragOver(null);
+    if (!id || !dndEnabled) return;
+    const current = tasks.filter((t) => effGroup(t) === targetGroupId).sort(byOrder);
+    const without = current.filter((t) => t.id !== id);
+    const foundIdx = beforeTaskId ? without.findIndex((t) => t.id === beforeTaskId) : -1;
+    const idx = beforeTaskId && foundIdx >= 0 ? foundIdx : without.length;
+    const newOrder = [...without.slice(0, idx).map((t) => t.id), id, ...without.slice(idx).map((t) => t.id)];
+    try {
+      await api("/api/design-tasks/reorder", { method: "POST", json: { groupId: targetGroupId, taskIds: newOrder } });
+    } finally {
+      load();
+    }
   }
   function toLocalInput(iso: string | null): string {
     if (!iso) return "";
@@ -84,6 +147,75 @@ export default function StudioBoard({
   const assignedIds = new Set(tasks.map((t) => t.designer?.id).filter(Boolean) as string[]);
   const unlinked = designers.filter(
     (d) => assignedIds.has(d.id) && d.calendarConnected === false
+  );
+
+  const gidOf = (key: string): string | null => (key === "none" ? null : key);
+  const sections = [
+    ...groups.map((g, i) => ({
+      key: g.id,
+      group: g as Group | null,
+      color: g.color || GROUP_PALETTE[i % GROUP_PALETTE.length],
+      items: tasks.filter((t) => effGroup(t) === g.id).sort(byOrder),
+    })),
+    { key: "none", group: null as Group | null, color: "#64748b", items: tasks.filter((t) => effGroup(t) === null).sort(byOrder) },
+  ];
+
+  const renderTaskRow = (t: DTask, groupKey: string) => (
+    <tr
+      key={t.id}
+      draggable={dndEnabled}
+      onDragStart={() => setDragId(t.id)}
+      onDragEnd={() => { setDragId(null); setDragOver(null); }}
+      onDragOver={(e) => { if (!dndEnabled) return; e.preventDefault(); setDragOver(`${groupKey}:${t.id}`); }}
+      onDrop={(e) => { if (!dndEnabled) return; e.preventDefault(); handleDrop(gidOf(groupKey), t.id); }}
+      className={`border-b border-slate-800/60 align-middle hover:bg-slate-900/30 ${dragId === t.id ? "opacity-40" : ""} ${dragOver === `${groupKey}:${t.id}` ? "border-t-2 border-t-cyan-400" : ""}`}
+    >
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-2">
+          {dndEnabled ? <span className="cursor-grab select-none text-slate-600" title="גרירה">⠿</span> : null}
+          <div>
+            <button onClick={() => setOpenId(t.id)} className="text-right font-medium text-slate-100 hover:text-cyan-300">
+              {t.title}
+            </button>
+            {t.overdue || t.round > 1 ? (
+              <div className="mt-1 flex gap-1">
+                {t.overdue ? <Chip color="#f87171">באיחור</Chip> : null}
+                {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-2">
+        {t.client ? <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip> : "—"}
+      </td>
+      <td className="px-3 py-2 text-slate-300">{briefTypeLabel(t.briefType)}</td>
+      <td className="px-3 py-2">
+        <Chip color={PRIORITY_COLOR[t.priority]}>{DESIGN_PRIORITIES.find((p) => p.value === t.priority)?.label}</Chip>
+      </td>
+      <td className="px-3 py-2 w-40">
+        <select value={t.designer?.id ?? ""} onChange={(e) => patch(t.id, { designerId: e.target.value || null })} className={selCls}>
+          <option value="">— לא משויך —</option>
+          {designers.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
+        </select>
+      </td>
+      <td className="px-3 py-2 w-48">
+        <input type="datetime-local" dir="ltr" value={toLocalInput(t.scheduledAt)}
+          onChange={(e) => patch(t.id, { scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+          className={selCls} />
+      </td>
+      <td className="px-3 py-2 text-xs text-slate-400">{t.dueAt ? formatDateTime(t.dueAt) : "—"}</td>
+      <td className="px-3 py-2 w-44">
+        <select value={t.status} onChange={(e) => patch(t.id, { status: e.target.value })} className={selCls} style={{ borderColor: DESIGN_STATUS_COLORS[t.status] }}>
+          {DESIGN_STATUSES.map((s) => (<option key={s} value={s}>{DESIGN_STATUS_LABELS[s]}</option>))}
+        </select>
+      </td>
+      <td className="px-3 py-2 text-left">
+        <button onClick={() => del(t.id)} title="מחיקה" className="text-slate-600 transition hover:text-rose-400">
+          <Icon name="trash" className="h-4 w-4" />
+        </button>
+      </td>
+    </tr>
   );
 
   return (
@@ -130,8 +262,17 @@ export default function StudioBoard({
 
       {view === "table" ? (
       <Card className="!p-0">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-2">
+          <p className="text-[11px] text-slate-500">
+            {dndEnabled ? "גררו משימות ⠿ לסידור בתוך קבוצה או להעברה בין קבוצות" : "בטלו סינון מעצב/ת כדי לגרור ולסדר"}
+          </p>
+          <Button size="sm" variant="ghost" onClick={addGroup}>
+            <Icon name="plus" className="h-4 w-4" />
+            קבוצה חדשה
+          </Button>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-right text-sm">
+          <table className="w-full min-w-[980px] text-right text-sm">
             <thead>
               <tr className="border-b border-slate-800 text-xs text-slate-500">
                 <th className="px-3 py-2.5 font-medium">משימה</th>
@@ -153,86 +294,50 @@ export default function StudioBoard({
                   </td>
                 </tr>
               ) : null}
-              {tasks.map((t) => (
-                <tr key={t.id} className="border-b border-slate-800/60 align-middle hover:bg-slate-900/30">
-                  <td className="px-3 py-2">
-                    <button
-                      onClick={() => setOpenId(t.id)}
-                      className="text-right font-medium text-slate-100 hover:text-cyan-300"
+              {sections.map((sec) => {
+                // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
+                if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
+                const isCollapsed = !!collapsed[sec.key];
+                return (
+                  <Fragment key={sec.key}>
+                    <tr
+                      className="border-b border-slate-800 bg-slate-900/40"
+                      onDragOver={(e) => { if (!dndEnabled) return; e.preventDefault(); setDragOver(`${sec.key}:end`); }}
+                      onDrop={(e) => { if (!dndEnabled) return; e.preventDefault(); handleDrop(gidOf(sec.key), null); }}
                     >
-                      {t.title}
-                    </button>
-                    {t.overdue || t.round > 1 ? (
-                      <div className="mt-1 flex gap-1">
-                        {t.overdue ? <Chip color="#f87171">באיחור</Chip> : null}
-                        {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
-                      </div>
+                      <td colSpan={9} className="px-3 py-2" style={{ boxShadow: `inset 4px 0 0 ${sec.color}` }}>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setCollapsed((p) => ({ ...p, [sec.key]: !p[sec.key] }))} className="text-slate-400 hover:text-slate-100">
+                            {isCollapsed ? "▸" : "▾"}
+                          </button>
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: sec.color }} />
+                          <span className="font-bold text-slate-100">{sec.group ? sec.group.name : "ללא קבוצה"}</span>
+                          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{sec.items.length}</span>
+                          {sec.group ? (
+                            <span className="mr-auto flex items-center gap-2">
+                              <button onClick={() => renameGroup(sec.group!)} title="שינוי שם" className="text-slate-500 hover:text-cyan-300"><Icon name="edit" className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => deleteGroup(sec.group!)} title="מחיקת קבוצה" className="text-slate-500 hover:text-rose-400"><Icon name="trash" className="h-3.5 w-3.5" /></button>
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {!isCollapsed && sec.items.map((t) => renderTaskRow(t, sec.key))}
+                    {!isCollapsed && dndEnabled ? (
+                      <tr
+                        onDragOver={(e) => { e.preventDefault(); setDragOver(`${sec.key}:end`); }}
+                        onDrop={(e) => { e.preventDefault(); handleDrop(gidOf(sec.key), null); }}
+                      >
+                        <td colSpan={9} className={`px-3 py-1.5 text-center text-[11px] ${dragOver === `${sec.key}:end` ? "bg-cyan-500/10 text-cyan-300" : "text-slate-700"}`}>
+                          גררו לכאן להוספה לקבוצה
+                        </td>
+                      </tr>
+                    ) : !isCollapsed && sec.items.length === 0 ? (
+                      <tr><td colSpan={9} className="px-3 py-3 text-center text-[11px] text-slate-600">אין משימות בקבוצה</td></tr>
                     ) : null}
-                  </td>
-                  <td className="px-3 py-2">
-                    {t.client ? <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip> : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-slate-300">{briefTypeLabel(t.briefType)}</td>
-                  <td className="px-3 py-2">
-                    <Chip color={PRIORITY_COLOR[t.priority]}>
-                      {DESIGN_PRIORITIES.find((p) => p.value === t.priority)?.label}
-                    </Chip>
-                  </td>
-                  <td className="px-3 py-2 w-40">
-                    <select
-                      value={t.designer?.id ?? ""}
-                      onChange={(e) => patch(t.id, { designerId: e.target.value || null })}
-                      className={selCls}
-                    >
-                      <option value="">— לא משויך —</option>
-                      {designers.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2 w-48">
-                    <input
-                      type="datetime-local"
-                      dir="ltr"
-                      value={toLocalInput(t.scheduledAt)}
-                      onChange={(e) =>
-                        patch(t.id, {
-                          scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null,
-                        })
-                      }
-                      className={selCls}
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-xs text-slate-400">
-                    {t.dueAt ? formatDateTime(t.dueAt) : "—"}
-                  </td>
-                  <td className="px-3 py-2 w-44">
-                    <select
-                      value={t.status}
-                      onChange={(e) => patch(t.id, { status: e.target.value })}
-                      className={selCls}
-                      style={{ borderColor: DESIGN_STATUS_COLORS[t.status] }}
-                    >
-                      {DESIGN_STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {DESIGN_STATUS_LABELS[s]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2 text-left">
-                    <button
-                      onClick={() => del(t.id)}
-                      title="מחיקה"
-                      className="text-slate-600 transition hover:text-rose-400"
-                    >
-                      <Icon name="trash" className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -245,6 +350,7 @@ export default function StudioBoard({
         <CreateBriefModal
           clients={clients}
           designers={designers}
+          groups={groups}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
@@ -315,11 +421,13 @@ function CapacityView({
 function CreateBriefModal({
   clients,
   designers,
+  groups,
   onClose,
   onCreated,
 }: {
   clients: Opt[];
   designers: Opt[];
+  groups: Group[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -331,6 +439,7 @@ function CreateBriefModal({
     specs: "",
     priority: "normal",
     designerId: "",
+    groupId: "",
     scheduledAt: "",
     dueAt: "",
   });
@@ -404,6 +513,7 @@ function CreateBriefModal({
           specs: form.specs || null,
           priority: form.priority,
           designerId: form.designerId || null,
+          groupId: form.groupId || null,
           scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
           dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : null,
           references: refs.length ? refs : undefined,
@@ -479,6 +589,17 @@ function CreateBriefModal({
             </Select>
           </Field>
         </div>
+
+        <Field label="קבוצה בלוח">
+          <Select value={form.groupId} onChange={(e) => setForm({ ...form, groupId: e.target.value })}>
+            <option value="">— ללא קבוצה —</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
         <Field label="רפרנסים / דוגמאות למעצב/ת">
           <input

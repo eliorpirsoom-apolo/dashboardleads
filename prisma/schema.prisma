@@ -1022,6 +1022,9 @@ model DesignTask {
   remindersSent    Int    @default(0)
   calendarTaskId   String? // ה-Task המקושר ביומן של המעצב/ת (נוצר בתזמון)
   approvalToken    String? @unique // טוקן קישור-אישור ללקוח ללא התחברות
+  group      DesignGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  groupId    String? // קבוצה בלוח הסטודיו (כמו Monday)
+  orderIndex Int     @default(0) // סדר בתוך הקבוצה (לגרירה)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1032,6 +1035,18 @@ model DesignTask {
   @@index([status])
   @@index([designerId, scheduledAt])
   @@index([clientId])
+  @@index([groupId, orderIndex])
+}
+
+// קבוצה בלוח הסטודיו (כמו Monday) — לסידור המשימות.
+model DesignGroup {
+  id         String   @id @default(cuid())
+  name       String
+  color      String?
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  tasks DesignTask[]
 }
 
 model DesignAsset {
