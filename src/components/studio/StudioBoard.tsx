@@ -65,6 +65,9 @@ export default function StudioBoard({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null); // `${groupKey}:${taskId|"end"}`
+  const [dragGroupId, setDragGroupId] = useState<string | null>(null); // גרירת בלוק-קבוצה
+  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  const [createGroupId, setCreateGroupId] = useState<string | null>(null); // קבוצה מוגדרת-מראש בבריף חדש
 
   const load = useCallback(async () => {
     const q = designerFilter ? `?designerId=${designerFilter}` : "";
@@ -117,6 +120,27 @@ export default function StudioBoard({
   const effGroup = (t: DTask): string | null => (t.groupId && groupIds.has(t.groupId) ? t.groupId : null);
   const byOrder = (a: DTask, b: DTask) => a.orderIndex - b.orderIndex || (a.title < b.title ? -1 : 1);
   const dndEnabled = !designerFilter; // גרירה מושבתת בזמן סינון (שלא לשבש סדר של פריטים מוסתרים)
+
+  async function handleGroupDrop(targetGroupId: string) {
+    const id = dragGroupId;
+    setDragGroupId(null);
+    setDragOverGroupId(null);
+    if (!id || !dndEnabled || id === targetGroupId) return;
+    const order = groups.map((g) => g.id).filter((x) => x !== id);
+    const idx = order.indexOf(targetGroupId);
+    const at = idx < 0 ? order.length : idx;
+    const newOrder = [...order.slice(0, at), id, ...order.slice(at)];
+    try {
+      await api("/api/design-groups/reorder", { method: "POST", json: { groupIds: newOrder } });
+    } finally {
+      loadGroups();
+    }
+  }
+
+  function openCreateInGroup(groupId: string | null) {
+    setCreateGroupId(groupId);
+    setShowCreate(true);
+  }
 
   async function handleDrop(targetGroupId: string | null, beforeTaskId: string | null) {
     const id = dragId;
@@ -218,10 +242,94 @@ export default function StudioBoard({
     </tr>
   );
 
+  // שורת כותרות-העמודות (חוזרת בכל בלוק-קבוצה, כמו במאנדיי).
+  const columnsHead = (
+    <thead>
+      <tr className="border-b border-slate-800 text-xs text-slate-500">
+        <th className="px-3 py-2 font-medium">משימה</th>
+        <th className="px-3 py-2 font-medium">לקוח</th>
+        <th className="px-3 py-2 font-medium">סוג</th>
+        <th className="px-3 py-2 font-medium">עדיפות</th>
+        <th className="px-3 py-2 font-medium">מעצב/ת</th>
+        <th className="px-3 py-2 font-medium">מתוזמן ללו״ז</th>
+        <th className="px-3 py-2 font-medium">דדליין</th>
+        <th className="px-3 py-2 font-medium">סטטוס</th>
+        <th className="px-3 py-2"></th>
+      </tr>
+    </thead>
+  );
+
+  // בלוק-קבוצה עצמאי: כותרת + טבלה משלו (עמודות משלו), ניתן לכיווץ ולגרירה.
+  const renderGroupBlock = (sec: { key: string; group: Group | null; color: string; items: DTask[] }) => {
+    const isCollapsed = !!collapsed[sec.key];
+    const isGroup = !!sec.group;
+    return (
+      <Card key={sec.key} className="!p-0 overflow-hidden">
+        <div
+          draggable={isGroup && dndEnabled}
+          onDragStart={isGroup ? () => setDragGroupId(sec.group!.id) : undefined}
+          onDragEnd={() => { setDragGroupId(null); setDragOverGroupId(null); }}
+          onDragOver={(e) => { if (!dragGroupId || !isGroup) return; e.preventDefault(); setDragOverGroupId(sec.group!.id); }}
+          onDrop={(e) => { if (!dragGroupId || !isGroup) return; e.preventDefault(); handleGroupDrop(sec.group!.id); }}
+          className={`flex items-center gap-2 px-3 py-2.5 ${dragOverGroupId === sec.group?.id ? "bg-cyan-500/10" : ""} ${dragGroupId === sec.group?.id ? "opacity-40" : ""}`}
+          style={{ boxShadow: `inset 4px 0 0 ${sec.color}` }}
+        >
+          {isGroup && dndEnabled ? <span className="cursor-grab select-none text-slate-600" title="גרירת קבוצה">⠿</span> : null}
+          <button onClick={() => setCollapsed((p) => ({ ...p, [sec.key]: !p[sec.key] }))} className="text-slate-400 hover:text-slate-100">
+            {isCollapsed ? "▸" : "▾"}
+          </button>
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: sec.color }} />
+          <span className="font-bold text-slate-100">{sec.group ? sec.group.name : "ללא קבוצה"}</span>
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{sec.items.length}</span>
+          <span className="mr-auto flex items-center gap-3">
+            <button onClick={() => openCreateInGroup(gidOf(sec.key))} title="הוספת משימה לקבוצה" className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300">
+              <Icon name="plus" className="h-3.5 w-3.5" /> משימה
+            </button>
+            {isGroup ? (
+              <>
+                <button onClick={() => renameGroup(sec.group!)} title="שינוי שם" className="text-slate-500 hover:text-cyan-300"><Icon name="edit" className="h-3.5 w-3.5" /></button>
+                <button onClick={() => deleteGroup(sec.group!)} title="מחיקת קבוצה" className="text-slate-500 hover:text-rose-400"><Icon name="trash" className="h-3.5 w-3.5" /></button>
+              </>
+            ) : null}
+          </span>
+        </div>
+        {!isCollapsed ? (
+          <div className="overflow-x-auto border-t border-slate-800">
+            <table className="w-full min-w-[980px] text-right text-sm">
+              {columnsHead}
+              <tbody>
+                {sec.items.map((t) => renderTaskRow(t, sec.key))}
+                {dndEnabled ? (
+                  <tr
+                    onDragOver={(e) => { if (dragGroupId) return; e.preventDefault(); setDragOver(`${sec.key}:end`); }}
+                    onDrop={(e) => { if (dragGroupId) return; e.preventDefault(); handleDrop(gidOf(sec.key), null); }}
+                  >
+                    <td colSpan={9} className={`px-3 py-1.5 text-center text-[11px] ${dragOver === `${sec.key}:end` ? "bg-cyan-500/10 text-cyan-300" : "text-slate-700"}`}>
+                      גררו לכאן להוספה לקבוצה
+                    </td>
+                  </tr>
+                ) : sec.items.length === 0 ? (
+                  <tr><td colSpan={9} className="px-3 py-3 text-center text-[11px] text-slate-600">אין משימות בקבוצה</td></tr>
+                ) : null}
+                <tr>
+                  <td colSpan={9} className="border-t border-slate-800/60 px-3 py-2">
+                    <button onClick={() => openCreateInGroup(gidOf(sec.key))} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-cyan-300">
+                      <Icon name="plus" className="h-3.5 w-3.5" /> הוספת משימה
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </Card>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => setShowCreate(true)}>
+        <Button onClick={() => openCreateInGroup(null)}>
           <Icon name="plus" className="h-4 w-4" />
           בריף חדש
         </Button>
@@ -261,87 +369,29 @@ export default function StudioBoard({
       ) : null}
 
       {view === "table" ? (
-      <Card className="!p-0">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-2">
-          <p className="text-[11px] text-slate-500">
-            {dndEnabled ? "גררו משימות ⠿ לסידור בתוך קבוצה או להעברה בין קבוצות" : "בטלו סינון מעצב/ת כדי לגרור ולסדר"}
-          </p>
-          <Button size="sm" variant="ghost" onClick={addGroup}>
-            <Icon name="plus" className="h-4 w-4" />
-            קבוצה חדשה
-          </Button>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-slate-500">
+              {dndEnabled
+                ? "גררו משימות ⠿ בתוך/בין קבוצות · גררו כותרת קבוצה ⠿ לשינוי סדר הבלוקים"
+                : "בטלו סינון מעצב/ת כדי לגרור ולסדר"}
+            </p>
+            <Button size="sm" variant="ghost" onClick={addGroup}>
+              <Icon name="plus" className="h-4 w-4" />
+              קבוצה חדשה
+            </Button>
+          </div>
+          {tasks.length === 0 && groups.length === 0 ? (
+            <Card>
+              <p className="py-8 text-center text-sm text-slate-600">אין משימות עיצוב עדיין. לחצו על ״בריף חדש״ או ״קבוצה חדשה״.</p>
+            </Card>
+          ) : null}
+          {sections.map((sec) => {
+            // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
+            if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
+            return <Fragment key={sec.key}>{renderGroupBlock(sec)}</Fragment>;
+          })}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-right text-sm">
-            <thead>
-              <tr className="border-b border-slate-800 text-xs text-slate-500">
-                <th className="px-3 py-2.5 font-medium">משימה</th>
-                <th className="px-3 py-2.5 font-medium">לקוח</th>
-                <th className="px-3 py-2.5 font-medium">סוג</th>
-                <th className="px-3 py-2.5 font-medium">עדיפות</th>
-                <th className="px-3 py-2.5 font-medium">מעצב/ת</th>
-                <th className="px-3 py-2.5 font-medium">מתוזמן ללו״ז</th>
-                <th className="px-3 py-2.5 font-medium">דדליין</th>
-                <th className="px-3 py-2.5 font-medium">סטטוס</th>
-                <th className="px-3 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-10 text-center text-sm text-slate-600">
-                    אין משימות עיצוב עדיין. לחצו על ״בריף חדש״.
-                  </td>
-                </tr>
-              ) : null}
-              {sections.map((sec) => {
-                // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
-                if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
-                const isCollapsed = !!collapsed[sec.key];
-                return (
-                  <Fragment key={sec.key}>
-                    <tr
-                      className="border-b border-slate-800 bg-slate-900/40"
-                      onDragOver={(e) => { if (!dndEnabled) return; e.preventDefault(); setDragOver(`${sec.key}:end`); }}
-                      onDrop={(e) => { if (!dndEnabled) return; e.preventDefault(); handleDrop(gidOf(sec.key), null); }}
-                    >
-                      <td colSpan={9} className="px-3 py-2" style={{ boxShadow: `inset 4px 0 0 ${sec.color}` }}>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => setCollapsed((p) => ({ ...p, [sec.key]: !p[sec.key] }))} className="text-slate-400 hover:text-slate-100">
-                            {isCollapsed ? "▸" : "▾"}
-                          </button>
-                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: sec.color }} />
-                          <span className="font-bold text-slate-100">{sec.group ? sec.group.name : "ללא קבוצה"}</span>
-                          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{sec.items.length}</span>
-                          {sec.group ? (
-                            <span className="mr-auto flex items-center gap-2">
-                              <button onClick={() => renameGroup(sec.group!)} title="שינוי שם" className="text-slate-500 hover:text-cyan-300"><Icon name="edit" className="h-3.5 w-3.5" /></button>
-                              <button onClick={() => deleteGroup(sec.group!)} title="מחיקת קבוצה" className="text-slate-500 hover:text-rose-400"><Icon name="trash" className="h-3.5 w-3.5" /></button>
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                    {!isCollapsed && sec.items.map((t) => renderTaskRow(t, sec.key))}
-                    {!isCollapsed && dndEnabled ? (
-                      <tr
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(`${sec.key}:end`); }}
-                        onDrop={(e) => { e.preventDefault(); handleDrop(gidOf(sec.key), null); }}
-                      >
-                        <td colSpan={9} className={`px-3 py-1.5 text-center text-[11px] ${dragOver === `${sec.key}:end` ? "bg-cyan-500/10 text-cyan-300" : "text-slate-700"}`}>
-                          גררו לכאן להוספה לקבוצה
-                        </td>
-                      </tr>
-                    ) : !isCollapsed && sec.items.length === 0 ? (
-                      <tr><td colSpan={9} className="px-3 py-3 text-center text-[11px] text-slate-600">אין משימות בקבוצה</td></tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
       ) : (
         <CapacityView tasks={tasks} designers={designers} onOpen={setOpenId} />
       )}
@@ -351,9 +401,11 @@ export default function StudioBoard({
           clients={clients}
           designers={designers}
           groups={groups}
-          onClose={() => setShowCreate(false)}
+          initialGroupId={createGroupId}
+          onClose={() => { setShowCreate(false); setCreateGroupId(null); }}
           onCreated={() => {
             setShowCreate(false);
+            setCreateGroupId(null);
             load();
           }}
         />
@@ -422,12 +474,14 @@ function CreateBriefModal({
   clients,
   designers,
   groups,
+  initialGroupId,
   onClose,
   onCreated,
 }: {
   clients: Opt[];
   designers: Opt[];
   groups: Group[];
+  initialGroupId?: string | null;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -439,7 +493,7 @@ function CreateBriefModal({
     specs: "",
     priority: "normal",
     designerId: "",
-    groupId: "",
+    groupId: initialGroupId || "",
     scheduledAt: "",
     dueAt: "",
   });
