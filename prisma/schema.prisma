@@ -1075,6 +1075,10 @@ model WhatsappMessage {
   fromPhone   String? // מספר השולח (בהודעה נכנסת)
   authorName  String? // שם השולח מהמשרד (בהודעה יוצאת)
   waMessageId String? @unique // idMessage מ-Green API (למניעת כפילויות)
+  mediaKey    String? // מפתח R2 של קובץ יוצא (לצפייה במערכת)
+  mediaUrl    String? // קישור חיצוני לקובץ נכנס (downloadUrl מ-Green API)
+  mediaName   String? // שם הקובץ
+  mediaMime   String? // סוג הקובץ
   createdAt   DateTime @default(now())
 
   @@index([clientId, createdAt])

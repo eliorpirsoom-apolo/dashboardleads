@@ -39,6 +39,10 @@ interface WaMsg {
   body: string;
   authorName: string | null;
   fromPhone: string | null;
+  mediaKey: string | null;
+  mediaUrl: string | null;
+  mediaName: string | null;
+  mediaMime: string | null;
   createdAt: string;
 }
 interface Detail {
@@ -68,12 +72,14 @@ function MediaGrid({
   onDelete,
   commentCount,
   onComment,
+  onWhatsapp,
   activeId,
 }: {
   assets: Asset[];
   onDelete?: (id: string) => void;
   commentCount?: (id: string) => number;
   onComment?: (id: string) => void;
+  onWhatsapp?: (id: string) => void;
   activeId?: string | null;
 }) {
   if (assets.length === 0) return <p className="text-xs text-slate-600">אין קבצים.</p>;
@@ -105,6 +111,15 @@ function MediaGrid({
                 className="absolute bottom-1 left-1 rounded-md bg-slate-950/70 px-1.5 py-0.5 text-[10px] text-cyan-300 transition hover:bg-slate-900"
               >
                 💬{n ? ` ${n}` : ""}
+              </button>
+            ) : null}
+            {onWhatsapp ? (
+              <button
+                onClick={() => onWhatsapp(a.id)}
+                title="שליחה ללקוח בוואטסאפ"
+                className="absolute bottom-1 right-1 rounded-md bg-slate-950/70 px-1.5 py-0.5 text-[11px] text-emerald-300 transition hover:bg-slate-900"
+              >
+                וואטסאפ
               </button>
             ) : null}
             {onDelete ? (
@@ -147,8 +162,11 @@ export default function StudioTaskDrawer({
   const [waConfigured, setWaConfigured] = useState(true);
   const [waText, setWaText] = useState("");
   const [waBusy, setWaBusy] = useState(false);
+  const [waAvatar, setWaAvatar] = useState<string | null>(null);
+  const [waAvatarTried, setWaAvatarTried] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const refFileRef = useRef<HTMLInputElement>(null);
+  const waFileRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const clientId = t?.client?.id;
 
@@ -171,6 +189,51 @@ export default function StudioTaskDrawer({
     const iv = setInterval(loadWa, 15000);
     return () => clearInterval(iv);
   }, [tab, clientId, loadWa]);
+
+  // תמונת פרופיל + מספר הלקוח (פעם אחת בפתיחת טאב הוואטסאפ).
+  useEffect(() => {
+    if (tab !== "whatsapp" || !clientId || waAvatarTried) return;
+    setWaAvatarTried(true);
+    api<{ phone: string | null; avatarUrl: string | null }>(`/api/whatsapp/${clientId}/avatar`)
+      .then((d) => {
+        setWaAvatar(d.avatarUrl || null);
+        if (d.phone) setWaPhone(d.phone);
+      })
+      .catch(() => {});
+  }, [tab, clientId, waAvatarTried]);
+
+  async function sendWaMedia(payload: { assetId?: string; fileKey?: string; fileName?: string; mimeType?: string | null; caption?: string }) {
+    if (!clientId) return;
+    setWaBusy(true);
+    setError("");
+    try {
+      await api(`/api/whatsapp/${clientId}/media`, { method: "POST", json: payload });
+      await loadWa();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setWaBusy(false);
+    }
+  }
+
+  async function uploadWaFile(file: File) {
+    if (!clientId) return;
+    setWaBusy(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("category", "design");
+      fd.append("clientId", clientId);
+      const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+      const uj = await up.json();
+      if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
+      await sendWaMedia({ fileKey: uj.key, fileName: uj.fileName, mimeType: uj.mimeType });
+    } catch (e: any) {
+      setError(e.message);
+      setWaBusy(false);
+    }
+  }
 
   async function sendWa() {
     const body = waText.trim();
@@ -401,6 +464,7 @@ export default function StudioTaskDrawer({
               onDelete={delAsset}
               commentCount={(id) => assetMsgs(id).length}
               onComment={(id) => setOpenAsset(openAsset === id ? null : id)}
+              onWhatsapp={clientId ? (id) => sendWaMedia({ assetId: id }) : undefined}
               activeId={openAsset}
             />
             {openAsset ? (
@@ -541,6 +605,21 @@ export default function StudioTaskDrawer({
             </>
           ) : tab === "whatsapp" ? (
             <>
+              {/* כותרת: תמונת פרופיל + מספר הלקוח */}
+              <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-2.5">
+                {waAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={waAvatar} alt="avatar" className="h-9 w-9 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600/20 text-emerald-300">
+                    <Icon name="whatsapp" className="h-5 w-5" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-200">{t.client?.name}</p>
+                  <p dir="ltr" className="truncate text-right text-xs text-slate-500">{waPhone || "אין מספר"}</p>
+                </div>
+              </div>
               <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
                 {!waConfigured ? (
                   <p className="mb-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-center text-xs text-slate-500">וואטסאפ אינו מחובר במערכת.</p>
@@ -550,9 +629,21 @@ export default function StudioTaskDrawer({
                 <div className="flex flex-col gap-2">
                   {waMsgs.map((m) => {
                     const mine = m.direction === "out";
+                    const href = m.mediaKey ? `/api/wa-media/${m.id}` : m.mediaUrl || null;
+                    const isImg = (m.mediaMime || "").startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(m.mediaName || "");
                     return (
                       <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-emerald-700/40 bg-emerald-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}>
                         <p className="mb-0.5 text-[10px] text-slate-400">{mine ? m.authorName || "המשרד" : "הלקוח (וואטסאפ)"} · {formatDateTime(m.createdAt)}</p>
+                        {href && isImg ? (
+                          <a href={href} target="_blank" rel="noopener noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={href} alt={m.mediaName || "media"} className="mb-1 max-h-48 rounded-lg object-cover" />
+                          </a>
+                        ) : href ? (
+                          <a href={href} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200">
+                            <Icon name="doc" className="h-4 w-4" /> {m.mediaName || "קובץ"}
+                          </a>
+                        ) : null}
                         <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
                       </div>
                     );
@@ -565,6 +656,16 @@ export default function StudioTaskDrawer({
               </div>
               <div className="border-t border-slate-800 p-3">
                 <div className="flex items-end gap-2">
+                  <input ref={waFileRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && uploadWaFile(e.target.files[0])} />
+                  <button
+                    type="button"
+                    title="שליחת קובץ/מדיה"
+                    disabled={waBusy || !waConfigured || !waPhone}
+                    onClick={() => waFileRef.current?.click()}
+                    className="rounded-xl border border-slate-700 px-3 py-2 text-slate-300 transition hover:text-emerald-300 disabled:opacity-50"
+                  >
+                    <Icon name="upload" className="h-4 w-4" />
+                  </button>
                   <textarea
                     value={waText}
                     onChange={(e) => setWaText(e.target.value)}
@@ -576,7 +677,7 @@ export default function StudioTaskDrawer({
                   />
                   <Button disabled={waBusy || !waText.trim() || !waConfigured || !waPhone} onClick={sendWa}>שליחה</Button>
                 </div>
-                <p className="mt-1 text-[10px] text-emerald-300/70">💬 שיחת וואטסאפ אמיתית — נשלח לוואטסאפ של הלקוח, ותשובותיו חוזרות לכאן.</p>
+                <p className="mt-1 text-[10px] text-emerald-300/70">💬 שיחת וואטסאפ אמיתית — טקסט וגם קבצים/מדיה. תשובות הלקוח חוזרות לכאן.</p>
               </div>
             </>
           ) : (
