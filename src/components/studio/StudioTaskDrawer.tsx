@@ -88,27 +88,27 @@ function MediaGrid({
       {assets.map((a) => {
         const n = commentCount?.(a.id) ?? 0;
         return (
-          <div key={a.id} className={`group relative overflow-hidden rounded-xl border bg-slate-900/40 ${activeId === a.id ? "border-cyan-500/60" : "border-slate-800"}`}>
+          <div key={a.id} className={`group relative overflow-hidden rounded-xl border bg-slate-50 ${activeId === a.id ? "border-cyan-500/60" : "border-slate-200"}`}>
             <a href={`/api/design-assets/${a.id}`} target="_blank" rel="noopener noreferrer" className="block">
               {isImage(a) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={`/api/design-assets/${a.id}`}
                   alt={a.fileName || "asset"}
-                  className="h-28 w-full bg-slate-800 object-cover transition group-hover:opacity-90"
+                  className="h-28 w-full bg-slate-100 object-cover transition group-hover:opacity-90"
                 />
               ) : (
-                <div className="flex h-28 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-300">
+                <div className="flex h-28 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-700">
                   <Icon name="doc" className="h-8 w-8" />
                   <span className="px-2 text-center text-[10px]">קובץ</span>
                 </div>
               )}
-              <div className="truncate px-2 py-1.5 text-[11px] text-slate-300">{a.fileName}</div>
+              <div className="truncate px-2 py-1.5 text-[11px] text-slate-600">{a.fileName}</div>
             </a>
             {onComment ? (
               <button
                 onClick={() => onComment(a.id)}
-                className="absolute bottom-1 left-1 rounded-md bg-slate-950/70 px-1.5 py-0.5 text-[10px] text-cyan-300 transition hover:bg-slate-900"
+                className="absolute bottom-1 left-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-cyan-700 transition hover:bg-slate-100"
               >
                 💬{n ? ` ${n}` : ""}
               </button>
@@ -117,7 +117,7 @@ function MediaGrid({
               <button
                 onClick={() => onWhatsapp(a.id)}
                 title="שליחה ללקוח בוואטסאפ"
-                className="absolute bottom-1 right-1 rounded-md bg-slate-950/70 px-1.5 py-0.5 text-[11px] text-emerald-300 transition hover:bg-slate-900"
+                className="absolute bottom-1 right-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] text-emerald-700 transition hover:bg-slate-100"
               >
                 וואטסאפ
               </button>
@@ -126,7 +126,7 @@ function MediaGrid({
               <button
                 onClick={() => onDelete(a.id)}
                 title="מחיקה"
-                className="absolute left-1 top-1 rounded-md bg-slate-950/70 p-1 text-slate-400 opacity-0 transition hover:text-rose-400 group-hover:opacity-100"
+                className="absolute left-1 top-1 rounded-md bg-slate-100 p-1 text-slate-400 opacity-0 transition hover:text-rose-400 group-hover:opacity-100"
               >
                 <Icon name="trash" className="h-3.5 w-3.5" />
               </button>
@@ -403,11 +403,11 @@ export default function StudioTaskDrawer({
   ].sort((a, b) => (a.at < b.at ? -1 : 1));
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#f6f7fb]">
       {/* Header */}
-      <header className="flex items-center gap-3 border-b border-slate-800 px-4 py-3 sm:px-6">
+      <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-bold text-slate-100">{t.title}</h2>
+          <h2 className="truncate text-lg font-bold text-slate-800">{t.title}</h2>
           <p className="mt-0.5 truncate text-xs text-slate-500">
             {t.client?.name} · {briefTypeLabel(t.briefType)} · {DESIGN_STATUS_LABELS[t.status]}
             {t.designer ? ` · ${t.designer.name}` : ""}
@@ -416,22 +416,22 @@ export default function StudioTaskDrawer({
         </div>
         <button
           onClick={onClose}
-          className="rounded-lg border border-slate-800 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-900 hover:text-slate-100"
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
         >
           ✕ סגירה
         </button>
       </header>
 
-      {error ? <p className="border-b border-red-900/40 bg-red-950/20 px-6 py-2 text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-600">{error}</p> : null}
 
       {/* Body: main + side */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Main column */}
         <main className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {t.brief ? (
-            <div className="mb-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="mb-1 text-xs font-bold text-slate-400">בריף</p>
-              <p className="whitespace-pre-line text-sm text-slate-200">{t.brief}</p>
+              <p className="whitespace-pre-line text-sm text-slate-700">{t.brief}</p>
               {t.specs ? <p className="mt-2 text-xs text-slate-500">מפרט: {t.specs}</p> : null}
             </div>
           ) : null}
@@ -439,7 +439,7 @@ export default function StudioTaskDrawer({
           {/* References */}
           <section className="mb-5">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-300">רפרנסים / דוגמאות למעצב/ת ({references.length})</p>
+              <p className="text-sm font-bold text-slate-600">רפרנסים / דוגמאות למעצב/ת ({references.length})</p>
               <input ref={refFileRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "reference")} />
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => refFileRef.current?.click()}>
                 <Icon name="upload" className="h-4 w-4" />
@@ -452,7 +452,7 @@ export default function StudioTaskDrawer({
           {/* Deliverables */}
           <section className="mb-5">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-300">תוצרים ({deliverables.length})</p>
+              <p className="text-sm font-bold text-slate-600">תוצרים ({deliverables.length})</p>
               <input ref={fileRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
                 <Icon name="upload" className="h-4 w-4" />
@@ -468,11 +468,11 @@ export default function StudioTaskDrawer({
               activeId={openAsset}
             />
             {openAsset ? (
-              <div className="mt-2 rounded-xl border border-cyan-800/40 bg-slate-900/60 p-3">
-                <p className="mb-2 text-xs font-bold text-cyan-300">הערות על הקובץ: {openAssetName}</p>
+              <div className="mt-2 rounded-xl border border-cyan-200 bg-slate-50 p-3">
+                <p className="mb-2 text-xs font-bold text-cyan-700">הערות על הקובץ: {openAssetName}</p>
                 <div className="mb-2 flex flex-col gap-1.5">
                   {assetMsgs(openAsset).map((m) => (
-                    <div key={m.id} className={`rounded-lg px-2.5 py-1.5 text-xs ${m.authorSide === "client" ? "self-start bg-slate-800/60 text-slate-100" : "self-end bg-cyan-600/15 text-slate-100"}`}>
+                    <div key={m.id} className={`rounded-lg px-2.5 py-1.5 text-xs ${m.authorSide === "client" ? "self-start bg-slate-100 text-slate-800" : "self-end bg-cyan-50 text-slate-800"}`}>
                       <span className="text-[10px] text-slate-400">{m.authorName || (m.authorSide === "client" ? "הלקוח" : "המשרד")} · {formatDateTime(m.createdAt)}</span>
                       <p className="whitespace-pre-line">{m.body}</p>
                     </div>
@@ -485,7 +485,7 @@ export default function StudioTaskDrawer({
                     onChange={(e) => setAssetCommentText(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") sendAssetComment(openAsset); }}
                     placeholder="הערה על הקובץ…"
-                    className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200"
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700"
                   />
                   <Button size="sm" disabled={chatBusy || !assetCommentText.trim()} onClick={() => sendAssetComment(openAsset)}>
                     שליחה
@@ -498,7 +498,7 @@ export default function StudioTaskDrawer({
           {/* Client attachments (screenshots with fix instructions) */}
           {clientAttachments.length > 0 ? (
             <section className="mb-5">
-              <p className="mb-2 text-sm font-bold text-slate-300">צרופות מהלקוח ({clientAttachments.length})</p>
+              <p className="mb-2 text-sm font-bold text-slate-600">צרופות מהלקוח ({clientAttachments.length})</p>
               <MediaGrid assets={clientAttachments} />
             </section>
           ) : null}
@@ -510,11 +510,11 @@ export default function StudioTaskDrawer({
 
           {/* QC checklist */}
           {inQc ? (
-            <div className="mb-2 rounded-xl border border-yellow-800/40 bg-yellow-950/10 p-4">
-              <p className="mb-2 text-sm font-bold text-yellow-300">בקרת איכות (QC) לפני אישור סופי</p>
+            <div className="mb-2 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+              <p className="mb-2 text-sm font-bold text-yellow-700">בקרת איכות (QC) לפני אישור סופי</p>
               <div className="mb-2 flex flex-col gap-1.5">
                 {QC_ITEMS.map((it, i) => (
-                  <label key={i} className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                  <label key={i} className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
                     <input type="checkbox" checked={!!qc[i]} onChange={(e) => setQc((p) => ({ ...p, [i]: e.target.checked }))} className="h-4 w-4 accent-emerald-500" />
                     {it}
                   </label>
@@ -535,23 +535,23 @@ export default function StudioTaskDrawer({
         </main>
 
         {/* Side column: two in-system channels — client chat + internal (agency) chat */}
-        <aside className="flex min-h-0 flex-1 flex-col border-t border-slate-800 lg:max-w-[440px] lg:flex-none lg:border-r lg:border-t-0">
-          <div className="flex border-b border-slate-800">
+        <aside className="flex min-h-0 flex-1 flex-col border-t border-slate-200 lg:max-w-[440px] lg:flex-none lg:border-r lg:border-t-0">
+          <div className="flex border-b border-slate-200">
             <button
               onClick={() => setTab("client")}
-              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "client" ? "border-b-2 border-cyan-400 text-cyan-200" : "text-slate-500 hover:text-slate-300"}`}
+              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "client" ? "border-b-2 border-cyan-400 text-cyan-700" : "text-slate-500 hover:text-slate-600"}`}
             >
               צ׳אט לקוח{clientMsgs.length ? ` (${clientMsgs.length})` : ""}
             </button>
             <button
               onClick={() => setTab("whatsapp")}
-              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "whatsapp" ? "border-b-2 border-emerald-400 text-emerald-200" : "text-slate-500 hover:text-slate-300"}`}
+              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "whatsapp" ? "border-b-2 border-emerald-400 text-emerald-700" : "text-slate-500 hover:text-slate-600"}`}
             >
               וואטסאפ{waMsgs.length ? ` (${waMsgs.length})` : ""}
             </button>
             <button
               onClick={() => setTab("internal")}
-              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "internal" ? "border-b-2 border-amber-400 text-amber-200" : "text-slate-500 hover:text-slate-300"}`}
+              className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "internal" ? "border-b-2 border-amber-400 text-amber-800" : "text-slate-500 hover:text-slate-600"}`}
             >
               פנימי{internalMsgs.length ? ` (${internalMsgs.length})` : ""}
             </button>
@@ -565,20 +565,20 @@ export default function StudioTaskDrawer({
                     if (it.fb) {
                       const ok = it.fb.decision === "approved";
                       return (
-                        <div key={it.id} className={`self-center rounded-full border px-3 py-1 text-center text-[11px] ${ok ? "border-emerald-700/40 bg-emerald-600/10 text-emerald-300" : "border-orange-700/40 bg-orange-600/10 text-orange-300"}`}>
+                        <div key={it.id} className={`self-center rounded-full border px-3 py-1 text-center text-[11px] ${ok ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-orange-200 bg-orange-50 text-orange-700"}`}>
                           {ok ? "✅ הלקוח אישר את העיצוב" : `✏️ הלקוח ביקש שינויים (סבב ${it.fb.round})`}
-                          {it.fb.text ? <span className="text-slate-300"> — {it.fb.text}</span> : null}
+                          {it.fb.text ? <span className="text-slate-600"> — {it.fb.text}</span> : null}
                         </div>
                       );
                     }
                     const m = it.msg!;
                     const mine = m.authorSide === "agency";
                     return (
-                      <div key={it.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-700/40 bg-cyan-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}>
+                      <div key={it.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-200 bg-cyan-50" : "self-start border border-slate-300 bg-slate-100"}`}>
                         <p className="mb-0.5 text-[10px] text-slate-400">
                           {m.authorName || (mine ? "המשרד" : "הלקוח")} · {formatDateTime(m.createdAt)}
                         </p>
-                        <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
+                        <p className="whitespace-pre-line text-sm text-slate-800">{m.body}</p>
                       </div>
                     );
                   })}
@@ -588,7 +588,7 @@ export default function StudioTaskDrawer({
                   <div ref={chatEndRef} />
                 </div>
               </div>
-              <div className="border-t border-slate-800 p-3">
+              <div className="border-t border-slate-200 p-3">
                 <div className="flex items-end gap-2">
                   <textarea
                     value={chatText}
@@ -596,7 +596,7 @@ export default function StudioTaskDrawer({
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                     rows={2}
                     placeholder="כתבו הודעה ללקוח… (Enter לשליחה)"
-                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
                   />
                   <Button disabled={chatBusy || !chatText.trim()} onClick={sendChat}>שליחה</Button>
                 </div>
@@ -606,25 +606,25 @@ export default function StudioTaskDrawer({
           ) : tab === "whatsapp" ? (
             <>
               {/* כותרת: תמונת פרופיל + מספר הלקוח */}
-              <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-2.5">
+              <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-2.5">
                 {waAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={waAvatar} alt="avatar" className="h-9 w-9 rounded-full object-cover" />
                 ) : (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600/20 text-emerald-300">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                     <Icon name="whatsapp" className="h-5 w-5" />
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-200">{t.client?.name}</p>
+                  <p className="truncate text-sm font-medium text-slate-700">{t.client?.name}</p>
                   <p dir="ltr" className="truncate text-right text-xs text-slate-500">{waPhone || "אין מספר"}</p>
                 </div>
               </div>
               <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
                 {!waConfigured ? (
-                  <p className="mb-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-center text-xs text-slate-500">וואטסאפ אינו מחובר במערכת.</p>
+                  <p className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs text-slate-500">וואטסאפ אינו מחובר במערכת.</p>
                 ) : !waPhone ? (
-                  <p className="mb-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-center text-xs text-slate-500">אין מספר טלפון ללקוח — הוסיפו בכרטיס הלקוח כדי לשלוח וואטסאפ.</p>
+                  <p className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs text-slate-500">אין מספר טלפון ללקוח — הוסיפו בכרטיס הלקוח כדי לשלוח וואטסאפ.</p>
                 ) : null}
                 <div className="flex flex-col gap-2">
                   {waMsgs.map((m) => {
@@ -632,7 +632,7 @@ export default function StudioTaskDrawer({
                     const href = m.mediaKey ? `/api/wa-media/${m.id}` : m.mediaUrl || null;
                     const isImg = (m.mediaMime || "").startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(m.mediaName || "");
                     return (
-                      <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-emerald-700/40 bg-emerald-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}>
+                      <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-emerald-200 bg-emerald-50" : "self-start border border-slate-300 bg-slate-100"}`}>
                         <p className="mb-0.5 text-[10px] text-slate-400">{mine ? m.authorName || "המשרד" : "הלקוח (וואטסאפ)"} · {formatDateTime(m.createdAt)}</p>
                         {href && isImg ? (
                           <a href={href} target="_blank" rel="noopener noreferrer">
@@ -640,11 +640,11 @@ export default function StudioTaskDrawer({
                             <img src={href} alt={m.mediaName || "media"} className="mb-1 max-h-48 rounded-lg object-cover" />
                           </a>
                         ) : href ? (
-                          <a href={href} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200">
+                          <a href={href} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-1.5 text-xs text-cyan-700 hover:text-cyan-700">
                             <Icon name="doc" className="h-4 w-4" /> {m.mediaName || "קובץ"}
                           </a>
                         ) : null}
-                        <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
+                        <p className="whitespace-pre-line text-sm text-slate-800">{m.body}</p>
                       </div>
                     );
                   })}
@@ -654,7 +654,7 @@ export default function StudioTaskDrawer({
                   <div ref={chatEndRef} />
                 </div>
               </div>
-              <div className="border-t border-slate-800 p-3">
+              <div className="border-t border-slate-200 p-3">
                 <div className="flex items-end gap-2">
                   <input ref={waFileRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && uploadWaFile(e.target.files[0])} />
                   <button
@@ -662,7 +662,7 @@ export default function StudioTaskDrawer({
                     title="שליחת קובץ/מדיה"
                     disabled={waBusy || !waConfigured || !waPhone}
                     onClick={() => waFileRef.current?.click()}
-                    className="rounded-xl border border-slate-700 px-3 py-2 text-slate-300 transition hover:text-emerald-300 disabled:opacity-50"
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-slate-600 transition hover:text-emerald-700 disabled:opacity-50"
                   >
                     <Icon name="upload" className="h-4 w-4" />
                   </button>
@@ -673,11 +673,11 @@ export default function StudioTaskDrawer({
                     rows={2}
                     placeholder="הודעת וואטסאפ ללקוח… (Enter לשליחה)"
                     disabled={!waConfigured || !waPhone}
-                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"
+                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50"
                   />
                   <Button disabled={waBusy || !waText.trim() || !waConfigured || !waPhone} onClick={sendWa}>שליחה</Button>
                 </div>
-                <p className="mt-1 text-[10px] text-emerald-300/70">💬 שיחת וואטסאפ אמיתית — טקסט וגם קבצים/מדיה. תשובות הלקוח חוזרות לכאן.</p>
+                <p className="mt-1 text-[10px] text-emerald-700">💬 שיחת וואטסאפ אמיתית — טקסט וגם קבצים/מדיה. תשובות הלקוח חוזרות לכאן.</p>
               </div>
             </>
           ) : (
@@ -685,9 +685,9 @@ export default function StudioTaskDrawer({
               <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
                 <div className="flex flex-col gap-2">
                   {internalMsgs.map((m) => (
-                    <div key={m.id} className="max-w-[90%] self-start rounded-2xl border border-amber-700/40 bg-amber-950/20 px-3 py-2">
-                      <p className="mb-0.5 text-[10px] text-amber-300/80">{m.authorName || "משרד"} · {formatDateTime(m.createdAt)}</p>
-                      <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
+                    <div key={m.id} className="max-w-[90%] self-start rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
+                      <p className="mb-0.5 text-[10px] text-amber-700">{m.authorName || "משרד"} · {formatDateTime(m.createdAt)}</p>
+                      <p className="whitespace-pre-line text-sm text-slate-800">{m.body}</p>
                     </div>
                   ))}
                   {internalMsgs.length === 0 ? (
@@ -696,7 +696,7 @@ export default function StudioTaskDrawer({
                   <div ref={chatEndRef} />
                 </div>
               </div>
-              <div className="border-t border-slate-800 p-3">
+              <div className="border-t border-slate-200 p-3">
                 <div className="flex items-end gap-2">
                   <textarea
                     value={internalText}
@@ -704,11 +704,11 @@ export default function StudioTaskDrawer({
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInternal(); } }}
                     rows={2}
                     placeholder="הודעה פנימית (המעצב/ת ↔ מנהל התיק)… (Enter לשליחה)"
-                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
                   />
                   <Button disabled={chatBusy || !internalText.trim()} onClick={sendInternal}>שליחה</Button>
                 </div>
-                <p className="mt-1 text-[10px] text-amber-300/70">🔒 פנימי — צוות המשרד בלבד. הלקוח אינו נחשף לזה.</p>
+                <p className="mt-1 text-[10px] text-amber-700">🔒 פנימי — צוות המשרד בלבד. הלקוח אינו נחשף לזה.</p>
               </div>
             </>
           )}

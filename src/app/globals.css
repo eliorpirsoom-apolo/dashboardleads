@@ -114,6 +114,35 @@ body {
   background-color: #2f4bc4;
   box-shadow: none;
 }
+/* Shared form controls + modal title inside the light scope. */
+.theme-light input,
+.theme-light select,
+.theme-light textarea {
+  background-color: #ffffff;
+  border-color: #d0d4e0;
+  color: #1f2733;
+}
+.theme-light input::placeholder,
+.theme-light textarea::placeholder {
+  color: #9aa1b2;
+}
+.theme-light .glass h2 {
+  color: #1f2733;
+}
+/* Remap the few dark utilities that leak in via shared components (ghost Button,
+   Modal) so they read correctly on the light surface — scoped to studio only. */
+.theme-light .text-slate-300 {
+  color: #475569;
+}
+.theme-light .border-slate-700 {
+  border-color: #cbd5e1;
+}
+.theme-light .hover\:bg-slate-800:hover {
+  background-color: #f1f5f9;
+}
+.theme-light .hover\:text-slate-200:hover {
+  color: #334155;
+}
 
 /* ---------------------------------------------------------------------------
    RTL adjustments — keep numeric/time chart axes natural (LTR) inside RTL UI.

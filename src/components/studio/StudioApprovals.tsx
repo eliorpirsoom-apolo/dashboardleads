@@ -130,7 +130,7 @@ export default function StudioApprovals() {
       {tasks.map((t) => (
         <Card key={t.id}>
           <div className="mb-2 flex items-center gap-2">
-            <h3 className="text-base font-bold text-slate-100">{t.title}</h3>
+            <h3 className="text-base font-bold text-slate-800">{t.title}</h3>
             <Chip color="#818cf8">{briefTypeLabel(t.briefType)}</Chip>
             {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
           </div>
@@ -140,7 +140,7 @@ export default function StudioApprovals() {
                 key={a.id}
                 href={`/api/design-assets/${a.id}`}
                 target="_blank"
-                className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-2 text-sm text-slate-200 hover:border-cyan-500/40 hover:text-cyan-300"
+                className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:border-cyan-500/40 hover:text-cyan-700"
               >
                 <Icon name="doc" className="h-4 w-4 text-cyan-400" />
                 <span className="flex-1 truncate">{a.fileName}</span>
@@ -156,7 +156,7 @@ export default function StudioApprovals() {
             onChange={(e) => setNotes((p) => ({ ...p, [t.id]: e.target.value }))}
             rows={2}
             placeholder="הערות / בקשת תיקונים (חובה אם מבקשים שינויים)…"
-            className="mb-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+            className="mb-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
           />
 
           {/* צירוף צילום מסך / דוגמה עם הוראות תיקון */}
@@ -165,7 +165,7 @@ export default function StudioApprovals() {
               {attach[t.id].map((a, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-200"
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700"
                 >
                   <Icon name="doc" className="h-4 w-4 text-orange-400" />
                   <span className="flex-1 truncate">{a.fileName}</span>
@@ -182,7 +182,7 @@ export default function StudioApprovals() {
               ))}
             </div>
           ) : null}
-          <label className="mb-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-cyan-500/40 hover:text-cyan-300">
+          <label className="mb-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:border-cyan-500/40 hover:text-cyan-700">
             <Icon name="upload" className="h-4 w-4" />
             {upId === t.id ? "מעלה…" : "צירוף צילום מסך / דוגמה"}
             <input
@@ -205,20 +205,20 @@ export default function StudioApprovals() {
           </div>
 
           {/* התכתבות מול הסטודיו */}
-          <div className="mt-4 border-t border-slate-800 pt-3">
-            <p className="mb-2 text-sm font-bold text-slate-300">התכתבות מול הסטודיו</p>
+          <div className="mt-4 border-t border-slate-200 pt-3">
+            <p className="mb-2 text-sm font-bold text-slate-600">התכתבות מול הסטודיו</p>
             <div className="mb-2 flex max-h-64 flex-col gap-2 overflow-y-auto">
               {t.messages.filter((m) => !m.assetId).map((m) => {
                 const mine = m.authorSide === "client";
                 return (
                   <div
                     key={m.id}
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-700/40 bg-cyan-600/15" : "self-start border border-slate-700 bg-slate-800/60"}`}
+                    className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end border border-cyan-200 bg-cyan-50" : "self-start border border-slate-300 bg-slate-100"}`}
                   >
                     <p className="mb-0.5 text-[10px] text-slate-400">
                       {m.authorName || (mine ? "אתם" : "הסטודיו")} · {new Date(m.createdAt).toLocaleString("he-IL")}
                     </p>
-                    <p className="whitespace-pre-line text-sm text-slate-100">{m.body}</p>
+                    <p className="whitespace-pre-line text-sm text-slate-800">{m.body}</p>
                   </div>
                 );
               })}
@@ -238,7 +238,7 @@ export default function StudioApprovals() {
                 }}
                 rows={2}
                 placeholder="כתבו הודעה לסטודיו… (Enter לשליחה)"
-                className="max-h-32 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+                className="max-h-32 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
               />
               <Button disabled={chatBusy === t.id || !(chatText[t.id] ?? "").trim()} onClick={() => sendChat(t.id)}>
                 שליחה
