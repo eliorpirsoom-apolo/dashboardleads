@@ -84,6 +84,38 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
+   Light theme scope (Monday-inspired, Apollo palette). Applies ONLY inside
+   a .theme-light wrapper — the rest of the app stays on the dark theme.
+   Pilot: studio module.
+--------------------------------------------------------------------------- */
+.theme-light {
+  background-color: #f6f7fb;
+  color: #1f2733;
+}
+.theme-light .glass {
+  background: #ffffff;
+  border: 1px solid #e6e9ef;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.theme-light .glass-hover:hover {
+  border-color: #c3ccf5;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08);
+}
+.theme-light .btn-neon {
+  background-image: none;
+  background-color: #3a5bd9;
+  color: #ffffff;
+  box-shadow: none;
+}
+.theme-light .btn-neon:hover {
+  filter: none;
+  background-color: #2f4bc4;
+  box-shadow: none;
+}
+
+/* ---------------------------------------------------------------------------
    RTL adjustments — keep numeric/time chart axes natural (LTR) inside RTL UI.
 --------------------------------------------------------------------------- */
 [dir="rtl"] .ltr-embed {

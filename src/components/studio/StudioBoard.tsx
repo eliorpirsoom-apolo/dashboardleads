@@ -165,7 +165,7 @@ export default function StudioBoard({
     return new Date(d.getTime() - off).toISOString().slice(0, 16);
   }
   const selCls =
-    "w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200";
+    "w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700";
 
   // מעצבות שיש להן משימות משויכות אך יומן ה-Google שלהן לא מחובר — הלו"ז לא יסתנכרן.
   const assignedIds = new Set(tasks.map((t) => t.designer?.id).filter(Boolean) as string[]);
@@ -192,13 +192,13 @@ export default function StudioBoard({
       onDragEnd={() => { setDragId(null); setDragOver(null); }}
       onDragOver={(e) => { if (!dndEnabled) return; e.preventDefault(); setDragOver(`${groupKey}:${t.id}`); }}
       onDrop={(e) => { if (!dndEnabled) return; e.preventDefault(); handleDrop(gidOf(groupKey), t.id); }}
-      className={`border-b border-slate-800/60 align-middle hover:bg-slate-900/30 ${dragId === t.id ? "opacity-40" : ""} ${dragOver === `${groupKey}:${t.id}` ? "border-t-2 border-t-cyan-400" : ""}`}
+      className={`border-b border-slate-100 align-middle hover:bg-slate-50 ${dragId === t.id ? "opacity-40" : ""} ${dragOver === `${groupKey}:${t.id}` ? "border-t-2 border-t-cyan-400" : ""}`}
     >
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
           {dndEnabled ? <span className="cursor-grab select-none text-slate-600" title="גרירה">⠿</span> : null}
           <div>
-            <button onClick={() => setOpenId(t.id)} className="text-right font-medium text-slate-100 hover:text-cyan-300">
+            <button onClick={() => setOpenId(t.id)} className="text-right font-medium text-slate-800 hover:text-cyan-300">
               {t.title}
             </button>
             {t.overdue || t.round > 1 ? (
@@ -213,7 +213,7 @@ export default function StudioBoard({
       <td className="px-3 py-2">
         {t.client ? <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip> : "—"}
       </td>
-      <td className="px-3 py-2 text-slate-300">{briefTypeLabel(t.briefType)}</td>
+      <td className="px-3 py-2 text-slate-600">{briefTypeLabel(t.briefType)}</td>
       <td className="px-3 py-2">
         <Chip color={PRIORITY_COLOR[t.priority]}>{DESIGN_PRIORITIES.find((p) => p.value === t.priority)?.label}</Chip>
       </td>
@@ -245,7 +245,7 @@ export default function StudioBoard({
   // שורת כותרות-העמודות (חוזרת בכל בלוק-קבוצה, כמו במאנדיי).
   const columnsHead = (
     <thead>
-      <tr className="border-b border-slate-800 text-xs text-slate-500">
+      <tr className="border-b border-slate-200 text-xs text-slate-500">
         <th className="px-3 py-2 font-medium">משימה</th>
         <th className="px-3 py-2 font-medium">לקוח</th>
         <th className="px-3 py-2 font-medium">סוג</th>
@@ -275,12 +275,12 @@ export default function StudioBoard({
           style={{ boxShadow: `inset 4px 0 0 ${sec.color}` }}
         >
           {isGroup && dndEnabled ? <span className="cursor-grab select-none text-slate-600" title="גרירת קבוצה">⠿</span> : null}
-          <button onClick={() => setCollapsed((p) => ({ ...p, [sec.key]: !p[sec.key] }))} className="text-slate-400 hover:text-slate-100">
+          <button onClick={() => setCollapsed((p) => ({ ...p, [sec.key]: !p[sec.key] }))} className="text-slate-400 hover:text-slate-900">
             {isCollapsed ? "▸" : "▾"}
           </button>
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: sec.color }} />
-          <span className="font-bold text-slate-100">{sec.group ? sec.group.name : "ללא קבוצה"}</span>
-          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{sec.items.length}</span>
+          <span className="font-bold text-slate-800">{sec.group ? sec.group.name : "ללא קבוצה"}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{sec.items.length}</span>
           <span className="mr-auto flex items-center gap-3">
             <button onClick={() => openCreateInGroup(gidOf(sec.key))} title="הוספת משימה לקבוצה" className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300">
               <Icon name="plus" className="h-3.5 w-3.5" /> משימה
@@ -294,7 +294,7 @@ export default function StudioBoard({
           </span>
         </div>
         {!isCollapsed ? (
-          <div className="overflow-x-auto border-t border-slate-800">
+          <div className="overflow-x-auto border-t border-slate-200">
             <table className="w-full min-w-[980px] text-right text-sm">
               {columnsHead}
               <tbody>
@@ -312,7 +312,7 @@ export default function StudioBoard({
                   <tr><td colSpan={9} className="px-3 py-3 text-center text-[11px] text-slate-600">אין משימות בקבוצה</td></tr>
                 ) : null}
                 <tr>
-                  <td colSpan={9} className="border-t border-slate-800/60 px-3 py-2">
+                  <td colSpan={9} className="border-t border-slate-100 px-3 py-2">
                     <button onClick={() => openCreateInGroup(gidOf(sec.key))} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-cyan-300">
                       <Icon name="plus" className="h-3.5 w-3.5" /> הוספת משימה
                     </button>
@@ -336,7 +336,7 @@ export default function StudioBoard({
         <select
           value={designerFilter}
           onChange={(e) => setDesignerFilter(e.target.value)}
-          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
         >
           <option value="">כל המעצבים</option>
           {designers.map((d) => (
@@ -345,16 +345,16 @@ export default function StudioBoard({
             </option>
           ))}
         </select>
-        <div className="mr-auto flex rounded-lg border border-slate-700 p-0.5 text-xs">
+        <div className="mr-auto flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
           <button
             onClick={() => setView("table")}
-            className={`rounded px-2.5 py-1 ${view === "table" ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400"}`}
+            className={`rounded px-2.5 py-1 ${view === "table" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
           >
             טבלה
           </button>
           <button
             onClick={() => setView("capacity")}
-            className={`rounded px-2.5 py-1 ${view === "capacity" ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400"}`}
+            className={`rounded px-2.5 py-1 ${view === "capacity" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
           >
             עומס מעצבות
           </button>
@@ -362,7 +362,7 @@ export default function StudioBoard({
       </div>
 
       {unlinked.length > 0 ? (
-        <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-2.5 text-xs text-amber-200">
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
           ⚠️ יומן Google לא מחובר עבור: <b>{unlinked.map((d) => d.name).join(", ")}</b>. התזמון יופיע
           בלו״ז המערכת, אך לא יסתנכרן ליומן ה-Google שלהן. לחיבור — כל מעצב/ת מתחבר/ת פעם אחת דרך ״הגדרות ← יומן Google״.
         </div>
@@ -376,7 +376,7 @@ export default function StudioBoard({
                 ? "גררו משימות ⠿ בתוך/בין קבוצות · גררו כותרת קבוצה ⠿ לשינוי סדר הבלוקים"
                 : "בטלו סינון מעצב/ת כדי לגרור ולסדר"}
             </p>
-            <Button size="sm" variant="ghost" onClick={addGroup}>
+            <Button size="sm" variant="ghost" onClick={addGroup} className="!border-slate-300 !text-slate-600 hover:!border-[#3a5bd9] hover:!text-[#3a5bd9]">
               <Icon name="plus" className="h-4 w-4" />
               קבוצה חדשה
             </Button>
@@ -442,7 +442,7 @@ function CapacityView({
         return (
           <Card key={c.id || "none"}>
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-200">{c.name}</h3>
+              <h3 className="text-sm font-bold text-slate-700">{c.name}</h3>
               <Chip color={mine.length > 4 ? "#f87171" : "#34d399"}>{mine.length}</Chip>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -451,10 +451,10 @@ function CapacityView({
                   key={t.id}
                   onClick={() => onOpen(t.id)}
                   className={`rounded-lg border px-2 py-1.5 text-right text-xs transition hover:border-cyan-500/40 ${
-                    t.overdue ? "border-rose-700/50 bg-rose-950/20" : "border-slate-800 bg-slate-900/40"
+                    t.overdue ? "border-rose-700/50 bg-rose-950/20" : "border-slate-200 bg-slate-50"
                   }`}
                 >
-                  <div className="truncate font-medium text-slate-200">{t.title}</div>
+                  <div className="truncate font-medium text-slate-700">{t.title}</div>
                   <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
                     <span>{fmt(t.scheduledAt)}</span>·<span>{DESIGN_STATUS_LABELS[t.status]}</span>
                     {t.overdue ? <span className="text-rose-400">· באיחור</span> : null}
@@ -625,7 +625,7 @@ function CreateBriefModal({
             value={form.brief}
             onChange={(e) => setForm({ ...form, brief: e.target.value })}
             rows={5}
-            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
             placeholder="כתבו נקודות גולמיות — ואז ״נסח עם AI״ יסדר אותן לבריף מלא. מטרה, מסר, סגנון, טקסטים, צבעים, מה חובה לכלול…"
           />
         </Field>
@@ -667,7 +667,7 @@ function CreateBriefModal({
             {refs.map((r, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-200"
+                className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700"
               >
                 <Icon name="doc" className="h-4 w-4 text-cyan-400" />
                 <span className="flex-1 truncate">{r.fileName}</span>

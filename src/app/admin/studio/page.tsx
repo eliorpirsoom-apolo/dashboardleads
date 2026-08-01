@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader } from "@/components/ui";
 import StudioBoard from "@/components/studio/StudioBoard";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +25,14 @@ export default async function StudioPage() {
   }));
 
   return (
-    <>
-      <PageHeader
-        title="סטודיו"
-        subtitle="מבריף ועד אישור סופי — תזמון בין המעצבות, אישורי לקוח ובקרת איכות"
-      />
+    <div className="theme-light -mx-4 -my-6 min-h-screen px-4 py-6 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">סטודיו</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          מבריף ועד אישור סופי — תזמון בין המעצבות, אישורי לקוח ובקרת איכות
+        </p>
+      </div>
       <StudioBoard clients={clients} designers={designerOpts} />
-    </>
+    </div>
   );
 }
