@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import StudioBoard from "@/components/studio/StudioBoard";
 
 export const dynamic = "force-dynamic";
 
 // מודול סטודיו — צד משרד. מבריף ועד אישור סופי.
 export default async function StudioPage() {
+  const me = await getSession();
   const [clients, designers] = await Promise.all([
     prisma.client.findMany({
       where: { active: true },
@@ -32,7 +34,7 @@ export default async function StudioPage() {
           מבריף ועד אישור סופי — תזמון בין המעצבות, אישורי לקוח ובקרת איכות
         </p>
       </div>
-      <StudioBoard clients={clients} designers={designerOpts} />
+      <StudioBoard clients={clients} designers={designerOpts} meId={me?.id ?? null} />
     </div>
   );
 }

@@ -127,6 +127,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       },
       project: { select: { id: true, name: true } },
       designer: { select: { id: true, name: true } },
+      createdBy: { select: { id: true, name: true } },
       qcBy: { select: { id: true, name: true } },
       assets: { orderBy: { createdAt: "desc" } },
       feedback: { orderBy: { createdAt: "desc" } },
@@ -163,6 +164,11 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   const b = UpdateDesignTask.parse(await readJson(req));
   const cur = await prisma.designTask.findUnique({ where: { id: params.id } });
   if (!cur) throw new ApiError(404, "משימת עיצוב לא נמצאה");
+
+  // עריכת הבריף מותרת ליוצר/ת הבריף בלבד (שאר השדות — כל צוות המשרד).
+  if (b.brief !== undefined && cur.createdById && cur.createdById !== user.id) {
+    throw new ApiError(403, "רק יוצר/ת הבריף יכול/ה לערוך אותו");
+  }
 
   // אישור סופי (QC) — מנהל בלבד.
   if (b.status === "approved" && user.adminRole === "staff") {

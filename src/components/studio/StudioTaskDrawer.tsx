@@ -60,6 +60,8 @@ interface Detail {
   client: { id: string; name: string } | null;
   clientPhone: string | null;
   clientHasEmail: boolean;
+  createdById: string | null;
+  createdBy: { id: string; name: string } | null;
   designer: { id: string; name: string } | null;
   assets: Asset[];
   feedback: Fb[];
@@ -145,10 +147,12 @@ function MediaGrid({
 
 export default function StudioTaskDrawer({
   taskId,
+  meId,
   onClose,
   onChanged,
 }: {
   taskId: string;
+  meId?: string | null;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -166,6 +170,7 @@ export default function StudioTaskDrawer({
   const [blockBusy, setBlockBusy] = useState<string | null>(null); // id של בלוק בפעולה (שליחה/עריכה/מחיקה)
   const [briefDraft, setBriefDraft] = useState<string | null>(null);
   const [briefSaving, setBriefSaving] = useState(false);
+  const [editingBrief, setEditingBrief] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [assetCommentText, setAssetCommentText] = useState("");
@@ -430,13 +435,30 @@ export default function StudioTaskDrawer({
     return palette[h % palette.length];
   }
 
+  // המרת בריף (טקסט ישן או HTML) ל-HTML לעריכה.
+  function briefToHtml(brief: string | null | undefined): string {
+    if (!brief) return "";
+    return /</.test(brief) ? brief : `<p>${brief.replace(/\n/g, "<br>")}</p>`;
+  }
+  function startEditBrief() {
+    setBriefDraft(briefToHtml(t?.brief));
+    setEditingBrief(true);
+  }
+  function cancelEditBrief() {
+    setEditingBrief(false);
+    setBriefDraft(null);
+  }
   async function saveBrief() {
-    if (briefDraft === null) return;
+    if (briefDraft === null) {
+      setEditingBrief(false);
+      return;
+    }
     setBriefSaving(true);
     try {
       await api(`/api/design-tasks/${taskId}`, { method: "PATCH", json: { brief: briefDraft } });
       await load();
       setBriefDraft(null);
+      setEditingBrief(false);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -509,6 +531,8 @@ export default function StudioTaskDrawer({
       ? t.brief
       : `<p>${t.brief.replace(/\n/g, "<br>")}</p>`
     : "";
+  // עריכת בריף — רק היוצר/ת (או כל מנהל אם לא תועד יוצר, לתאימות לאחור).
+  const canEditBrief = !t.createdById || (!!meId && meId === t.createdById);
   const openAssetName = deliverables.find((a) => a.id === openAsset)?.fileName;
   // שרשור הלקוח: הודעות + החלטות אישור/שינויים, לפי סדר כרונולוגי.
   const clientThread: { id: string; at: string; msg: Msg | null; fb: Fb | null }[] = [
@@ -544,21 +568,44 @@ export default function StudioTaskDrawer({
         <main className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           <section className="mb-4">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-700">בריף</p>
-              {briefDraft !== null && briefDraft !== (t.brief || "") ? (
-                <Button size="sm" disabled={briefSaving} onClick={saveBrief}>
-                  {briefSaving ? "שומר…" : "שמירת בריף"}
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-slate-700">בריף</p>
+                {t.createdBy?.name ? (
+                  <span className="text-[11px] text-slate-400">· נוצר ע״י {t.createdBy.name}</span>
+                ) : null}
+              </div>
+              {editingBrief ? (
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={cancelEditBrief} className="rounded-lg px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-100">ביטול</button>
+                  <Button size="sm" disabled={briefSaving} onClick={saveBrief}>
+                    {briefSaving ? "שומר…" : "שמירת בריף"}
+                  </Button>
+                </div>
+              ) : canEditBrief ? (
+                <Button size="sm" variant="ghost" onClick={startEditBrief}>
+                  <Icon name="edit" className="h-4 w-4" />
+                  עריכה
                 </Button>
               ) : null}
             </div>
-            <RichEditor
-              key={`brief-${t.id}`}
-              value={briefInitial}
-              onChange={setBriefDraft}
-              uploadImage={uploadStudioImage}
-              placeholder="כתבו בריף — טקסט, תמונות, צילומי מסך, קישורים…"
-              minHeight={140}
-            />
+            {editingBrief ? (
+              <RichEditor
+                key={`brief-${t.id}`}
+                value={briefInitial}
+                onChange={setBriefDraft}
+                uploadImage={uploadStudioImage}
+                placeholder="כתבו בריף — טקסט, תמונות, צילומי מסך, קישורים…"
+                minHeight={140}
+              />
+            ) : briefInitial ? (
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div className="rich-content" dangerouslySetInnerHTML={{ __html: briefInitial }} />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-xs text-slate-400">
+                אין בריף עדיין{canEditBrief ? " — לחצו על ״עריכה״ כדי להוסיף." : "."}
+              </div>
+            )}
             {t.specs ? <p className="mt-2 text-xs text-slate-500">מפרט: {t.specs}</p> : null}
           </section>
 

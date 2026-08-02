@@ -52,9 +52,11 @@ const GROUP_PALETTE = ["#38bdf8", "#a78bfa", "#34d399", "#f59e0b", "#f472b6", "#
 export default function StudioBoard({
   clients,
   designers,
+  meId,
 }: {
   clients: Opt[];
   designers: Opt[];
+  meId?: string | null;
 }) {
   const [tasks, setTasks] = useState<DTask[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -412,7 +414,7 @@ export default function StudioBoard({
       ) : null}
 
       {openId ? (
-        <StudioTaskDrawer taskId={openId} onClose={() => setOpenId(null)} onChanged={load} />
+        <StudioTaskDrawer taskId={openId} meId={meId} onClose={() => setOpenId(null)} onChanged={load} />
       ) : null}
     </div>
   );
