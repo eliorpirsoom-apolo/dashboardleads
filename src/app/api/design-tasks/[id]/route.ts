@@ -8,6 +8,7 @@ import { sendMessage } from "@/lib/messaging";
 import { formatDateTime } from "@/lib/format";
 import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
 import { ensureApprovalToken, clientApprovalUrl } from "@/lib/studioLinks";
+import { sanitizeRich } from "@/lib/sanitizeHtml";
 
 // התראה ללקוח שיש עיצוב הממתין לאישור (מייל תמיד; וואטסאפ אם הופעל אצל הלקוח).
 async function notifyClientForApproval(task: any): Promise<void> {
@@ -167,7 +168,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   const data: Record<string, unknown> = {};
   if (b.title !== undefined) data.title = b.title;
   if (b.briefType !== undefined) data.briefType = b.briefType;
-  if (b.brief !== undefined) data.brief = b.brief || null;
+  if (b.brief !== undefined) data.brief = b.brief ? sanitizeRich(b.brief) : null;
   if (b.specs !== undefined) data.specs = b.specs || null;
   if (b.priority !== undefined) data.priority = b.priority;
   if (b.designerId !== undefined) data.designerId = b.designerId || null;

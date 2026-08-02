@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, readJson, ApiError } from "@/lib/api";
 import { notifyNewDesignMessage, notifyInternalDesignMessage } from "@/lib/studioLinks";
+import { sanitizeRich, isRichEmpty } from "@/lib/sanitizeHtml";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +45,10 @@ const NewMessage = z.object({
 export const POST = handle(async (req, { params }: { params: { id: string } }) => {
   const { user, task } = await resolveTask(params.id);
   const b = NewMessage.parse(await readJson(req));
-  const body = b.body.trim();
-  if (!body) throw new ApiError(422, "הודעה ריקה");
+  // ערוץ עדכונים פנימי = HTML עשיר מסונן; שאר ההודעות = טקסט. סינון בכל מקרה (הגנת XSS).
+  const body = sanitizeRich(b.body);
+  if (isRichEmpty(body)) throw new ApiError(422, "הודעה ריקה");
+  const plain = body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "[מדיה]";
   // התכתבות פנימית — משרד בלבד. לקוח אינו יכול לכתוב/לקרוא ערוץ internal.
   if (b.channel === "internal" && user.role !== "ADMIN") {
     throw new ApiError(403, "התכתבות פנימית מותרת לצוות המשרד בלבד");
@@ -71,11 +74,11 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
       body,
     },
   });
-  // התראה (לא חוסם): לקוח↔משרד, או פנימי בין צוות המשרד.
+  // התראה (לא חוסם): לקוח↔משרד, או פנימי בין צוות המשרד. שולחים טקסט נקי (בלי HTML).
   if (b.channel === "internal") {
-    notifyInternalDesignMessage(task.id, user.id, body).catch((e) => console.error("[studio:msg-notify]", e));
+    notifyInternalDesignMessage(task.id, user.id, plain).catch((e) => console.error("[studio:msg-notify]", e));
   } else {
-    notifyNewDesignMessage(task.id, authorSide, body).catch((e) => console.error("[studio:msg-notify]", e));
+    notifyNewDesignMessage(task.id, authorSide, plain).catch((e) => console.error("[studio:msg-notify]", e));
   }
   return NextResponse.json({ message }, { status: 201 });
 });

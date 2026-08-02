@@ -148,3 +148,64 @@ body {
   background: rgba(58, 91, 217, 0.18);
   color: #1f2733;
 }
+
+/* ---------------------------------------------------------------------------
+   Rich content (studio brief + updates) — editor + rendered HTML.
+--------------------------------------------------------------------------- */
+.rich-content {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #1f2733;
+  word-break: break-word;
+}
+.rich-content:focus {
+  outline: none;
+}
+.rich-content p {
+  margin: 0 0 0.5rem;
+}
+.rich-content p:last-child {
+  margin-bottom: 0;
+}
+.rich-content h1 { font-size: 1.25rem; font-weight: 700; margin: 0.6rem 0 0.4rem; }
+.rich-content h2 { font-size: 1.1rem; font-weight: 700; margin: 0.6rem 0 0.4rem; }
+.rich-content h3 { font-size: 1rem; font-weight: 700; margin: 0.5rem 0 0.3rem; }
+.rich-content ul,
+.rich-content ol {
+  margin: 0.25rem 0 0.5rem;
+  padding-inline-start: 1.4rem;
+}
+.rich-content ul { list-style: disc; }
+.rich-content ol { list-style: decimal; }
+.rich-content li { margin: 0.15rem 0; }
+.rich-content a {
+  color: #3a5bd9;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin: 0.4rem 0;
+  border: 1px solid #e6e9ef;
+}
+.rich-content blockquote {
+  border-inline-start: 3px solid #cbd5e1;
+  padding-inline-start: 0.75rem;
+  color: #475569;
+  margin: 0.5rem 0;
+}
+.rich-content code {
+  background: #f1f5f9;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.85em;
+}
+.rich-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9aa1b2;
+  float: inline-start;
+  height: 0;
+  pointer-events: none;
+}

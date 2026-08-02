@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
+import { sanitizeRich } from "@/lib/sanitizeHtml";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export const POST = handle(async (req) => {
       projectId: b.projectId || null,
       title: b.title,
       briefType: b.briefType,
-      brief: b.brief || null,
+      brief: b.brief ? sanitizeRich(b.brief) : null,
       specs: b.specs || null,
       priority: b.priority,
       designerId: b.designerId || null,

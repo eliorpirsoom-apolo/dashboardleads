@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import RichEditor from "@/components/RichEditor";
 import { DESIGN_STATUS_LABELS, briefTypeLabel } from "@/lib/studio";
 
 interface Asset {
@@ -153,7 +154,10 @@ export default function StudioTaskDrawer({
   const [qc, setQc] = useState<Record<number, boolean>>({});
   const [tab, setTab] = useState<"client" | "whatsapp" | "internal">("client");
   const [chatText, setChatText] = useState("");
-  const [internalText, setInternalText] = useState("");
+  const [internalHtml, setInternalHtml] = useState("");
+  const [internalSignal, setInternalSignal] = useState(0);
+  const [briefDraft, setBriefDraft] = useState<string | null>(null);
+  const [briefSaving, setBriefSaving] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [assetCommentText, setAssetCommentText] = useState("");
@@ -320,18 +324,47 @@ export default function StudioTaskDrawer({
     }
   }
 
+  // העלאת תמונה מוטבעת (בריף/עדכונים) → R2 → קישור להגשה מאובטחת.
+  async function uploadStudioImage(file: File): Promise<string | null> {
+    if (!clientId) return null;
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("category", "design");
+    fd.append("clientId", clientId);
+    const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+    const uj = await up.json();
+    if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
+    return `/api/studio/media?key=${encodeURIComponent(uj.key)}`;
+  }
+
+  const isHtmlEmpty = (html: string) => !/<img\b/i.test(html) && html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "") === "";
+
   async function sendInternal() {
-    const body = internalText.trim();
-    if (!body) return;
+    if (isHtmlEmpty(internalHtml)) return;
     setChatBusy(true);
     try {
-      await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body, channel: "internal" } });
-      setInternalText("");
+      await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body: internalHtml, channel: "internal" } });
+      setInternalHtml("");
+      setInternalSignal((s) => s + 1);
       await load();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setChatBusy(false);
+    }
+  }
+
+  async function saveBrief() {
+    if (briefDraft === null) return;
+    setBriefSaving(true);
+    try {
+      await api(`/api/design-tasks/${taskId}`, { method: "PATCH", json: { brief: briefDraft } });
+      await load();
+      setBriefDraft(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBriefSaving(false);
     }
   }
 
@@ -395,6 +428,11 @@ export default function StudioTaskDrawer({
   const assetMsgs = (id: string) => t.messages.filter((m) => m.channel === "client" && m.assetId === id);
   const clientMsgs = t.messages.filter((m) => m.channel === "client" && !m.assetId);
   const internalMsgs = t.messages.filter((m) => m.channel === "internal");
+  const briefInitial = t.brief
+    ? /</.test(t.brief)
+      ? t.brief
+      : `<p>${t.brief.replace(/\n/g, "<br>")}</p>`
+    : "";
   const openAssetName = deliverables.find((a) => a.id === openAsset)?.fileName;
   // שרשור הלקוח: הודעות + החלטות אישור/שינויים, לפי סדר כרונולוגי.
   const clientThread: { id: string; at: string; msg: Msg | null; fb: Fb | null }[] = [
@@ -428,13 +466,25 @@ export default function StudioTaskDrawer({
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Main column */}
         <main className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-          {t.brief ? (
-            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="mb-1 text-xs font-bold text-slate-400">בריף</p>
-              <p className="whitespace-pre-line text-sm text-slate-700">{t.brief}</p>
-              {t.specs ? <p className="mt-2 text-xs text-slate-500">מפרט: {t.specs}</p> : null}
+          <section className="mb-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-700">בריף</p>
+              {briefDraft !== null && briefDraft !== (t.brief || "") ? (
+                <Button size="sm" disabled={briefSaving} onClick={saveBrief}>
+                  {briefSaving ? "שומר…" : "שמירת בריף"}
+                </Button>
+              ) : null}
             </div>
-          ) : null}
+            <RichEditor
+              key={`brief-${t.id}`}
+              value={briefInitial}
+              onChange={setBriefDraft}
+              uploadImage={uploadStudioImage}
+              placeholder="כתבו בריף — טקסט, תמונות, צילומי מסך, קישורים…"
+              minHeight={140}
+            />
+            {t.specs ? <p className="mt-2 text-xs text-slate-500">מפרט: {t.specs}</p> : null}
+          </section>
 
           {/* References */}
           <section className="mb-5">
@@ -553,7 +603,7 @@ export default function StudioTaskDrawer({
               onClick={() => setTab("internal")}
               className={`flex-1 py-3 text-xs font-medium transition sm:text-sm ${tab === "internal" ? "border-b-2 border-amber-400 text-amber-800" : "text-slate-500 hover:text-slate-600"}`}
             >
-              פנימי{internalMsgs.length ? ` (${internalMsgs.length})` : ""}
+              עדכונים{internalMsgs.length ? ` (${internalMsgs.length})` : ""}
             </button>
           </div>
 
@@ -683,32 +733,32 @@ export default function StudioTaskDrawer({
           ) : (
             <>
               <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {internalMsgs.map((m) => (
-                    <div key={m.id} className="max-w-[90%] self-start rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2">
-                      <p className="mb-0.5 text-[10px] text-amber-700">{m.authorName || "משרד"} · {formatDateTime(m.createdAt)}</p>
-                      <p className="whitespace-pre-line text-sm text-slate-800">{m.body}</p>
+                    <div key={m.id} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                      <p className="mb-1 text-[10px] text-amber-700">{m.authorName || "משרד"} · {formatDateTime(m.createdAt)}</p>
+                      <div className="rich-content" dangerouslySetInnerHTML={{ __html: m.body }} />
                     </div>
                   ))}
                   {internalMsgs.length === 0 ? (
-                    <p className="text-center text-xs text-slate-600">התכתבות פנימית בין המעצב/ת למנהל התיק. הלקוח לא רואה זאת.</p>
+                    <p className="text-center text-xs text-slate-600">עדכונים פנימיים בין המעצב/ת למנהל התיק. הלקוח לא רואה זאת.</p>
                   ) : null}
                   <div ref={chatEndRef} />
                 </div>
               </div>
               <div className="border-t border-slate-200 p-3">
-                <div className="flex items-end gap-2">
-                  <textarea
-                    value={internalText}
-                    onChange={(e) => setInternalText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInternal(); } }}
-                    rows={2}
-                    placeholder="הודעה פנימית (המעצב/ת ↔ מנהל התיק)… (Enter לשליחה)"
-                    className="thin-scroll max-h-32 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                  />
-                  <Button disabled={chatBusy || !internalText.trim()} onClick={sendInternal}>שליחה</Button>
+                <RichEditor
+                  value=""
+                  onChange={setInternalHtml}
+                  resetSignal={internalSignal}
+                  uploadImage={uploadStudioImage}
+                  placeholder="כתבו עדכון — טקסט, תמונות, צילומי מסך, קישורים…"
+                  minHeight={80}
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] text-amber-700">🔒 פנימי — צוות המשרד בלבד. הלקוח אינו נחשף לזה.</p>
+                  <Button disabled={chatBusy || isHtmlEmpty(internalHtml)} onClick={sendInternal}>פרסום עדכון</Button>
                 </div>
-                <p className="mt-1 text-[10px] text-amber-700">🔒 פנימי — צוות המשרד בלבד. הלקוח אינו נחשף לזה.</p>
               </div>
             </>
           )}
