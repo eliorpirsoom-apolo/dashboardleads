@@ -77,6 +77,7 @@ export const POST = handle(async (req, { params }: { params: { id: string; messa
       client: {
         select: {
           name: true,
+          contactEmail: true,
           users: { where: { active: true }, select: { email: true } },
         },
       },
@@ -85,9 +86,11 @@ export const POST = handle(async (req, { params }: { params: { id: string; messa
   if (!task) throw new ApiError(404, "משימת עיצוב לא נמצאה");
 
   if (channel === "email") {
-    const emails = Array.from(
-      new Set((task.client?.users || []).map((u) => u.email).filter(Boolean) as string[])
-    );
+    const emailList = [
+      ...(task.client?.users || []).map((u) => u.email),
+      task.client?.contactEmail,
+    ].filter(Boolean) as string[];
+    const emails = Array.from(new Set(emailList));
     if (emails.length === 0) throw new ApiError(400, "אין כתובת מייל ללקוח — הוסיפו משתמש לקוח עם מייל");
     const { html } = await resolveOutboundImages(msg.body, WEEK);
     const subject = `עדכון מהסטודיו — ${task.title}`;

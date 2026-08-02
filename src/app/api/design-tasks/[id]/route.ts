@@ -118,6 +118,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
           name: true,
           color: true,
           contactPhone: true,
+          contactEmail: true,
           users: {
             where: { active: true },
             select: { phone: true, email: true },
@@ -136,8 +137,9 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
   // טלפון ליצירת קשר עם הלקוח (איש קשר, או המשתמש הפעיל הראשון עם טלפון) — לכפתור וואטסאפ.
   const clientPhone =
     task.client?.contactPhone || task.client?.users?.find((u) => u.phone)?.phone || null;
-  // האם ללקוח יש כתובת מייל פעילה — להפעלת כפתור "שלח במייל".
-  const clientHasEmail = (task.client?.users || []).some((u) => !!u.email);
+  // האם ללקוח יש כתובת מייל (משתמש פעיל או מייל איש קשר) — להפעלת כפתור "שלח במייל".
+  const clientHasEmail =
+    (task.client?.users || []).some((u) => !!u.email) || !!task.client?.contactEmail;
   return NextResponse.json({ task: { ...task, clientPhone, clientHasEmail } });
 });
 
