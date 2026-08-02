@@ -284,7 +284,7 @@ export default function LeadDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-start">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <aside className="thin-scroll relative h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-[#0a0f1d] p-6 shadow-2xl">
+      <aside className="thin-scroll relative h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
         {!lead ? (
           <p className="text-sm text-slate-500">{error || "טוען…"}</p>
         ) : (
@@ -708,7 +708,7 @@ export default function LeadDrawer({
             ) : null}
 
             {dirty ? (
-              <div className="sticky bottom-0 mt-4 flex justify-end gap-2 rounded-xl bg-[#0a0f1d]/95 py-2">
+              <div className="sticky bottom-0 mt-4 flex justify-end gap-2 rounded-xl bg-white/95 py-2">
                 <Button variant="ghost" onClick={() => { setEdit({}); setCustomEdit({}); }}>ביטול</Button>
                 <Button onClick={save} disabled={busy}>{busy ? "שומר…" : "שמירת שינויים"}</Button>
               </div>

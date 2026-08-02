@@ -94,7 +94,7 @@ export default function Sidebar({
         <img
           src="/brand/apollo-logo.png"
           alt="Apollo"
-          className="h-5 w-auto invert"
+          className="h-5 w-auto"
         />
         <p className="mt-1 text-[11px] leading-tight text-slate-500">{roleLabel}</p>
       </div>
@@ -104,7 +104,7 @@ export default function Sidebar({
   return (
     <>
       {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/70 bg-[#060912]/90 px-4 py-3 backdrop-blur md:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/70 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
         <button
           onClick={() => setOpen(true)}
           className="rounded-lg p-1.5 text-slate-600"
@@ -113,7 +113,7 @@ export default function Sidebar({
           <Icon name="menu" />
         </button>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/apollo-logo.png" alt="Apollo" className="h-4 w-auto invert" />
+        <img src="/brand/apollo-logo.png" alt="Apollo" className="h-4 w-auto" />
         <div className="w-8" />
       </div>
 
@@ -124,7 +124,7 @@ export default function Sidebar({
             className="absolute inset-0 bg-black/60"
             onClick={() => setOpen(false)}
           />
-          <aside className="absolute inset-y-0 right-0 flex w-64 flex-col bg-[#0a0f1d] shadow-2xl">
+          <aside className="absolute inset-y-0 right-0 flex w-64 flex-col bg-slate-50 shadow-2xl">
             <div className="flex items-center justify-between pl-3">
               {brand}
               <button

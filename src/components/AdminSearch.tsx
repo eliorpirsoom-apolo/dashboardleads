@@ -73,7 +73,7 @@ export default function AdminSearch() {
       </div>
 
       {open && results ? (
-        <div className="absolute inset-x-3 top-full z-50 mt-1 max-h-80 overflow-y-auto thin-scroll rounded-xl border border-slate-300 bg-[#0a0f1d] p-2 shadow-2xl">
+        <div className="absolute inset-x-3 top-full z-50 mt-1 max-h-80 overflow-y-auto thin-scroll rounded-xl border border-slate-300 bg-white p-2 shadow-2xl">
           {empty ? (
             <p className="px-2 py-3 text-center text-xs text-slate-500">אין תוצאות</p>
           ) : (

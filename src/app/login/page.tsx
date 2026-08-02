@@ -31,7 +31,7 @@ export default async function LoginPage({
           <img
             src="/brand/apollo-logo.png"
             alt="Apollo"
-            className="mx-auto mb-4 h-9 w-auto invert"
+            className="mx-auto mb-4 h-9 w-auto"
           />
           <p className="mt-1 text-sm text-slate-400">
             התחברות לניהול הפעילות הדיגיטלית שלך
