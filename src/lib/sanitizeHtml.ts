@@ -1,32 +1,57 @@
-import sanitizeHtml from "sanitize-html";
+import { FilterXSS } from "xss";
 
 // מסנן HTML עשיר (בריף/עדכונים) — מונע XSS, משאיר עיצוב בסיסי + תמונות + קישורים.
+// xss = ספרייה טהורה (CJS) ללא תלויות ESM — תקין ב-serverless.
+const filter = new FilterXSS({
+  whiteList: {
+    p: [],
+    br: [],
+    strong: [],
+    b: [],
+    em: [],
+    i: [],
+    u: [],
+    s: [],
+    ul: [],
+    ol: [],
+    li: [],
+    h1: [],
+    h2: [],
+    h3: [],
+    blockquote: [],
+    code: [],
+    span: [],
+    a: ["href", "target", "rel"],
+    img: ["src", "alt"],
+  },
+  stripIgnoreTag: true,
+  stripIgnoreTagBody: ["script", "style"],
+  onTagAttr: (tag, name, value) => {
+    if (tag === "a" && name === "href") {
+      if (/^(https?:|mailto:)/i.test(value)) return `href="${value}"`;
+      return "";
+    }
+    if (tag === "img" && name === "src") {
+      // מאפשר נתיב יחסי (/api/studio/media...) או https בלבד
+      if (/^\//.test(value) || /^https:/i.test(value)) return `src="${value}"`;
+      return "";
+    }
+    return undefined; // ברירת מחדל של xss
+  },
+});
+
 export function sanitizeRich(html: string): string {
   if (!html) return "";
-  return sanitizeHtml(html, {
-    allowedTags: [
-      "p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li",
-      "a", "img", "h1", "h2", "h3", "blockquote", "code", "pre", "span",
-    ],
-    allowedAttributes: {
-      a: ["href", "target", "rel"],
-      img: ["src", "alt"],
-    },
-    allowedSchemes: ["http", "https", "mailto"],
-    allowedSchemesByTag: { img: ["http", "https"] },
-    // מאפשר נתיבים יחסיים (למשל /api/studio/media?key=...).
-    allowProtocolRelative: false,
-    transformTags: {
-      a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer", target: "_blank" }),
-    },
-  });
+  let out = filter.process(html);
+  // הבטחת rel/target בקישורים
+  out = out.replace(/<a /g, '<a rel="noopener noreferrer" target="_blank" ');
+  return out;
 }
 
 // בדיקה אם התוכן ריק (אחרי הסרת תגיות ורווחים) — כדי לא לשמור עדכון/בריף ריק.
 export function isRichEmpty(html: string): boolean {
   if (!html) return true;
-  const text = sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).replace(/\s|&nbsp;/g, "");
-  // תוכן שהוא רק תמונה נחשב לא-ריק
   const hasImg = /<img\b/i.test(html);
+  const text = html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "");
   return text.length === 0 && !hasImg;
 }

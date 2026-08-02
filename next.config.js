@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     // Keep server-only packages out of the bundle (Next 14 syntax).
-    serverComponentsExternalPackages: ["@prisma/client", "nodemailer", "sanitize-html"],
+    serverComponentsExternalPackages: ["@prisma/client", "nodemailer"],
   },
 };
 
