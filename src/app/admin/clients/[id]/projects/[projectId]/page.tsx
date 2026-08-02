@@ -17,7 +17,7 @@ export default async function AdminProjectPage({
 
   return (
     <>
-      <h2 className="mb-4 text-lg font-bold text-slate-100">{project.name}</h2>
+      <h2 className="mb-4 text-lg font-bold text-slate-800">{project.name}</h2>
       <ProjectDetail
         projectId={project.id}
         clientId={params.id}

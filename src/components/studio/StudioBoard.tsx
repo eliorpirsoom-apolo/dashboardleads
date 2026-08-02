@@ -198,7 +198,7 @@ export default function StudioBoard({
         <div className="flex items-center gap-2">
           {dndEnabled ? <span className="cursor-grab select-none text-slate-600" title="גרירה">⠿</span> : null}
           <div>
-            <button onClick={() => setOpenId(t.id)} className="text-right font-medium text-slate-800 hover:text-cyan-300">
+            <button onClick={() => setOpenId(t.id)} className="text-right font-medium text-slate-800 hover:text-cyan-700">
               {t.title}
             </button>
             {t.overdue || t.round > 1 ? (
@@ -282,12 +282,12 @@ export default function StudioBoard({
           <span className="font-bold text-slate-800">{sec.group ? sec.group.name : "ללא קבוצה"}</span>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{sec.items.length}</span>
           <span className="mr-auto flex items-center gap-3">
-            <button onClick={() => openCreateInGroup(gidOf(sec.key))} title="הוספת משימה לקבוצה" className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300">
+            <button onClick={() => openCreateInGroup(gidOf(sec.key))} title="הוספת משימה לקבוצה" className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-700">
               <Icon name="plus" className="h-3.5 w-3.5" /> משימה
             </button>
             {isGroup ? (
               <>
-                <button onClick={() => renameGroup(sec.group!)} title="שינוי שם" className="text-slate-500 hover:text-cyan-300"><Icon name="edit" className="h-3.5 w-3.5" /></button>
+                <button onClick={() => renameGroup(sec.group!)} title="שינוי שם" className="text-slate-500 hover:text-cyan-700"><Icon name="edit" className="h-3.5 w-3.5" /></button>
                 <button onClick={() => deleteGroup(sec.group!)} title="מחיקת קבוצה" className="text-slate-500 hover:text-rose-400"><Icon name="trash" className="h-3.5 w-3.5" /></button>
               </>
             ) : null}
@@ -304,7 +304,7 @@ export default function StudioBoard({
                     onDragOver={(e) => { if (dragGroupId) return; e.preventDefault(); setDragOver(`${sec.key}:end`); }}
                     onDrop={(e) => { if (dragGroupId) return; e.preventDefault(); handleDrop(gidOf(sec.key), null); }}
                   >
-                    <td colSpan={9} className={`px-3 py-1.5 text-center text-[11px] ${dragOver === `${sec.key}:end` ? "bg-cyan-500/10 text-cyan-300" : "text-slate-700"}`}>
+                    <td colSpan={9} className={`px-3 py-1.5 text-center text-[11px] ${dragOver === `${sec.key}:end` ? "bg-cyan-500/10 text-cyan-700" : "text-slate-700"}`}>
                       גררו לכאן להוספה לקבוצה
                     </td>
                   </tr>
@@ -313,7 +313,7 @@ export default function StudioBoard({
                 ) : null}
                 <tr>
                   <td colSpan={9} className="border-t border-slate-100 px-3 py-2">
-                    <button onClick={() => openCreateInGroup(gidOf(sec.key))} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-cyan-300">
+                    <button onClick={() => openCreateInGroup(gidOf(sec.key))} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-cyan-700">
                       <Icon name="plus" className="h-3.5 w-3.5" /> הוספת משימה
                     </button>
                   </td>
@@ -451,7 +451,7 @@ function CapacityView({
                   key={t.id}
                   onClick={() => onOpen(t.id)}
                   className={`rounded-lg border px-2 py-1.5 text-right text-xs transition hover:border-cyan-500/40 ${
-                    t.overdue ? "border-rose-700/50 bg-rose-950/20" : "border-slate-200 bg-slate-50"
+                    t.overdue ? "border-rose-700/50 bg-rose-50" : "border-slate-200 bg-slate-50"
                   }`}
                 >
                   <div className="truncate font-medium text-slate-700">{t.title}</div>
@@ -584,7 +584,7 @@ function CreateBriefModal({
   return (
     <Modal title="בריף עיצוב חדש" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label="לקוח">
             <Select value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} required>
@@ -615,7 +615,7 @@ function CreateBriefModal({
               type="button"
               onClick={aiBrief}
               disabled={aiBusy}
-              className="flex items-center gap-1 rounded-lg bg-violet-500/15 px-2 py-1 text-[11px] font-medium text-violet-300 hover:bg-violet-500/25 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg bg-violet-100 px-2 py-1 text-[11px] font-medium text-violet-700 hover:bg-violet-200 disabled:opacity-50"
             >
               <Icon name="edit" className="h-3.5 w-3.5" />
               {aiBusy ? "מנסח…" : "✨ נסח עם AI"}

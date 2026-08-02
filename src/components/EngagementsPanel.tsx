@@ -78,7 +78,7 @@ export default function EngagementsPanel() {
   if (rows.length === 0) {
     return (
       <Card className="mt-4">
-        <h2 className="mb-1 text-base font-bold text-slate-100">🚀 נכנס לעבודה</h2>
+        <h2 className="mb-1 text-base font-bold text-slate-800">🚀 נכנס לעבודה</h2>
         <p className="py-4 text-center text-sm text-slate-600">
           אין לקוחות בקליטה כרגע. הצעה שתאושר ב&quot;הצעות מחיר&quot; תיפתח כאן אוטומטית.
         </p>
@@ -89,14 +89,14 @@ export default function EngagementsPanel() {
   return (
     <Card className="mt-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-bold text-slate-100">🚀 נכנס לעבודה</h2>
+        <h2 className="text-base font-bold text-slate-800">🚀 נכנס לעבודה</h2>
         <Chip color="#34d399">{rows.length}</Chip>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] text-right text-sm">
           <thead>
-            <tr className="border-b border-slate-800 text-xs text-slate-500">
+            <tr className="border-b border-slate-200 text-xs text-slate-500">
               <th className="px-3 py-2 font-medium">לקוח</th>
               <th className="px-3 py-2 font-medium">ישיבת התנעה</th>
               <th className="px-3 py-2 font-medium">בוצעה?</th>
@@ -108,11 +108,11 @@ export default function EngagementsPanel() {
             {rows.map((e) => {
               const doneCount = e.tasks.filter((t) => t.done).length;
               return (
-                <tr key={e.id} className="border-b border-slate-800/60 align-top">
+                <tr key={e.id} className="border-b border-slate-200/60 align-top">
                   <td className="px-3 py-3">
                     <Link
                       href={`/admin/clients/${e.client.id}`}
-                      className="font-bold text-slate-100 hover:text-cyan-300"
+                      className="font-bold text-slate-800 hover:text-cyan-700"
                     >
                       {e.client.name}
                     </Link>
@@ -148,8 +148,8 @@ export default function EngagementsPanel() {
                       onClick={() => patchEngagement(e.id, { kickoffDone: !e.kickoffDone })}
                       className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                         e.kickoffDone
-                          ? "bg-emerald-500/15 text-emerald-300"
-                          : "bg-slate-800 text-slate-400"
+                          ? "bg-emerald-500/15 text-emerald-700"
+                          : "bg-slate-100 text-slate-400"
                       }`}
                     >
                       {e.kickoffDone ? "בוצעה ✓" : "טרם"}
@@ -166,19 +166,19 @@ export default function EngagementsPanel() {
                             onClick={() => patchTask(t.id, { done: !t.done })}
                             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
                               t.done
-                                ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                                ? "border-emerald-500 bg-emerald-500/20 text-emerald-700"
                                 : "border-slate-600 text-transparent"
                             }`}
                           >
                             ✓
                           </button>
-                          <span className={`text-xs ${t.done ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                          <span className={`text-xs ${t.done ? "text-slate-500 line-through" : "text-slate-700"}`}>
                             {t.title}
                           </span>
                           <select
                             value={t.assignee?.id ?? ""}
                             onChange={(ev) => patchTask(t.id, { assigneeId: ev.target.value || null })}
-                            className="mr-auto rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-300"
+                            className="mr-auto rounded border border-slate-300 bg-white px-1 py-0.5 text-[10px] text-slate-600"
                           >
                             <option value="">— מבצע —</option>
                             {users.map((u) => (

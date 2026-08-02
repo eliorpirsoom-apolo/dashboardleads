@@ -15,7 +15,7 @@ export default function TrendChart({
   return (
     <Card>
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-base font-bold text-slate-100">{title}</h2>
+        <h2 className="text-base font-bold text-slate-800">{title}</h2>
         <span className="text-xs text-slate-500">{total} בסה״כ</span>
       </div>
       {total === 0 ? (

@@ -74,7 +74,7 @@ export default function AutomationsManager({ clientId }: { clientId: string }) {
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-100">הודעות אוטומטיות</h3>
+          <h3 className="text-base font-bold text-slate-800">הודעות אוטומטיות</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             ליד חדש או שינוי סטטוס ⟵ הודעה אוטומטית ללקוח או לסוכני המכירות.
             SMS/וואטסאפ נשלחים בפועל אחרי חיבור ספק (עד אז נרשמים ביומן).
@@ -86,23 +86,23 @@ export default function AutomationsManager({ clientId }: { clientId: string }) {
         </Button>
       </div>
 
-      {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
       <div className="flex flex-col gap-2">
         {automations.map((a) => (
-          <div key={a.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 ${a.active ? "" : "opacity-50"}`}>
+          <div key={a.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 ${a.active ? "" : "opacity-50"}`}>
             <Icon name="megaphone" className="h-4 w-4 text-violet-400" />
-            <span className="text-sm font-medium text-slate-200">{a.name}</span>
+            <span className="text-sm font-medium text-slate-700">{a.name}</span>
             <Chip color="#818cf8">
               {a.trigger === "lead_created" ? "ליד חדש" : `סטטוס: ${a.status?.name ?? "?"}`}
             </Chip>
             <Chip color="#22d3ee">{CHANNEL_LABELS[a.channel]}</Chip>
             <span className="text-xs text-slate-500">{RECIPIENT_LABELS[a.recipientType]}</span>
             <div className="mr-auto flex gap-1">
-              <button onClick={() => toggle(a)} className="rounded p-1.5 text-slate-500 hover:text-amber-300" title={a.active ? "כיבוי" : "הפעלה"}>
+              <button onClick={() => toggle(a)} className="rounded p-1.5 text-slate-500 hover:text-amber-700" title={a.active ? "כיבוי" : "הפעלה"}>
                 <Icon name={a.active ? "x" : "check"} className="h-4 w-4" />
               </button>
-              <button onClick={() => remove(a.id)} className="rounded p-1.5 text-slate-500 hover:text-red-400" title="מחיקה">
+              <button onClick={() => remove(a.id)} className="rounded p-1.5 text-slate-500 hover:text-red-600" title="מחיקה">
                 <Icon name="trash" className="h-4 w-4" />
               </button>
             </div>
@@ -196,7 +196,7 @@ function AutomationModal({
   return (
     <Modal title="אוטומציה חדשה" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder='"עדכון סוכן על ליד חדש"' required />
         </Field>

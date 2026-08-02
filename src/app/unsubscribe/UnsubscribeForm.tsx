@@ -30,7 +30,7 @@ export default function UnsubscribeForm({ token }: { token: string }) {
     return (
       <>
         <p className="text-3xl">✓</p>
-        <h1 className="mt-2 text-xl font-bold text-slate-100">הוסרתם מרשימת התפוצה</h1>
+        <h1 className="mt-2 text-xl font-bold text-slate-800">הוסרתם מרשימת התפוצה</h1>
         <p className="mt-2 text-sm text-slate-400">
           לא תקבלו יותר הודעות שיווקיות. אפשר לסגור את החלון.
         </p>
@@ -41,15 +41,15 @@ export default function UnsubscribeForm({ token }: { token: string }) {
   if (state === "error") {
     return (
       <>
-        <h1 className="text-xl font-bold text-slate-100">שגיאה</h1>
-        <p className="mt-2 text-sm text-red-300">{error}</p>
+        <h1 className="text-xl font-bold text-slate-800">שגיאה</h1>
+        <p className="mt-2 text-sm text-red-600">{error}</p>
       </>
     );
   }
 
   return (
     <>
-      <h1 className="text-xl font-bold text-slate-100">הסרה מרשימת התפוצה</h1>
+      <h1 className="text-xl font-bold text-slate-800">הסרה מרשימת התפוצה</h1>
       <p className="mt-2 text-sm text-slate-400">
         לחיצה על הכפתור תסיר אתכם מקבלת הודעות שיווקיות נוספות.
       </p>

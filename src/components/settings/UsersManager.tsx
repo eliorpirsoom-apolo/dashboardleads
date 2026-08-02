@@ -74,7 +74,7 @@ export default function UsersManager({
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-100">משתמשי הלקוח</h3>
+          <h3 className="text-base font-bold text-slate-800">משתמשי הלקוח</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             בעלים וסוכני מכירות — כולם רואים רק את הלקוח הזה.
           </p>
@@ -87,9 +87,9 @@ export default function UsersManager({
 
       <div className="flex flex-col gap-2">
         {users.map((u) => (
-          <div key={u.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 ${u.active ? "" : "opacity-50"}`}>
+          <div key={u.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 ${u.active ? "" : "opacity-50"}`}>
             <Icon name="users" className="h-4 w-4 text-slate-500" />
-            <span className="text-sm font-medium text-slate-200">{u.name}</span>
+            <span className="text-sm font-medium text-slate-700">{u.name}</span>
             <span dir="ltr" className="text-xs text-slate-500">{u.email}</span>
             {u.isAgent ? <Chip color="#fbbf24">סוכן מכירות</Chip> : null}
             {u.googleId ? <Chip color="#38bdf8">Google</Chip> : null}
@@ -112,14 +112,14 @@ export default function UsersManager({
               </Button>
               <button
                 onClick={() => toggleActive(u)}
-                className="rounded p-1.5 text-slate-500 hover:text-amber-300"
+                className="rounded p-1.5 text-slate-500 hover:text-amber-700"
                 title={u.active ? "השבתה" : "הפעלה"}
               >
                 <Icon name={u.active ? "x" : "check"} className="h-4 w-4" />
               </button>
               <button
                 onClick={() => remove(u)}
-                className="rounded p-1.5 text-slate-500 hover:text-red-400"
+                className="rounded p-1.5 text-slate-500 hover:text-red-600"
                 title="מחיקה לצמיתות"
               >
                 <Icon name="trash" className="h-4 w-4" />
@@ -193,7 +193,7 @@ function CreateUserModal({
   return (
     <Modal title="משתמש חדש ללקוח" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם מלא">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         </Field>
@@ -208,12 +208,12 @@ function CreateUserModal({
             <Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </Field>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
+        <label className="flex items-center gap-2 text-sm text-slate-600">
           <input
             type="checkbox"
             checked={form.isAgent}
             onChange={(e) => setForm({ ...form, isAgent: e.target.checked })}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+            className="h-4 w-4 rounded border-slate-600 bg-white"
           />
           סוכן מכירות (מקבל הודעות אוטומטיות לסוכנים)
         </label>
@@ -256,7 +256,7 @@ function ResetPasswordModal({
   return (
     <Modal title={`איפוס סיסמה — ${user.name}`} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="סיסמה חדשה">
           <Input dir="ltr" type="text" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
         </Field>

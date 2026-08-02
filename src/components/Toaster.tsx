@@ -90,9 +90,9 @@ export default function ToasterProvider({
   }
 
   const KIND_STYLE: Record<Toast["kind"], string> = {
-    success: "border-emerald-700/60 bg-emerald-950/90 text-emerald-200",
-    error: "border-red-700/60 bg-red-950/90 text-red-200",
-    info: "border-cyan-700/60 bg-cyan-950/90 text-cyan-200",
+    success: "border-emerald-700/60 bg-emerald-50 text-emerald-700",
+    error: "border-red-700/60 bg-red-50 text-red-200",
+    info: "border-cyan-700/60 bg-cyan-50 text-cyan-700",
   };
 
   return (
@@ -120,11 +120,11 @@ export default function ToasterProvider({
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => answer(false)} />
           <div className="glass relative w-full max-w-sm rounded-2xl p-5">
-            <p className="text-sm leading-relaxed text-slate-200">{confirmState.text}</p>
+            <p className="text-sm leading-relaxed text-slate-700">{confirmState.text}</p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => answer(false)}
-                className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500"
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:border-slate-500"
               >
                 ביטול
               </button>
@@ -132,7 +132,7 @@ export default function ToasterProvider({
                 onClick={() => answer(true)}
                 className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
                   confirmState.danger
-                    ? "border border-red-800/60 bg-red-950/60 text-red-200 hover:border-red-500"
+                    ? "border border-red-200 bg-red-50 text-red-200 hover:border-red-500"
                     : "btn-neon"
                 }`}
               >

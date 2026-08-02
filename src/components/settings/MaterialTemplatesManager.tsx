@@ -36,7 +36,7 @@ export default function MaterialTemplatesManager() {
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-100">רשימות חומרים (מכולת)</h3>
+          <h3 className="text-base font-bold text-slate-800">רשימות חומרים (מכולת)</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             מה צריך מהלקוח לכל סוג פרויקט. בפתיחת פרויקט בוחרים תבנית — והרשימה נשלחת ללקוח.
           </p>
@@ -52,10 +52,10 @@ export default function MaterialTemplatesManager() {
           <button
             key={t.id}
             onClick={() => setEdit(t)}
-            className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-right transition hover:border-cyan-500/40"
+            className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-right transition hover:border-cyan-500/40"
           >
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-100">{t.name}</span>
+              <span className="font-bold text-slate-800">{t.name}</span>
               <Icon name="folder" className="h-4 w-4 text-cyan-400" />
             </div>
             <p className="mt-1 text-xs text-slate-500">{t.items.length} פריטים</p>
@@ -141,7 +141,7 @@ function TemplateModal({
   return (
     <Modal title={template ? `עריכת תבנית — ${template.name}` : "תבנית חומרים חדשה"} onClose={onClose} wide>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם התבנית (סוג הפרויקט)">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='למשל: "אתר תדמית"' required />
         </Field>
@@ -165,7 +165,7 @@ function TemplateModal({
                 <button
                   type="button"
                   onClick={() => setItems(items.filter((_, idx) => idx !== i))}
-                  className="rounded p-1.5 text-slate-600 hover:text-red-400"
+                  className="rounded p-1.5 text-slate-600 hover:text-red-600"
                 >
                   <Icon name="trash" className="h-4 w-4" />
                 </button>
@@ -185,7 +185,7 @@ function TemplateModal({
         </div>
         <div className="mt-1 flex items-center justify-between">
           {onDelete ? (
-            <Button type="button" variant="ghost" onClick={onDelete} className="!text-red-400">
+            <Button type="button" variant="ghost" onClick={onDelete} className="!text-red-600">
               מחיקת תבנית
             </Button>
           ) : (

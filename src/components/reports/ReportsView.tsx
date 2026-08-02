@@ -131,7 +131,7 @@ export default function ReportsView({
         </div>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {t ? (
         <>
@@ -170,20 +170,20 @@ export default function ReportsView({
               rows={summary!.byCampaign.map((r) => ({ label: r.name, count: r.count }))}
             />
             <Card>
-              <h3 className="mb-3 text-sm font-bold text-slate-200">לפי סטטוס</h3>
+              <h3 className="mb-3 text-sm font-bold text-slate-700">לפי סטטוס</h3>
               <div className="flex flex-col gap-2">
                 {summary!.byStatus.map((s, i) => {
                   const max = Math.max(...summary!.byStatus.map((x) => x.count), 1);
                   return (
                     <div key={i} className="flex items-center gap-2">
                       <span className="w-24 truncate text-xs text-slate-400">{s.name}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full rounded-full"
                           style={{ width: `${(s.count / max) * 100}%`, backgroundColor: s.color }}
                         />
                       </div>
-                      <span className="w-7 text-left text-xs font-bold text-slate-300">{s.count}</span>
+                      <span className="w-7 text-left text-xs font-bold text-slate-600">{s.count}</span>
                     </div>
                   );
                 })}
@@ -195,12 +195,12 @@ export default function ReportsView({
           {summary!.adInsights.campaigns.length > 0 ? (
             <Card>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-bold text-slate-200">נתוני מנהל המודעות (Meta)</h3>
+                <h3 className="text-sm font-bold text-slate-700">נתוני מנהל המודעות (Meta)</h3>
                 <div className="flex gap-4 text-xs">
-                  <span className="text-emerald-300">
+                  <span className="text-emerald-700">
                     💬 {formatNumber(summary!.adInsights.totalWhatsapp)} שיחות וואטסאפ
                   </span>
-                  <span className="text-amber-300">
+                  <span className="text-amber-700">
                     {formatCurrency(summary!.adInsights.totalSpend)} הוצאה
                   </span>
                 </div>
@@ -208,7 +208,7 @@ export default function ReportsView({
               <div className="thin-scroll overflow-x-auto">
                 <table className="w-full min-w-[560px] text-right text-sm">
                   <thead>
-                    <tr className="border-b border-slate-700/60 text-xs text-slate-400">
+                    <tr className="border-b border-slate-300/60 text-xs text-slate-400">
                       <th className="px-3 py-2 font-medium">חודש</th>
                       <th className="px-3 py-2 font-medium">קמפיין</th>
                       <th className="px-3 py-2 font-medium">וואטסאפים</th>
@@ -217,12 +217,12 @@ export default function ReportsView({
                       <th className="px-3 py-2 font-medium">חשיפות</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-slate-200">
                     {summary!.adInsights.campaigns.map((a, i) => (
                       <tr key={i}>
                         <td className="px-3 py-2 font-mono text-xs">{a.month}</td>
                         <td className="max-w-[180px] truncate px-3 py-2">{a.campaignName}</td>
-                        <td className="px-3 py-2 font-bold text-emerald-300">{a.whatsappCount}</td>
+                        <td className="px-3 py-2 font-bold text-emerald-700">{a.whatsappCount}</td>
                         <td className="px-3 py-2">{a.leadsCount}</td>
                         <td className="px-3 py-2">{formatCurrency(a.spend)}</td>
                         <td className="px-3 py-2 text-xs text-slate-400">{formatNumber(a.impressions)}</td>
@@ -236,19 +236,19 @@ export default function ReportsView({
 
           {isRealestate && summary!.inventory.length > 0 ? (
             <Card>
-              <h3 className="mb-3 text-sm font-bold text-slate-200">מצב מלאי — פרויקטים</h3>
+              <h3 className="mb-3 text-sm font-bold text-slate-700">מצב מלאי — פרויקטים</h3>
               <div className="grid gap-2 sm:grid-cols-2">
                 {summary!.inventory.map((inv, i) => {
                   const pct = inv.total > 0 ? Math.round((inv.sold / inv.total) * 100) : 0;
                   return (
-                    <div key={i} className="rounded-xl border border-slate-800 p-3">
+                    <div key={i} className="rounded-xl border border-slate-200 p-3">
                       <div className="mb-1 flex justify-between text-xs">
-                        <span className="font-medium text-slate-300">{inv.project}</span>
+                        <span className="font-medium text-slate-600">{inv.project}</span>
                         <span className="text-slate-500">
                           {inv.sold}/{inv.total} נמכרו ({pct}%)
                         </span>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full rounded-full bg-gradient-to-l from-cyan-400 to-indigo-500"
                           style={{ width: `${pct}%` }}
@@ -268,7 +268,7 @@ export default function ReportsView({
       {/* Budgets */}
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-200">תקציבים (חודשי / שבועי)</h3>
+          <h3 className="text-sm font-bold text-slate-700">תקציבים (חודשי / שבועי)</h3>
           <Button variant="ghost" size="sm" onClick={() => setShowBudget(true)} className="print:hidden">
             <Icon name="plus" className="h-3.5 w-3.5" />
             תקציב חדש
@@ -282,7 +282,7 @@ export default function ReportsView({
           <div className="thin-scroll overflow-x-auto">
             <table className="w-full min-w-[560px] text-right text-sm">
               <thead>
-                <tr className="border-b border-slate-700/60 text-xs text-slate-400">
+                <tr className="border-b border-slate-300/60 text-xs text-slate-400">
                   <th className="px-3 py-2 font-medium">תקופה</th>
                   <th className="px-3 py-2 font-medium">היקף</th>
                   <th className="px-3 py-2 font-medium">תקציב</th>
@@ -292,7 +292,7 @@ export default function ReportsView({
                   <th className="px-3 py-2 print:hidden"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200">
                 {budgets.map((b) => (
                   <tr key={b.id}>
                     <td className="px-3 py-2 font-mono text-xs">{b.periodKey}</td>
@@ -302,14 +302,14 @@ export default function ReportsView({
                     <td className="px-3 py-2">{formatCurrency(b.amount)}</td>
                     <td className="px-3 py-2">{formatCurrency(b.spend)}</td>
                     <td className="px-3 py-2">{b.leads}</td>
-                    <td className="px-3 py-2 font-bold text-cyan-300">
+                    <td className="px-3 py-2 font-bold text-cyan-700">
                       {b.cpl ? formatCurrency(b.cpl) : "—"}
                     </td>
                     <td className="px-3 py-2 print:hidden">
                       <span className="flex gap-1">
                         <button
                           onClick={() => setEditBudget(b)}
-                          className="rounded p-1 text-slate-500 hover:text-cyan-300"
+                          className="rounded p-1 text-slate-500 hover:text-cyan-700"
                           title="עריכה"
                         >
                           <Icon name="edit" className="h-3.5 w-3.5" />
@@ -324,7 +324,7 @@ export default function ReportsView({
                               alert(e.message);
                             }
                           }}
-                          className="rounded p-1 text-slate-500 hover:text-red-400"
+                          className="rounded p-1 text-slate-500 hover:text-red-600"
                           title="מחיקה"
                         >
                           <Icon name="trash" className="h-3.5 w-3.5" />
@@ -342,7 +342,7 @@ export default function ReportsView({
       {/* Top 2 ads of the month */}
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-bold text-slate-200">2 המודעות החזקות של החודש</h3>
+          <h3 className="text-sm font-bold text-slate-700">2 המודעות החזקות של החודש</h3>
           <div className="flex items-center gap-2 print:hidden">
             <Input
               type="month"
@@ -359,15 +359,15 @@ export default function ReportsView({
               <div
                 key={rank}
                 className={`relative rounded-2xl border p-4 ${
-                  rank === 1 ? "border-amber-500/40 bg-amber-500/5" : "border-slate-700 bg-slate-900/40"
+                  rank === 1 ? "border-amber-500/40 bg-amber-500/5" : "border-slate-300 bg-slate-50"
                 }`}
               >
                 <span className="absolute left-3 top-3 text-2xl">{rank === 1 ? "🥇" : "🥈"}</span>
                 {ad ? (
                   <>
-                    <p className="font-bold text-slate-100">{ad.name}</p>
+                    <p className="font-bold text-slate-800">{ad.name}</p>
                     <p className="mt-1 text-xs text-slate-500">{ad.platform ?? ""}</p>
-                    <p className="mt-2 text-sm font-medium text-amber-300">{ad.metric ?? ""}</p>
+                    <p className="mt-2 text-sm font-medium text-amber-700">{ad.metric ?? ""}</p>
                   </>
                 ) : (
                   <p className="py-4 text-sm text-slate-600">טרם סומנה מודעה #{rank}</p>
@@ -439,7 +439,7 @@ function BreakdownCard({
   const max = Math.max(...rows.map((r) => r.count), 1);
   return (
     <Card>
-      <h3 className="mb-3 text-sm font-bold text-slate-200">{title}</h3>
+      <h3 className="mb-3 text-sm font-bold text-slate-700">{title}</h3>
       {rows.length === 0 ? (
         <p className="py-3 text-center text-xs text-slate-600">אין נתונים</p>
       ) : (
@@ -447,13 +447,13 @@ function BreakdownCard({
           {rows.slice(0, 8).map((r, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className="w-24 truncate text-xs text-slate-400">{r.label}</span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full rounded-full bg-gradient-to-l from-cyan-400 to-indigo-500"
                   style={{ width: `${(r.count / max) * 100}%` }}
                 />
               </div>
-              <span className="w-7 text-left text-xs font-bold text-slate-300">{r.count}</span>
+              <span className="w-7 text-left text-xs font-bold text-slate-600">{r.count}</span>
             </div>
           ))}
         </div>
@@ -506,7 +506,7 @@ function BudgetModal({
   return (
     <Modal title="תקציב והוצאה" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label="תקופה">
             <Select
@@ -598,7 +598,7 @@ function EditBudgetModal({
   return (
     <Modal title={`עריכת תקציב — ${budget.periodKey}`} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label="תקציב (₪)">
             <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required />
@@ -659,7 +659,7 @@ function TopAdModal({
   return (
     <Modal title={`מודעה ${rank === 1 ? "🥇 #1" : "🥈 #2"} — ${month}`} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם המודעה">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         </Field>

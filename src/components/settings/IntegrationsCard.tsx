@@ -102,21 +102,21 @@ export default function IntegrationsCard({
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-100">אינטגרציות הלקוח</h3>
+      <h3 className="mb-1 text-base font-bold text-slate-800">אינטגרציות הלקוח</h3>
       <p className="mb-4 text-xs text-slate-500">
         חיבורים חיצוניים ללקוח הזה — הוראות מפורטות בקובץ CONNECTIONS.md.
       </p>
 
       {msg ? (
-        <p className="mb-3 rounded-xl border border-cyan-800/50 bg-cyan-950/30 px-3 py-2 text-xs text-cyan-300">{msg}</p>
+        <p className="mb-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-700">{msg}</p>
       ) : null}
 
       <div className="flex flex-col gap-3">
         {/* Meta */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <div className="mb-2 flex items-center gap-2">
             <Icon name="megaphone" className="h-4 w-4 text-blue-400" />
-            <span className="text-sm font-bold text-slate-200">Meta — מנהל המודעות</span>
+            <span className="text-sm font-bold text-slate-700">Meta — מנהל המודעות</span>
             <Chip color={metaRow?.status === "connected" ? "#34d399" : metaRow?.status === "error" ? "#f87171" : "#64748b"}>
               {metaRow?.status === "connected" ? "מחובר" : metaRow?.status === "error" ? "שגיאה" : "לא מחובר"}
             </Chip>
@@ -151,10 +151,10 @@ export default function IntegrationsCard({
 
         {/* SEO connections config */}
         {clientType === "seo" ? (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div className="mb-2 flex items-center gap-2">
               <Icon name="search" className="h-4 w-4 text-emerald-400" />
-              <span className="text-sm font-bold text-slate-200">Search Console + Analytics</span>
+              <span className="text-sm font-bold text-slate-700">Search Console + Analytics</span>
               <Chip color={get("search_console")?.status === "connected" ? "#34d399" : "#64748b"}>
                 GSC: {get("search_console")?.status === "connected" ? "מחובר" : "לא"}
               </Chip>
@@ -187,10 +187,10 @@ export default function IntegrationsCard({
         ) : null}
 
         {/* Paycall note */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <div className="flex items-center gap-2">
             <Icon name="phone" className="h-4 w-4 text-emerald-400" />
-            <span className="text-sm font-bold text-slate-200">פייקול — לידים טלפוניים</span>
+            <span className="text-sm font-bold text-slate-700">פייקול — לידים טלפוניים</span>
           </div>
           <p className="mt-1 text-[11px] text-slate-500">
             שיחות נקלטות דרך מקור קליטה מסוג &quot;שיחות&quot; (למעלה) המחובר לפייקול דרך

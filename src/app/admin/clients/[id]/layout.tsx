@@ -43,7 +43,7 @@ export default async function ClientWorkspaceLayout({
           <img
             src={`/api/files/${client.logoKey}`}
             alt=""
-            className="h-11 w-11 rounded-xl border border-slate-700 bg-white/5 object-contain p-0.5"
+            className="h-11 w-11 rounded-xl border border-slate-300 bg-white/5 object-contain p-0.5"
           />
         ) : (
           <div
@@ -54,7 +54,7 @@ export default async function ClientWorkspaceLayout({
           </div>
         )}
         <div>
-          <h1 className="text-xl font-bold text-slate-100">{client.name}</h1>
+          <h1 className="text-xl font-bold text-slate-800">{client.name}</h1>
           <p className="text-xs text-slate-500">
             {client.contactName ?? ""} {client.contactPhone ? `· ${client.contactPhone}` : ""}
           </p>

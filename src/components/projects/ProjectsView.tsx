@@ -57,7 +57,7 @@ export default function ProjectsView({
         </Button>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {projects.length === 0 ? (
         <div className="glass rounded-2xl p-2">
@@ -87,11 +87,11 @@ export default function ProjectsView({
                 <Card className="glass-hover h-full">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="rounded-xl bg-cyan-500/10 p-2.5 text-cyan-300">
+                      <div className="rounded-xl bg-cyan-500/10 p-2.5 text-cyan-700">
                         <Icon name="building" className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-100">{p.name}</p>
+                        <p className="font-bold text-slate-800">{p.name}</p>
                         <p className="mt-0.5 text-xs text-slate-500">
                           {isRealestate ? `${p.unitTypes} טיפוסים · ` : ""}
                           {p.leads} לידים
@@ -126,9 +126,9 @@ export default function ProjectsView({
                           <span className="text-slate-400">
                             נמכרו {p.soldUnits} מתוך {p.totalUnits}
                           </span>
-                          <span className="font-bold text-cyan-300">{pct}%</span>
+                          <span className="font-bold text-cyan-700">{pct}%</span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                           <div
                             className="h-full rounded-full bg-gradient-to-l from-cyan-400 to-indigo-500"
                             style={{ width: `${pct}%` }}
@@ -137,16 +137,16 @@ export default function ProjectsView({
                       </div>
 
                       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                        <div className="rounded-xl bg-slate-900/50 py-2">
-                          <p className="text-base font-bold text-emerald-300">{available}</p>
+                        <div className="rounded-xl bg-slate-50 py-2">
+                          <p className="text-base font-bold text-emerald-700">{available}</p>
                           <p className="text-[10px] text-slate-500">זמינות</p>
                         </div>
-                        <div className="rounded-xl bg-slate-900/50 py-2">
-                          <p className="text-base font-bold text-slate-200">{p.contracts}</p>
+                        <div className="rounded-xl bg-slate-50 py-2">
+                          <p className="text-base font-bold text-slate-700">{p.contracts}</p>
                           <p className="text-[10px] text-slate-500">חוזים</p>
                         </div>
-                        <div className="rounded-xl bg-slate-900/50 py-2">
-                          <p className="text-base font-bold text-amber-300">
+                        <div className="rounded-xl bg-slate-50 py-2">
+                          <p className="text-base font-bold text-amber-700">
                             {p.contractsValue ? formatCurrency(p.contractsValue) : "—"}
                           </p>
                           <p className="text-[10px] text-slate-500">ערך חוזים</p>
@@ -247,7 +247,7 @@ function CreateProjectModal({
   return (
     <Modal title="הקמת פרויקט" onClose={onClose} wide>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <Field label="שם הפרויקט">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='למשל: "מגדלי הפארק — הרצליה"' required />
@@ -286,7 +286,7 @@ function CreateProjectModal({
                 <button
                   type="button"
                   onClick={() => setUnits(units.filter((_, idx) => idx !== i))}
-                  className="rounded p-1.5 text-slate-600 hover:text-red-400"
+                  className="rounded p-1.5 text-slate-600 hover:text-red-600"
                   title="הסרה"
                 >
                   <Icon name="trash" className="h-4 w-4" />

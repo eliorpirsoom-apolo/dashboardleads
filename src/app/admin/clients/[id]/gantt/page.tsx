@@ -10,7 +10,7 @@ export default function AdminClientGanttPage({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <h2 className="text-lg font-bold text-slate-100">גאנט — תוכנית עבודה</h2>
+        <h2 className="text-lg font-bold text-slate-800">גאנט — תוכנית עבודה</h2>
         <p className="text-xs text-slate-500">
           תכנון שבועי ל-6 חודשים. הלקוח רואה את התוכנית וההתקדמות מהאזור שלו.
         </p>

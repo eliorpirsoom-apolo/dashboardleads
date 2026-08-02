@@ -137,7 +137,7 @@ export default function SeoView({
         </div>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="קליקים מגוגל" value={formatNumber(totalClicks)} icon="search" />
@@ -153,7 +153,7 @@ export default function SeoView({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-2 text-sm font-bold text-slate-200">תנועה מחיפוש (Search Console)</h3>
+          <h3 className="mb-2 text-sm font-bold text-slate-700">תנועה מחיפוש (Search Console)</h3>
           {trafficData.length === 0 ? (
             <p className="py-10 text-center text-xs text-slate-600">אין דאטה עדיין — יתמלא אחרי חיבור וסנכרון ראשון</p>
           ) : (
@@ -169,7 +169,7 @@ export default function SeoView({
           )}
         </Card>
         <Card>
-          <h3 className="mb-2 text-sm font-bold text-slate-200">ביקורים והמרות (Analytics)</h3>
+          <h3 className="mb-2 text-sm font-bold text-slate-700">ביקורים והמרות (Analytics)</h3>
           {sessionsData.length === 0 ? (
             <p className="py-10 text-center text-xs text-slate-600">אין דאטה עדיין — יתמלא אחרי חיבור וסנכרון ראשון</p>
           ) : (
@@ -187,7 +187,7 @@ export default function SeoView({
       </div>
 
       <Card>
-        <h3 className="mb-2 text-sm font-bold text-slate-200">מיקום ממוצע בגוגל לאורך זמן</h3>
+        <h3 className="mb-2 text-sm font-bold text-slate-700">מיקום ממוצע בגוגל לאורך זמן</h3>
         {positionData.length === 0 ? (
           <p className="py-10 text-center text-xs text-slate-600">אין דאטת מיקומים עדיין</p>
         ) : (
@@ -206,7 +206,7 @@ export default function SeoView({
       {/* Tracked keywords */}
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-bold text-slate-200">מילות מפתח במעקב</h3>
+          <h3 className="text-sm font-bold text-slate-700">מילות מפתח במעקב</h3>
           <form onSubmit={addKeyword} className="flex gap-2">
             <Input
               value={newKeyword}
@@ -228,7 +228,7 @@ export default function SeoView({
           <div className="thin-scroll overflow-x-auto">
             <table className="w-full min-w-[520px] text-right text-sm">
               <thead>
-                <tr className="border-b border-slate-700/60 text-xs text-slate-400">
+                <tr className="border-b border-slate-300/60 text-xs text-slate-400">
                   <th className="px-3 py-2 font-medium">מילת מפתח</th>
                   <th className="px-3 py-2 font-medium">מיקום נוכחי</th>
                   <th className="px-3 py-2 font-medium">מגמה</th>
@@ -236,7 +236,7 @@ export default function SeoView({
                   <th className="px-3 py-2 font-medium">עודכן</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200">
                 {keywords.map((k) => {
                   const delta =
                     k.current !== null && k.previous !== null
@@ -244,7 +244,7 @@ export default function SeoView({
                       : null;
                   return (
                     <tr key={k.id}>
-                      <td className="px-3 py-2 font-medium text-slate-200">{k.keyword}</td>
+                      <td className="px-3 py-2 font-medium text-slate-700">{k.keyword}</td>
                       <td className="px-3 py-2">
                         {k.current !== null ? (
                           <Chip color={k.current <= 3 ? "#34d399" : k.current <= 10 ? "#fbbf24" : "#94a3b8"}>
@@ -260,7 +260,7 @@ export default function SeoView({
                         ) : delta > 0.5 ? (
                           <span className="text-emerald-400">▲ שיפור {delta.toFixed(1)}</span>
                         ) : delta < -0.5 ? (
-                          <span className="text-red-400">▼ ירידה {Math.abs(delta).toFixed(1)}</span>
+                          <span className="text-red-600">▼ ירידה {Math.abs(delta).toFixed(1)}</span>
                         ) : (
                           <span className="text-slate-500">יציב</span>
                         )}
@@ -279,11 +279,11 @@ export default function SeoView({
       </Card>
 
       {/* AI visibility — future experiment, per spec decision */}
-      <Card className="border-dashed !border-slate-700">
+      <Card className="border-dashed !border-slate-300">
         <div className="flex items-center gap-3">
           <span className="text-xl">🤖</span>
           <div>
-            <p className="text-sm font-bold text-slate-300">בדיקת נראות בבינה מלאכותית</p>
+            <p className="text-sm font-bold text-slate-600">בדיקת נראות בבינה מלאכותית</p>
             <p className="text-xs text-slate-500">
               מעקב אחרי הופעת העסק בתשובות של ChatGPT/Gemini — התחום צעיר; ייבחן ויתווסף
               כשיהיה כלי מדידה אמין. (הוגדר באפיון כניסוי עתידי.)
@@ -311,11 +311,11 @@ function ConnectionChip({
   const connected = status?.status === "connected";
   const errored = status?.status === "error";
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-1.5">
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5">
       <span
         className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-400" : errored ? "bg-red-400" : "bg-slate-600"}`}
       />
-      <span className="text-xs font-medium text-slate-300">{label}</span>
+      <span className="text-xs font-medium text-slate-600">{label}</span>
       <span className="text-[10px] text-slate-500">
         {connected
           ? status?.lastSyncAt

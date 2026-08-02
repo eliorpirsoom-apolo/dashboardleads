@@ -102,8 +102,8 @@ export default function DocumentsView({
             onClick={() => setTab(t.value)}
             className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
               tab === t.value
-                ? "bg-cyan-500/15 text-cyan-300 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.3)]"
-                : "text-slate-400 hover:bg-slate-800/60"
+                ? "bg-cyan-500/15 text-cyan-700 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.3)]"
+                : "text-slate-400 hover:bg-slate-100"
             }`}
           >
             {t.label}
@@ -119,7 +119,7 @@ export default function DocumentsView({
         ) : null}
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {docs.length === 0 ? (
         <div className="glass rounded-2xl p-2">
@@ -136,14 +136,14 @@ export default function DocumentsView({
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {groupDocs.map((d) => (
                 <div key={d.id} className="glass glass-hover flex items-center gap-3 rounded-xl p-3">
-                  <div className="rounded-lg bg-indigo-500/10 p-2 text-indigo-300">
+                  <div className="rounded-lg bg-indigo-500/10 p-2 text-indigo-700">
                     <Icon name="doc" className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <a
                       href={`/api/files/${d.id}`}
                       target="_blank"
-                      className="block truncate text-sm font-medium text-slate-200 hover:text-cyan-300"
+                      className="block truncate text-sm font-medium text-slate-700 hover:text-cyan-700"
                       title={d.title}
                     >
                       {d.title}
@@ -157,7 +157,7 @@ export default function DocumentsView({
                   <a
                     href={`/api/files/${d.id}`}
                     target="_blank"
-                    className="rounded p-1.5 text-slate-500 hover:text-cyan-300"
+                    className="rounded p-1.5 text-slate-500 hover:text-cyan-700"
                     title="פתיחה"
                   >
                     <Icon name="download" className="h-4 w-4" />
@@ -165,13 +165,13 @@ export default function DocumentsView({
                   {canDelete && !d.provider ? (
                     <button
                       onClick={() => remove(d.id)}
-                      className="rounded p-1.5 text-slate-500 hover:text-red-400"
+                      className="rounded p-1.5 text-slate-500 hover:text-red-600"
                       title="מחיקה"
                     >
                       <Icon name="trash" className="h-4 w-4" />
                     </button>
                   ) : d.provider === "sumit" ? (
-                    <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500" title="מסונכרן מ-SUMIT">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500" title="מסונכרן מ-SUMIT">
                       SUMIT
                     </span>
                   ) : null}
@@ -269,11 +269,11 @@ export function UploadModal({
   return (
     <Modal title="העלאת קובץ" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-600 py-8 transition hover:border-cyan-500/50">
           <Icon name="upload" className="h-7 w-7 text-slate-500" />
-          <span className="text-sm text-slate-300">
+          <span className="text-sm text-slate-600">
             {file ? file.name : "בחרו קובץ (עד 25MB)"}
           </span>
           <input

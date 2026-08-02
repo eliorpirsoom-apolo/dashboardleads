@@ -102,8 +102,8 @@ export default function QuotesView() {
             onClick={() => setFilter(f.key)}
             className={`rounded-full border px-3 py-1 text-xs transition ${
               filter === f.key
-                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-300"
-                : "border-slate-800 text-slate-400 hover:text-slate-200"
+                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-700"
+                : "border-slate-200 text-slate-400 hover:text-slate-700"
             }`}
           >
             {f.label}
@@ -116,7 +116,7 @@ export default function QuotesView() {
         </Button>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {quotes.length === 0 ? (
         <div className="glass rounded-2xl p-2">
@@ -136,7 +136,7 @@ export default function QuotesView() {
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[760px] text-right text-sm">
             <thead>
-              <tr className="border-b border-slate-800 text-xs text-slate-500">
+              <tr className="border-b border-slate-200 text-xs text-slate-500">
                 <th className="px-4 py-3 font-medium">נמען</th>
                 <th className="px-4 py-3 font-medium">נושא</th>
                 <th className="px-4 py-3 font-medium">לקוח</th>
@@ -152,8 +152,8 @@ export default function QuotesView() {
                 const days = daysStale(q);
                 const open = q.status === "sent" || q.status === "followup";
                 return (
-                  <tr key={q.id} className="border-b border-slate-800/60 hover:bg-slate-900/40">
-                    <td className="px-4 py-2.5 font-medium text-slate-200">
+                  <tr key={q.id} className="border-b border-slate-200/60 hover:bg-slate-100/40">
+                    <td className="px-4 py-2.5 font-medium text-slate-700">
                       {q.recipient}
                       {q.notes ? (
                         <p className="mt-0.5 max-w-[240px] truncate text-[11px] text-slate-500" title={q.notes}>
@@ -161,9 +161,9 @@ export default function QuotesView() {
                         </p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-300">{q.title}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{q.title}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{q.client?.name ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-slate-300">
+                    <td className="px-4 py-2.5 text-slate-600">
                       {q.amount ? formatCurrency(q.amount) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{fmtDate(q.sentAt)}</td>
@@ -172,10 +172,10 @@ export default function QuotesView() {
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                             days >= 4
-                              ? "bg-red-500/15 text-red-300"
+                              ? "bg-red-500/15 text-red-600"
                               : days >= 2
-                                ? "bg-amber-500/15 text-amber-300"
-                                : "bg-slate-800 text-slate-400"
+                                ? "bg-amber-500/15 text-amber-700"
+                                : "bg-slate-100 text-slate-400"
                           }`}
                         >
                           {days === 0 ? "היום" : `${days} ימים`}
@@ -205,7 +205,7 @@ export default function QuotesView() {
                             target="_blank"
                             rel="noreferrer"
                             title={q.fileName ?? "קובץ ההצעה"}
-                            className="rounded p-1.5 text-slate-500 hover:text-cyan-300"
+                            className="rounded p-1.5 text-slate-500 hover:text-cyan-700"
                           >
                             <Icon name="folder" className="h-4 w-4" />
                           </a>
@@ -213,7 +213,7 @@ export default function QuotesView() {
                         <button
                           onClick={() => remove(q)}
                           title="מחיקה"
-                          className="rounded p-1.5 text-slate-600 hover:text-red-400"
+                          className="rounded p-1.5 text-slate-600 hover:text-red-600"
                         >
                           <Icon name="trash" className="h-4 w-4" />
                         </button>
@@ -311,7 +311,7 @@ function ApproveQuoteModal({
   return (
     <Modal title="אישור הצעה — כניסה לעבודה" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         {/* בחירה: לקוח קיים או חדש */}
         <div className="flex gap-2">
@@ -320,8 +320,8 @@ function ApproveQuoteModal({
             onClick={() => setMode("existing")}
             className={`flex-1 rounded-xl border px-3 py-2 text-sm transition ${
               mode === "existing"
-                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-300"
-                : "border-slate-800 text-slate-400"
+                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-700"
+                : "border-slate-200 text-slate-400"
             }`}
           >
             לקוח קיים
@@ -331,8 +331,8 @@ function ApproveQuoteModal({
             onClick={() => setMode("new")}
             className={`flex-1 rounded-xl border px-3 py-2 text-sm transition ${
               mode === "new"
-                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-300"
-                : "border-slate-800 text-slate-400"
+                ? "border-cyan-500/60 bg-cyan-500/15 font-semibold text-cyan-700"
+                : "border-slate-200 text-slate-400"
             }`}
           >
             לקוח חדש
@@ -453,7 +453,7 @@ function CreateQuoteModal({
   return (
     <Modal title="הצעת מחיר חדשה" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="נמען (שם העסק / איש הקשר)">

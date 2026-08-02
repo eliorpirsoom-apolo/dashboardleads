@@ -78,14 +78,14 @@ export default function ProfileView({
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       {msg ? (
-        <p className="rounded-xl border border-emerald-800/50 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">{msg}</p>
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</p>
       ) : null}
       {err ? (
-        <p className="rounded-xl border border-red-800/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">{err}</p>
+        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{err}</p>
       ) : null}
 
       <Card>
-        <h3 className="mb-3 text-base font-bold text-slate-100">הפרטים שלי</h3>
+        <h3 className="mb-3 text-base font-bold text-slate-800">הפרטים שלי</h3>
         <form onSubmit={saveDetails} className="flex flex-col gap-3">
           <Field label="אימייל (לא ניתן לשינוי)">
             <Input dir="ltr" value={email} disabled className="opacity-60" />
@@ -113,7 +113,7 @@ export default function ProfileView({
       </Card>
 
       <Card>
-        <h3 className="mb-3 text-base font-bold text-slate-100">שינוי סיסמה</h3>
+        <h3 className="mb-3 text-base font-bold text-slate-800">שינוי סיסמה</h3>
         <form onSubmit={changePassword} className="flex flex-col gap-3">
           {hasPassword ? (
             <Field label="הסיסמה הנוכחית">
@@ -136,7 +136,7 @@ export default function ProfileView({
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-slate-100">אבטחה</h3>
+            <h3 className="text-base font-bold text-slate-800">אבטחה</h3>
             <p className="mt-0.5 text-xs text-slate-500">
               ניתוק מיידי של כל ההתחברויות בכל המכשירים.
             </p>

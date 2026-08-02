@@ -275,7 +275,7 @@ export default function LeadsView({
             variant="ghost"
             type="button"
             onClick={() => { setShowArchived(!showArchived); setPage(1); }}
-            className={showArchived ? "!border-amber-500/60 !text-amber-300" : ""}
+            className={showArchived ? "!border-amber-500/60 !text-amber-700" : ""}
           >
             <Icon name="folder" className="h-4 w-4" />
             {showArchived ? "חזרה ללידים" : "ארכיון"}
@@ -300,13 +300,13 @@ export default function LeadsView({
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-800/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
       ) : null}
 
       {/* Bulk action bar */}
       {selected.size > 0 ? (
         <div className="glass sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl border !border-cyan-500/40 p-3">
-          <span className="text-sm font-bold text-cyan-300">{selected.size} נבחרו</span>
+          <span className="text-sm font-bold text-cyan-700">{selected.size} נבחרו</span>
           <Select
             className="!w-40"
             defaultValue=""
@@ -383,7 +383,7 @@ export default function LeadsView({
           >
             מחק לצמיתות
           </Button>
-          <button onClick={() => setSelected(new Set())} className="mr-auto text-xs text-slate-500 hover:text-slate-300">
+          <button onClick={() => setSelected(new Set())} className="mr-auto text-xs text-slate-500 hover:text-slate-600">
             ניקוי בחירה
           </button>
         </div>
@@ -403,13 +403,13 @@ export default function LeadsView({
           <div className="thin-scroll overflow-x-auto rounded-2xl">
             <table className="w-full text-right text-sm" style={{ minWidth: 940 }}>
               <thead>
-                <tr className="border-b border-slate-700/60 text-xs text-slate-400">
+                <tr className="border-b border-slate-300/60 text-xs text-slate-400">
                   <th className="px-2 py-2.5">
                     <input
                       type="checkbox"
                       checked={selected.size === rows.length && rows.length > 0}
                       onChange={toggleAll}
-                      className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+                      className="h-4 w-4 rounded border-slate-600 bg-white"
                     />
                   </th>
                   {["#", "תאריך", "שם", "טלפון", "סטטוס", "מטפל", "פרויקט", "ערוץ", "קמפיין", "הערות", ""].map((h, i) => (
@@ -417,11 +417,11 @@ export default function LeadsView({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200">
                 {rows.map((l) => (
               <tr
                 key={l.id}
-                className={`cursor-pointer transition hover:bg-slate-800/40 ${l.archived ? "opacity-60" : ""}`}
+                className={`cursor-pointer transition hover:bg-slate-100/40 ${l.archived ? "opacity-60" : ""}`}
                 onClick={() => setOpenLeadId(l.id)}
               >
                 <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
@@ -429,14 +429,14 @@ export default function LeadsView({
                     type="checkbox"
                     checked={selected.has(l.id)}
                     onChange={() => toggleOne(l.id)}
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+                    className="h-4 w-4 rounded border-slate-600 bg-white"
                   />
                 </td>
                 <td className="px-3 py-2.5 font-mono text-xs text-slate-500">{l.number}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-xs text-slate-400">
                   {formatDateTime(l.receivedAt)}
                 </td>
-                <td className="px-3 py-2.5 font-medium text-slate-200">
+                <td className="px-3 py-2.5 font-medium text-slate-700">
                   <span className="flex items-center gap-1.5">
                     {l.kind === "call" ? (
                       <Icon name="phone" className="h-3.5 w-3.5 text-emerald-400" />
@@ -446,7 +446,7 @@ export default function LeadsView({
                     {l.fullName ?? "—"}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-slate-300" dir="ltr">{l.phone ?? "—"}</td>
+                <td className="px-3 py-2.5 text-slate-600" dir="ltr">{l.phone ?? "—"}</td>
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <select
                     value={l.status?.id ?? ""}
@@ -468,7 +468,7 @@ export default function LeadsView({
                 <td className="px-3 py-2.5 text-xs text-slate-400">
                   {l.assignee ? (
                     <span className="inline-flex items-center gap-1">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500/20 text-[10px] font-bold text-indigo-300">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500/20 text-[10px] font-bold text-indigo-700">
                         {l.assignee.name.slice(0, 1)}
                       </span>
                       {l.assignee.name.split(" ")[0]}
@@ -479,7 +479,7 @@ export default function LeadsView({
                 </td>
                 <td className="px-3 py-2.5 text-xs">
                   {l.project ? (
-                    <span className="rounded-lg bg-cyan-500/10 px-2 py-0.5 text-cyan-300">
+                    <span className="rounded-lg bg-cyan-500/10 px-2 py-0.5 text-cyan-700">
                       {l.project.name}
                     </span>
                   ) : (
@@ -510,7 +510,7 @@ export default function LeadsView({
 
         {/* Pagination */}
         {pages > 1 ? (
-          <div className="flex items-center justify-between border-t border-slate-800/60 px-4 py-3 text-xs text-slate-400">
+          <div className="flex items-center justify-between border-t border-slate-200/60 px-4 py-3 text-xs text-slate-400">
             <span>
               {total} לידים · עמוד {page} מתוך {pages}
             </span>
@@ -605,7 +605,7 @@ function CreateLeadModal({
   return (
     <Modal title="ליד חדש" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם מלא">
           <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
         </Field>
@@ -638,12 +638,12 @@ function CreateLeadModal({
             ))}
           </Select>
         </Field>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
+        <label className="flex items-center gap-2 text-sm text-slate-600">
           <input
             type="checkbox"
             checked={form.consent}
             onChange={(e) => setForm({ ...form, consent: e.target.checked })}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+            className="h-4 w-4 rounded border-slate-600 bg-white"
           />
           הסכמה לדיוור
         </label>

@@ -148,12 +148,12 @@ export default function ImportLeadsModal({
   return (
     <Modal title="ייבוא לידים מ-CSV" onClose={onClose} wide>
       <div className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         {result ? (
-          <div className="rounded-2xl border border-emerald-800/50 bg-emerald-950/30 p-5 text-center">
-            <p className="text-lg font-bold text-emerald-300">הייבוא הושלם ✓</p>
-            <p className="mt-2 text-sm text-slate-300">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+            <p className="text-lg font-bold text-emerald-700">הייבוא הושלם ✓</p>
+            <p className="mt-2 text-sm text-slate-600">
               {result.created} נוצרו · {result.duplicates} דולגו (כפולים) · {result.failed} נכשלו
             </p>
             <Button className="mt-4" onClick={onImported}>סגירה ורענון</Button>
@@ -161,29 +161,29 @@ export default function ImportLeadsModal({
         ) : headers.length === 0 ? (
           <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-600 py-10 transition hover:border-cyan-500/50">
             <Icon name="upload" className="h-7 w-7 text-slate-500" />
-            <span className="text-sm text-slate-300">בחרו קובץ CSV (עד 2000 שורות)</span>
+            <span className="text-sm text-slate-600">בחרו קובץ CSV (עד 2000 שורות)</span>
             <span className="text-xs text-slate-500">שורה ראשונה = כותרות עמודות</span>
             <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
           </label>
         ) : (
           <>
             <p className="text-xs text-slate-400">
-              <b className="text-slate-200">{fileName}</b> · {dataRows.length} שורות ·
+              <b className="text-slate-700">{fileName}</b> · {dataRows.length} שורות ·
               מיפוי אוטומטי זוהה — בדקו ותקנו במידת הצורך:
             </p>
-            <div className="thin-scroll max-h-72 overflow-auto rounded-xl border border-slate-800">
+            <div className="thin-scroll max-h-72 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full min-w-[540px] text-right text-xs">
-                <thead className="sticky top-0 bg-slate-900">
+                <thead className="sticky top-0 bg-white">
                   <tr>
                     <th className="px-3 py-2 font-medium text-slate-400">עמודה בקובץ</th>
                     <th className="px-3 py-2 font-medium text-slate-400">דוגמה</th>
                     <th className="px-3 py-2 font-medium text-slate-400">ייכנס לשדה</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-slate-200">
                   {headers.map((h, i) => (
                     <tr key={i}>
-                      <td className="px-3 py-2 font-medium text-slate-200">{h || `עמודה ${i + 1}`}</td>
+                      <td className="px-3 py-2 font-medium text-slate-700">{h || `עמודה ${i + 1}`}</td>
                       <td className="max-w-[140px] truncate px-3 py-2 text-slate-500" dir="auto">
                         {dataRows[0]?.[i] ?? ""}
                       </td>

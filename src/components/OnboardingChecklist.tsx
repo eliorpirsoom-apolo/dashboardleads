@@ -51,9 +51,9 @@ export default function OnboardingChecklist({
   const doneCount = steps.filter((s) => s.done).length;
 
   return (
-    <div className="mb-4 rounded-2xl border border-cyan-800/40 bg-cyan-950/20 p-4">
+    <div className="mb-4 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-cyan-200">
+        <h2 className="text-sm font-bold text-cyan-700">
           🚀 צעדים ראשונים ({doneCount}/{steps.length})
         </h2>
         <button
@@ -61,7 +61,7 @@ export default function OnboardingChecklist({
             localStorage.setItem("onboarding_dismissed", "1");
             setDismissed(true);
           }}
-          className="rounded p-1 text-slate-500 hover:text-slate-300"
+          className="rounded p-1 text-slate-500 hover:text-slate-600"
           title="הסתרה"
         >
           <Icon name="x" className="h-4 w-4" />
@@ -79,9 +79,9 @@ export default function OnboardingChecklist({
             >
               <Icon name="check" className="h-3 w-3" />
             </span>
-            <span className={s.done ? "text-slate-400 line-through" : "text-slate-200"}>
+            <span className={s.done ? "text-slate-400 line-through" : "text-slate-700"}>
               {s.href && !s.done ? (
-                <Link href={s.href} className="hover:text-cyan-300">{s.label}</Link>
+                <Link href={s.href} className="hover:text-cyan-700">{s.label}</Link>
               ) : (
                 s.label
               )}

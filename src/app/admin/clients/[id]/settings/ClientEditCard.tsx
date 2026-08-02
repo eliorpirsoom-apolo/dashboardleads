@@ -60,11 +60,11 @@ export default function ClientEditCard({
             <img
               src={`/api/files/${client.logoKey}`}
               alt="לוגו"
-              className="h-12 w-12 rounded-xl border border-slate-700 bg-white/5 object-contain p-1"
+              className="h-12 w-12 rounded-xl border border-slate-300 bg-white/5 object-contain p-1"
             />
           ) : null}
           <div>
-            <h3 className="text-base font-bold text-slate-100">פרטי הלקוח</h3>
+            <h3 className="text-base font-bold text-slate-800">פרטי הלקוח</h3>
             <p className="mt-0.5 text-xs text-slate-500">
               {client.company ?? client.name}
               {client.contactEmail ? ` · ${client.contactEmail}` : ""}
@@ -107,9 +107,9 @@ export default function ClientEditCard({
       ) : null}
 
       {/* Round-robin auto-assignment toggle */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
         <div>
-          <p className="text-sm font-medium text-slate-200">שיוך לידים אוטומטי לסוכנים</p>
+          <p className="text-sm font-medium text-slate-700">שיוך לידים אוטומטי לסוכנים</p>
           <p className="text-[11px] text-slate-500">
             ליד חדש מהקליטה משויך אוטומטית בסבב לסוכן המכירות עם הכי מעט לידים פעילים.
           </p>

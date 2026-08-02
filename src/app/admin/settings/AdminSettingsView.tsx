@@ -52,23 +52,23 @@ export default function AdminSettingsView() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {/* Global connections status */}
       <Card>
-        <h3 className="mb-1 text-base font-bold text-slate-100">חיבורים גלובליים</h3>
+        <h3 className="mb-1 text-base font-bold text-slate-800">חיבורים גלובליים</h3>
         <p className="mb-4 text-xs text-slate-500">
           מוגדרים במשתני הסביבה של Vercel — הוראות מלאות בקובץ CONNECTIONS.md.
           חיבורים ללקוח ספציפי (Meta, פייקול, Search Console) — בהגדרות הלקוח.
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(GLOBAL_LABELS).map(([key, meta]) => (
-            <div key={key} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+            <div key={key} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
               <span
                 className={`h-2.5 w-2.5 rounded-full ${globals[key] ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" : "bg-slate-600"}`}
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-200">{meta.label}</p>
+                <p className="text-sm font-medium text-slate-700">{meta.label}</p>
                 <p className="truncate text-[11px] text-slate-500">{meta.hint}</p>
               </div>
               <Chip color={globals[key] ? "#34d399" : "#64748b"}>
@@ -83,7 +83,7 @@ export default function AdminSettingsView() {
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-100">משתמשי המשרד</h3>
+            <h3 className="text-base font-bold text-slate-800">משתמשי המשרד</h3>
             <p className="mt-0.5 text-xs text-slate-500">חשבונות ADMIN — רואים ומנהלים את כל הלקוחות.</p>
           </div>
           <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -93,9 +93,9 @@ export default function AdminSettingsView() {
         </div>
         <div className="flex flex-col gap-2">
           {users.map((u) => (
-            <div key={u.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 ${u.active ? "" : "opacity-50"}`}>
+            <div key={u.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 ${u.active ? "" : "opacity-50"}`}>
               <Icon name="users" className="h-4 w-4 text-indigo-400" />
-              <span className="text-sm font-medium text-slate-200">{u.name}</span>
+              <span className="text-sm font-medium text-slate-700">{u.name}</span>
               <span dir="ltr" className="text-xs text-slate-500">{u.email}</span>
               <Chip color={u.adminRole === "staff" ? "#94a3b8" : "#818cf8"}>
                 {u.adminRole === "staff" ? "עובד משרד" : "מנהל משרד"}
@@ -171,7 +171,7 @@ function SumitCard() {
     <Card>
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-100">SUMIT — הנהלת חשבונות</h3>
+          <h3 className="text-base font-bold text-slate-800">SUMIT — הנהלת חשבונות</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             משיכת חשבוניות, קבלות והצעות מחיר. משויכות ללקוח לפי מייל ומופיעות בדשבורד שלו.
           </p>
@@ -228,7 +228,7 @@ function SmsCard() {
     <Card>
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-100">SMS — MultiSend (פייקול)</h3>
+          <h3 className="text-base font-bold text-slate-800">SMS — MultiSend (פייקול)</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             תזכורות והתראות ב-SMS. הגדרה במשתני סביבה: MULTISEND_USER, MULTISEND_PASSWORD, SMS_FROM.
           </p>
@@ -295,7 +295,7 @@ function WhatsAppCard() {
     <Card>
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-100">וואטסאפ — Green API</h3>
+          <h3 className="text-base font-bold text-slate-800">וואטסאפ — Green API</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             הגדרה במשתני סביבה: GREENAPI_ID_INSTANCE, GREENAPI_API_TOKEN (ואופציונלי GREENAPI_API_URL).
           </p>
@@ -350,17 +350,17 @@ function AuditLogCard() {
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-100">יומן פעולות רגישות</h3>
+      <h3 className="mb-1 text-base font-bold text-slate-800">יומן פעולות רגישות</h3>
       <p className="mb-3 text-xs text-slate-500">
         מי יצר/השבית משתמשים ולקוחות, שינויי הרשאות וחיבורים — 30 האחרונות.
       </p>
       {entries.length === 0 ? (
         <p className="py-3 text-center text-xs text-slate-600">אין רשומות עדיין.</p>
       ) : (
-        <div className="flex flex-col divide-y divide-slate-800/60">
+        <div className="flex flex-col divide-y divide-slate-200">
           {entries.map((e) => (
             <div key={e.id} className="flex flex-wrap items-center gap-2 py-1.5 text-xs">
-              <span className="font-bold text-slate-300">{AUDIT_LABELS[e.action] ?? e.action}</span>
+              <span className="font-bold text-slate-600">{AUDIT_LABELS[e.action] ?? e.action}</span>
               {e.details ? <span className="text-slate-500">{e.details}</span> : null}
               <span className="text-slate-600">· {e.actorName}</span>
               <span className="mr-auto text-slate-600">{formatDateTime(e.createdAt)}</span>
@@ -406,7 +406,7 @@ function CreateAdminModal({
   return (
     <Modal title="משתמש משרד חדש" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם מלא">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         </Field>
@@ -417,7 +417,7 @@ function CreateAdminModal({
           <select
             value={form.adminRole}
             onChange={(e) => setForm({ ...form, adminRole: e.target.value })}
-            className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
+            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
           >
             <option value="staff">עובד משרד</option>
             <option value="manager">מנהל משרד</option>

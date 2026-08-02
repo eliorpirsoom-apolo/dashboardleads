@@ -97,24 +97,24 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-100">מקורות קליטה (Webhooks)</h3>
+      <h3 className="mb-1 text-base font-bold text-slate-800">מקורות קליטה (Webhooks)</h3>
       <p className="mb-4 text-xs text-slate-500">
         לכל מקור כתובת ייחודית. מדביקים אותה ב-Make / Zapier / טופס אלמנטור — והלידים
         נכנסים ישר למערכת. מקור המשויך לפרויקט מכניס את הלידים ישר לפרויקט ולאיש
         המכירות שלו. GET לכתובת בודק חיבור; POST עם JSON יוצר ליד.
       </p>
 
-      {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
       <div className="flex flex-col gap-2">
         {sources.map((s) => (
-          <div key={s.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+          <div key={s.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center gap-2">
               <Icon
                 name={s.kind === "call" ? "phone" : s.kind === "whatsapp" ? "whatsapp" : "link"}
                 className="h-4 w-4 text-cyan-400"
               />
-              <span className="text-sm font-medium text-slate-200">{s.name}</span>
+              <span className="text-sm font-medium text-slate-700">{s.name}</span>
               {!s.active ? <Chip color="#f87171">כבוי</Chip> : null}
               <span className="text-xs text-slate-500">
                 {s._count.leads} לידים
@@ -142,14 +142,14 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
                     await api(`/api/sources/${s.id}`, { method: "PATCH", json: { active: !s.active } });
                     load();
                   }}
-                  className="rounded p-1.5 text-slate-500 hover:text-amber-300"
+                  className="rounded p-1.5 text-slate-500 hover:text-amber-700"
                   title={s.active ? "כיבוי" : "הפעלה"}
                 >
                   <Icon name={s.active ? "x" : "check"} className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            <p dir="ltr" className="mt-2 truncate rounded-lg bg-slate-950/80 px-2 py-1 font-mono text-[11px] text-slate-400">
+            <p dir="ltr" className="mt-2 truncate rounded-lg bg-white px-2 py-1 font-mono text-[11px] text-slate-400">
               {webhookUrl(s.token)}
             </p>
           </div>
@@ -159,7 +159,7 @@ export default function SourcesManager({ clientId }: { clientId: string }) {
         ) : null}
       </div>
 
-      <form onSubmit={add} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-800 pt-4">
+      <form onSubmit={add} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-200 pt-4">
         <div className="min-w-[160px] flex-1">
           <Field label="שם המקור">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='למשל: "פייסבוק לידים — קמפיין השקה"' required />

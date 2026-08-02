@@ -51,7 +51,7 @@ export default async function BirthdayBanner() {
       : `מזל טוב ל${names.slice(0, -1).join(", ל")} ול${names[names.length - 1]} שחוגגים השבוע יום הולדת!`;
 
   return (
-    <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-gradient-to-l from-amber-500/15 via-pink-500/15 to-violet-500/15 px-4 py-2.5 text-sm font-semibold text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+    <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl border border-amber-400/30 bg-gradient-to-l from-amber-500/15 via-pink-500/15 to-violet-500/15 px-4 py-2.5 text-sm font-semibold text-amber-800 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
       <span aria-hidden>🎂</span>
       {text}
       <span aria-hidden>🎉</span>

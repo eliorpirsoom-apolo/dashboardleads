@@ -15,7 +15,7 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">{title}</h1>
+        <h1 className="text-2xl font-bold text-slate-800">{title}</h1>
         {subtitle ? (
           <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
         ) : null}
@@ -54,9 +54,9 @@ export function Button({
   const variants = {
     primary: "btn-neon",
     ghost:
-      "border border-slate-700 text-slate-300 hover:border-cyan-500/50 hover:text-cyan-300",
+      "border border-slate-300 text-slate-600 hover:border-cyan-500/50 hover:text-cyan-700",
     danger:
-      "border border-red-800/60 bg-red-950/40 text-red-300 hover:border-red-500/70",
+      "border border-red-200 bg-red-50 text-red-600 hover:border-red-500/70",
   };
   return (
     <button
@@ -87,7 +87,7 @@ export function Field({
 }
 
 export const inputCls =
-  "w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/40";
+  "w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/40";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className ?? ""}`} />;
@@ -151,9 +151,9 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-700/70 py-14 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300/70 py-14 text-center">
       <Icon name={icon} className="h-8 w-8 text-slate-600" />
-      <p className="text-sm font-medium text-slate-300">{title}</p>
+      <p className="text-sm font-medium text-slate-600">{title}</p>
       {hint ? <p className="max-w-sm text-xs text-slate-500">{hint}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
@@ -176,11 +176,11 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs text-slate-400">{label}</p>
-          <p className="mt-1 text-2xl font-bold text-slate-100">{value}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-800">{value}</p>
           {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
         </div>
         {icon ? (
-          <div className="rounded-xl bg-cyan-500/10 p-2 text-cyan-300">
+          <div className="rounded-xl bg-cyan-500/10 p-2 text-cyan-700">
             <Icon name={icon} />
           </div>
         ) : null}
@@ -202,7 +202,7 @@ export function TableShell({
     <div className="thin-scroll overflow-x-auto rounded-2xl">
       <table className="w-full text-right text-sm" style={{ minWidth }}>
         <thead>
-          <tr className="border-b border-slate-700/60 text-xs text-slate-400">
+          <tr className="border-b border-slate-300/60 text-xs text-slate-400">
             {headers.map((h, i) => (
               <th key={i} className="px-3 py-2.5 font-medium">
                 {h}
@@ -210,7 +210,7 @@ export function TableShell({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/60">{children}</tbody>
+        <tbody className="divide-y divide-slate-200">{children}</tbody>
       </table>
     </div>
   );

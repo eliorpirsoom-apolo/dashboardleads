@@ -66,7 +66,7 @@ export default function BroadcastsView({ clientId }: { clientId: string }) {
         </Button>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {broadcasts.length === 0 ? (
         <div className="glass rounded-2xl p-2">
@@ -83,13 +83,13 @@ export default function BroadcastsView({ clientId }: { clientId: string }) {
               <div className="flex flex-wrap items-center gap-3">
                 <Icon name="megaphone" className="h-5 w-5 text-violet-400" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-slate-100">{b.name}</p>
+                  <p className="text-sm font-bold text-slate-800">{b.name}</p>
                   <p className="mt-0.5 truncate text-xs text-slate-500">{b.body}</p>
                 </div>
                 <Chip color="#22d3ee">{CHANNEL_LABELS[b.channel]}</Chip>
                 <div className="flex gap-3 text-center text-xs">
                   <div>
-                    <p className="font-bold text-slate-200">{b.total}</p>
+                    <p className="font-bold text-slate-700">{b.total}</p>
                     <p className="text-slate-500">נמענים</p>
                   </div>
                   <div>
@@ -97,7 +97,7 @@ export default function BroadcastsView({ clientId }: { clientId: string }) {
                     <p className="text-slate-500">נשלחו</p>
                   </div>
                   <div>
-                    <p className={`font-bold ${b.failed > 0 ? "text-red-400" : "text-slate-200"}`}>{b.failed}</p>
+                    <p className={`font-bold ${b.failed > 0 ? "text-red-600" : "text-slate-700"}`}>{b.failed}</p>
                     <p className="text-slate-500">נכשלו</p>
                   </div>
                 </div>
@@ -218,13 +218,13 @@ function BroadcastModal({
   return (
     <Modal title="הודעת תפוצה חדשה" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-        <div className="flex items-center justify-between rounded-xl border border-amber-800/40 bg-amber-950/20 px-3 py-2">
-          <span className="text-xs text-amber-300">
+        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+          <span className="text-xs text-amber-700">
             נשלח אך ורק ללידים עם הסכמה לדיוור ✓ (מייל כולל קישור הסרה אוטומטי)
           </span>
-          <span className="text-sm font-bold text-amber-200">
+          <span className="text-sm font-bold text-amber-800">
             {count === null ? "…" : `${count} נמענים`}
           </span>
         </div>

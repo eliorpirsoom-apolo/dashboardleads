@@ -284,7 +284,7 @@ export default function LeadDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-start">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <aside className="thin-scroll relative h-full w-full max-w-xl overflow-y-auto border-l border-slate-800 bg-[#0a0f1d] p-6 shadow-2xl">
+      <aside className="thin-scroll relative h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-[#0a0f1d] p-6 shadow-2xl">
         {!lead ? (
           <p className="text-sm text-slate-500">{error || "טוען…"}</p>
         ) : (
@@ -296,7 +296,7 @@ export default function LeadDrawer({
                   ליד #{lead.number} · {formatDateTime(lead.receivedAt)}
                   {lead.source ? ` · ${lead.source.name}` : ""}
                 </p>
-                <h2 className="mt-1 text-xl font-bold text-slate-100">
+                <h2 className="mt-1 text-xl font-bold text-slate-800">
                   {lead.fullName ?? "ללא שם"}
                 </h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -321,7 +321,7 @@ export default function LeadDrawer({
                   <button
                     onClick={archive}
                     title="העבר לארכיון"
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-amber-300"
+                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-amber-700"
                   >
                     <Icon name="folder" className="h-4 w-4" />
                   </button>
@@ -329,13 +329,13 @@ export default function LeadDrawer({
                 <button
                   onClick={removeForever}
                   title="מחק לצמיתות"
-                  className="rounded-lg p-2 text-slate-500 hover:bg-rose-900/40 hover:text-rose-300"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
                 >
                   <Icon name="trash" className="h-4 w-4" />
                 </button>
                 <button
                   onClick={onClose}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                 >
                   <Icon name="x" className="h-4 w-4" />
                 </button>
@@ -343,13 +343,13 @@ export default function LeadDrawer({
             </div>
 
             {error ? (
-              <div className="mb-3 rounded-xl border border-red-800/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</div>
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
             ) : null}
 
             {/* Archived banner */}
             {lead.archived ? (
-              <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-amber-800/50 bg-amber-950/30 px-3 py-2">
-                <span className="text-sm text-amber-300">הליד נמצא בארכיון</span>
+              <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                <span className="text-sm text-amber-700">הליד נמצא בארכיון</span>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -367,13 +367,13 @@ export default function LeadDrawer({
 
             {/* Duplicates alert */}
             {duplicates.length > 0 ? (
-              <div className="mb-4 rounded-xl border border-orange-800/50 bg-orange-950/25 p-3">
-                <p className="mb-2 text-xs font-bold text-orange-300">
+              <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3">
+                <p className="mb-2 text-xs font-bold text-orange-700">
                   ⚠️ נמצאו {duplicates.length} לידים נוספים עם אותו טלפון/אימייל
                 </p>
                 <div className="flex flex-col gap-1.5">
                   {duplicates.map((d) => (
-                    <div key={d.id} className="flex items-center gap-2 text-xs text-slate-300">
+                    <div key={d.id} className="flex items-center gap-2 text-xs text-slate-600">
                       <span className="font-mono text-slate-500">#{d.number}</span>
                       <span>{d.fullName ?? "ללא שם"}</span>
                       <span className="text-slate-600">{formatDateTime(d.receivedAt)}</span>
@@ -407,30 +407,30 @@ export default function LeadDrawer({
 
             {/* Call lead info */}
             {lead.kind === "call" ? (
-              <div className="mb-4 space-y-3 rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-3">
+              <div className="mb-4 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
                 <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                   <div>
                     <p className="text-slate-500">מתקשר</p>
-                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-200">{lead.phone ?? "—"}</p>
+                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-700">{lead.phone ?? "—"}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">מספר פרסומי</p>
-                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-200">{lead.callAdNumber ?? "—"}</p>
+                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-700">{lead.callAdNumber ?? "—"}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">יעד</p>
-                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-200">
+                    <p dir="ltr" className="mt-0.5 text-right font-bold text-slate-700">
                       {lead.callTargetNumber ?? "—"}
                       {lead.callTargetName ? ` · ${lead.callTargetName}` : ""}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-500">משך</p>
-                    <p className="mt-0.5 font-bold text-emerald-300">{formatDuration(lead.callDurationSec)}</p>
+                    <p className="mt-0.5 font-bold text-emerald-700">{formatDuration(lead.callDurationSec)}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">סטטוס מענה</p>
-                    <p className="mt-0.5 font-bold text-emerald-300">{lead.callStatus ?? "—"}</p>
+                    <p className="mt-0.5 font-bold text-emerald-700">{lead.callStatus ?? "—"}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">הודעת מעקב</p>
@@ -449,7 +449,7 @@ export default function LeadDrawer({
                               ? "לא הוגדר"
                               : fu.status;
                       return (
-                        <p className="mt-0.5 font-bold text-slate-200">
+                        <p className="mt-0.5 font-bold text-slate-700">
                           {chan}: {st}
                         </p>
                       );
@@ -484,8 +484,8 @@ export default function LeadDrawer({
 
                 {lead.callSummary ? (
                   <div>
-                    <p className="mb-1 text-xs font-bold text-slate-300">סיכום שיחה</p>
-                    <div className="whitespace-pre-line rounded-lg bg-slate-900/50 p-2 text-xs text-slate-300">
+                    <p className="mb-1 text-xs font-bold text-slate-600">סיכום שיחה</p>
+                    <div className="whitespace-pre-line rounded-lg bg-slate-50 p-2 text-xs text-slate-600">
                       {lead.callSummary}
                     </div>
                   </div>
@@ -493,10 +493,10 @@ export default function LeadDrawer({
 
                 {lead.callTranscript ? (
                   <details className="text-xs">
-                    <summary className="cursor-pointer text-slate-400 hover:text-slate-200">
+                    <summary className="cursor-pointer text-slate-400 hover:text-slate-700">
                       תמלול מלא
                     </summary>
-                    <div className="thin-scroll mt-1 max-h-64 overflow-y-auto whitespace-pre-line rounded-lg bg-slate-900/50 p-2 text-slate-300">
+                    <div className="thin-scroll mt-1 max-h-64 overflow-y-auto whitespace-pre-line rounded-lg bg-slate-50 p-2 text-slate-600">
                       {lead.callTranscript}
                     </div>
                   </details>
@@ -558,20 +558,20 @@ export default function LeadDrawer({
               </Field>
             </div>
 
-            <label className="mt-3 flex items-center gap-2 text-sm text-slate-300">
+            <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
               <input
                 type="checkbox"
                 checked={edit.consent !== undefined ? edit.consent : lead.consent}
                 onChange={(e) => setEdit({ ...edit, consent: e.target.checked })}
-                className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+                className="h-4 w-4 rounded border-slate-600 bg-white"
               />
               הסכמה לדיוור
             </label>
 
             {/* Project linking (+ unit & purchase request for real-estate) */}
             {projects.length > 0 ? (
-              <div className="mt-4 rounded-xl border border-cyan-900/40 bg-cyan-950/20 p-3">
-                <p className="mb-2 text-xs font-bold text-cyan-300">שיוך לפרויקט</p>
+              <div className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+                <p className="mb-2 text-xs font-bold text-cyan-700">שיוך לפרויקט</p>
                 <Field label="פרויקט">
                   <Select
                     value={
@@ -659,19 +659,19 @@ export default function LeadDrawer({
             {/* Custom fields */}
             {fields.length > 0 ? (
               <>
-                <h3 className="mb-2 mt-5 text-sm font-bold text-slate-300">שדות מותאמים</h3>
+                <h3 className="mb-2 mt-5 text-sm font-bold text-slate-600">שדות מותאמים</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {fields.map((f) => {
                     const current =
                       customEdit[f.key] !== undefined ? customEdit[f.key] : data[f.key];
                     if (f.fieldType === "boolean") {
                       return (
-                        <label key={f.id} className="flex items-center gap-2 text-sm text-slate-300">
+                        <label key={f.id} className="flex items-center gap-2 text-sm text-slate-600">
                           <input
                             type="checkbox"
                             checked={Boolean(current)}
                             onChange={(e) => setCustomEdit({ ...customEdit, [f.key]: e.target.checked })}
-                            className="h-4 w-4 rounded border-slate-600 bg-slate-900"
+                            className="h-4 w-4 rounded border-slate-600 bg-white"
                           />
                           {f.label}
                         </label>
@@ -715,8 +715,8 @@ export default function LeadDrawer({
             ) : null}
 
             {/* Schedule a future task/reminder for this lead */}
-            <h3 className="mb-2 mt-6 text-sm font-bold text-slate-300">תזמון משימה ותזכורת</h3>
-            <div className="flex flex-col gap-2.5 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+            <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">תזמון משימה ותזכורת</h3>
+            <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="flex flex-wrap gap-1.5">
                 {[
                   { v: "callback", l: "לחזור לליד", icon: "phone" },
@@ -729,8 +729,8 @@ export default function LeadDrawer({
                     onClick={() => setSched({ ...sched, type: o.v })}
                     className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
                       sched.type === o.v
-                        ? "bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-500/40"
-                        : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                        ? "bg-cyan-500/20 text-cyan-700 ring-1 ring-cyan-500/40"
+                        : "bg-slate-100 text-slate-400 hover:text-slate-700"
                     }`}
                   >
                     <Icon name={o.icon} className="h-3.5 w-3.5" />
@@ -784,7 +784,7 @@ export default function LeadDrawer({
                 <select
                   value={sched.minutesBefore}
                   onChange={(e) => setSched({ ...sched, minutesBefore: e.target.value })}
-                  className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-300"
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-600"
                 >
                   <option value="0">בזמן עצמו</option>
                   <option value="15">15 דק׳ לפני</option>
@@ -806,10 +806,10 @@ export default function LeadDrawer({
             {/* Open tasks linked to this lead */}
             {lead.tasks.length > 0 ? (
               <>
-                <h3 className="mb-2 mt-6 text-sm font-bold text-slate-300">משימות פתוחות</h3>
+                <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">משימות פתוחות</h3>
                 <div className="flex flex-col gap-1.5">
                   {lead.tasks.map((t) => (
-                    <div key={t.id} className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-2 text-xs text-slate-300">
+                    <div key={t.id} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600">
                       <Icon name={t.type === "meeting" ? "calendar" : "tasks"} className="h-3.5 w-3.5 text-cyan-400" />
                       {t.title}
                       <span className="mr-auto text-slate-500">{formatDateTime(t.dueAt)}</span>
@@ -820,7 +820,7 @@ export default function LeadDrawer({
             ) : null}
 
             {/* Unified timeline: notes + activity trail */}
-            <h3 className="mb-2 mt-6 text-sm font-bold text-slate-300">
+            <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">
               ציר פעילות והערות
             </h3>
             <form onSubmit={addNote} className="mb-3 flex gap-2">
@@ -841,23 +841,23 @@ export default function LeadDrawer({
                 .sort((a, b) => b.at.localeCompare(a.at))
                 .map((item, i) =>
                   item.type === "note" ? (
-                    <div key={`n${i}`} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                    <div key={`n${i}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
                         <span className="font-medium text-slate-400">💬 {item.note.authorName}</span>
                         <span>{formatDateTime(item.note.createdAt)}</span>
                       </div>
-                      <p className="whitespace-pre-line text-sm text-slate-200">{item.note.body}</p>
+                      <p className="whitespace-pre-line text-sm text-slate-700">{item.note.body}</p>
                     </div>
                   ) : (
                     <div key={`a${i}`} className="flex items-center gap-2 px-3 py-1 text-xs">
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-500/60" />
                       <span className="text-slate-400">
-                        <b className="text-slate-300">{ACTIVITY_LABELS[item.activity.kind] ?? item.activity.kind}</b>
+                        <b className="text-slate-600">{ACTIVITY_LABELS[item.activity.kind] ?? item.activity.kind}</b>
                         {item.activity.fromValue || item.activity.toValue ? (
                           <>
                             {": "}
                             {item.activity.fromValue ? `${item.activity.fromValue} ← ` : ""}
-                            <b className="text-slate-300">{item.activity.toValue ?? ""}</b>
+                            <b className="text-slate-600">{item.activity.toValue ?? ""}</b>
                           </>
                         ) : null}
                         {item.activity.note ? ` · ${item.activity.note}` : ""}

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -11,21 +11,17 @@ body {
   padding: 0;
   margin: 0;
   min-height: 100%;
-  color: #e2e8f0;
+  color: #1f2733;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 /* ---------------------------------------------------------------------------
-   Dark "tech" background — layered radial glows over a deep navy base.
+   Light "Monday-inspired" background — soft light gray canvas.
 --------------------------------------------------------------------------- */
 body {
-  background-color: #060912;
-  background-image:
-    radial-gradient(60rem 60rem at 100% -10%, rgba(34, 211, 238, 0.12), transparent 60%),
-    radial-gradient(50rem 50rem at -10% 10%, rgba(139, 92, 246, 0.14), transparent 55%),
-    radial-gradient(40rem 40rem at 50% 120%, rgba(59, 130, 246, 0.1), transparent 60%);
-  background-attachment: fixed;
+  background-color: #f6f7fb;
+  background-image: none;
 }
 
 * {
@@ -33,50 +29,34 @@ body {
 }
 
 @layer components {
-  /* Glassmorphism surface used across cards/panels. */
+  /* Card/panel surface — white, hairline border, soft shadow. */
   .glass {
-    background: linear-gradient(
-      180deg,
-      rgba(148, 163, 184, 0.08),
-      rgba(15, 23, 42, 0.5)
-    );
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
-      0 10px 30px -12px rgba(0, 0, 0, 0.6);
+    background: #ffffff;
+    border: 1px solid #e6e9ef;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
   }
 
   .glass-hover {
     transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   }
   .glass-hover:hover {
-    border-color: rgba(34, 211, 238, 0.35);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-      0 0 0 1px rgba(34, 211, 238, 0.15),
-      0 14px 36px -14px rgba(0, 0, 0, 0.7);
+    border-color: #c3ccf5;
+    box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08);
   }
 
-  /* Gradient text for headings / metrics. */
+  /* Emphasis text for headings / metrics. */
   .text-gradient {
-    background-image: linear-gradient(95deg, #67e8f9 0%, #818cf8 55%, #c084fc 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #1f2733;
   }
 
-  /* Primary action button with neon glow. */
+  /* Primary action button — solid Apollo blue. */
   .btn-neon {
-    background-image: linear-gradient(95deg, #06b6d4, #6366f1);
-    color: #f8fafc;
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.25), 0 8px 24px -8px rgba(34, 211, 238, 0.5);
-    transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+    background-color: #3a5bd9;
+    color: #ffffff;
+    transition: background-color 0.2s ease, transform 0.1s ease;
   }
   .btn-neon:hover {
-    filter: brightness(1.1);
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.45), 0 10px 30px -8px rgba(99, 102, 241, 0.7);
+    background-color: #2f4bc4;
   }
   .btn-neon:active {
     transform: translateY(1px);
@@ -151,13 +131,13 @@ body {
   direction: ltr;
 }
 
-/* Thin neon scrollbar */
+/* Thin scrollbar */
 .thin-scroll::-webkit-scrollbar {
   height: 8px;
   width: 8px;
 }
 .thin-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #22d3ee, #6366f1);
+  background: #cbd5e1;
   border-radius: 9999px;
 }
 .thin-scroll::-webkit-scrollbar-track {
@@ -165,6 +145,6 @@ body {
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.3);
-  color: #f8fafc;
+  background: rgba(58, 91, 217, 0.18);
+  color: #1f2733;
 }

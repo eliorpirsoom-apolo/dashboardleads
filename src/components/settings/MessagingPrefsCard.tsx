@@ -69,7 +69,7 @@ export default function MessagingPrefsCard() {
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-100">העדפות דיוור</h3>
+      <h3 className="mb-1 text-base font-bold text-slate-800">העדפות דיוור</h3>
       <p className="mb-4 text-xs text-slate-500">
         הפעל/כבה את האפשרויות שהמשרד איפשר לחשבון שלך.
       </p>
@@ -82,10 +82,10 @@ export default function MessagingPrefsCard() {
           {visible.map((i) => (
             <div
               key={i.k}
-              className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5"
+              className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
             >
               <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-200">{i.l}</p>
+                <p className="text-sm font-medium text-slate-700">{i.l}</p>
                 {i.hint ? <p className="truncate text-[11px] text-slate-500">{i.hint}</p> : null}
               </div>
               <Toggle on={!!enabled[i.k]} disabled={busy} onClick={() => toggle(i.k)} />

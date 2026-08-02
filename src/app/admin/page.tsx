@@ -131,7 +131,7 @@ export default async function AdminDashboard() {
         {/* Today */}
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-100">היום שלי</h2>
+            <h2 className="text-base font-bold text-slate-800">היום שלי</h2>
             <Link href="/admin/calendar" className="text-xs text-cyan-400 hover:underline">
               ללוח השנה ←
             </Link>
@@ -141,13 +141,13 @@ export default async function AdminDashboard() {
           ) : (
             <div className="flex flex-col gap-2">
               {todayItems.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-800 px-3 py-2">
+                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
                   <span className="font-mono text-xs text-slate-500">{formatTime(t.dueAt)}</span>
                   <Icon
                     name={t.type === "meeting" ? "calendar" : "tasks"}
                     className={`h-4 w-4 ${t.type === "meeting" ? "text-violet-400" : "text-cyan-400"}`}
                   />
-                  <span className="flex-1 truncate text-sm text-slate-200">{t.title}</span>
+                  <span className="flex-1 truncate text-sm text-slate-700">{t.title}</span>
                   {t.client ? (
                     <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip>
                   ) : (
@@ -162,7 +162,7 @@ export default async function AdminDashboard() {
         {/* Recent leads across clients */}
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-100">לידים אחרונים</h2>
+            <h2 className="text-base font-bold text-slate-800">לידים אחרונים</h2>
             <Link href="/admin/clients" className="text-xs text-cyan-400 hover:underline">
               לכל הלקוחות ←
             </Link>
@@ -175,9 +175,9 @@ export default async function AdminDashboard() {
                 <Link
                   key={l.id}
                   href={`/admin/clients/${l.client.id}/leads`}
-                  className="flex items-center gap-3 rounded-xl border border-slate-800 px-3 py-2 transition hover:border-cyan-500/40"
+                  className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 transition hover:border-cyan-500/40"
                 >
-                  <span className="flex-1 truncate text-sm text-slate-200">
+                  <span className="flex-1 truncate text-sm text-slate-700">
                     {l.fullName ?? l.phone ?? "ליד"}
                   </span>
                   {l.status ? <Chip color={l.status.color}>{l.status.name}</Chip> : null}
@@ -194,7 +194,7 @@ export default async function AdminDashboard() {
         {/* 📅 פגישות היום — מהיומנים המחוברים + פגישות המערכת */}
         <Card className="flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-100">📅 פגישות היום</h2>
+            <h2 className="text-sm font-bold text-slate-800">📅 פגישות היום</h2>
             <Link href="/admin/calendar" className="text-xs text-cyan-400 hover:underline">
               ללוח ←
             </Link>
@@ -208,11 +208,11 @@ export default async function AdminDashboard() {
               {todayMeetings.map((m) => (
                 <div
                   key={m.key}
-                  className="flex items-center gap-2 rounded-lg border border-slate-800 px-2.5 py-1.5"
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5"
                   style={{ borderInlineStartColor: m.color, borderInlineStartWidth: 3 }}
                 >
                   <span className="font-mono text-[11px] text-slate-500">{formatTime(m.at)}</span>
-                  <span className="flex-1 truncate text-xs text-slate-200">{m.title}</span>
+                  <span className="flex-1 truncate text-xs text-slate-700">{m.title}</span>
                   <span className="text-[10px] text-slate-500">{m.who}</span>
                 </div>
               ))}
@@ -222,7 +222,7 @@ export default async function AdminDashboard() {
 
         {/* ⏱️ עכשיו בצוות — מה שרץ ברגע זה בכל יומן מחובר */}
         <Card className="flex h-72 flex-col">
-          <h2 className="mb-2 text-sm font-bold text-slate-100">⏱️ עכשיו בצוות</h2>
+          <h2 className="mb-2 text-sm font-bold text-slate-800">⏱️ עכשיו בצוות</h2>
           {teamNow.length === 0 ? (
             <p className="flex flex-1 items-center justify-center px-4 text-center text-xs text-slate-600">
               אין יומנים מחוברים — חברו יומן Google מלוח השנה
@@ -232,12 +232,12 @@ export default async function AdminDashboard() {
               {teamNow.map((m) => (
                 <div
                   key={m.userId}
-                  className="flex items-center gap-2 rounded-lg border border-slate-800 px-2.5 py-1.5"
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5"
                 >
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
-                  <span className="w-20 truncate text-xs font-medium text-slate-300">{m.name}</span>
+                  <span className="w-20 truncate text-xs font-medium text-slate-600">{m.name}</span>
                   {m.current ? (
-                    <span className="flex-1 truncate text-xs text-slate-200">{m.current.title}</span>
+                    <span className="flex-1 truncate text-xs text-slate-700">{m.current.title}</span>
                   ) : (
                     <span className="flex-1 text-xs text-emerald-400/80">פנוי ✓</span>
                   )}
@@ -250,7 +250,7 @@ export default async function AdminDashboard() {
         {/* 🔥 עסקאות שנסגרו — 30 הימים האחרונים */}
         <Card className="flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-100">🔥 עסקאות שנסגרו</h2>
+            <h2 className="text-sm font-bold text-slate-800">🔥 עסקאות שנסגרו</h2>
             <Chip color="#34d399">{deals.length}</Chip>
           </div>
           {deals.length === 0 ? (
@@ -262,9 +262,9 @@ export default async function AdminDashboard() {
               {deals.map((d) => (
                 <div
                   key={d.leadId}
-                  className="flex items-center gap-2 rounded-lg border border-slate-800 px-2.5 py-1.5"
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5"
                 >
-                  <span className="flex-1 truncate text-xs text-slate-200">
+                  <span className="flex-1 truncate text-xs text-slate-700">
                     {d.fullName ?? `ליד #${d.number}`}
                   </span>
                   <span className="max-w-[90px] truncate text-[10px] text-slate-500">
@@ -280,7 +280,7 @@ export default async function AdminDashboard() {
         {/* 📄 הצעות מחיר ממתינות — הכי מוזנחת קודם */}
         <Card className="flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-100">📄 הצעות מחיר ממתינות</h2>
+            <h2 className="text-sm font-bold text-slate-800">📄 הצעות מחיר ממתינות</h2>
             <Link href="/admin/quotes" className="text-xs text-cyan-400 hover:underline">
               לכולן ←
             </Link>
@@ -297,9 +297,9 @@ export default async function AdminDashboard() {
                   <Link
                     key={q.id}
                     href="/admin/quotes"
-                    className="flex items-center gap-2 rounded-lg border border-slate-800 px-2.5 py-1.5 transition hover:border-cyan-500/40"
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 transition hover:border-cyan-500/40"
                   >
-                    <span className="flex-1 truncate text-xs text-slate-200">
+                    <span className="flex-1 truncate text-xs text-slate-700">
                       {q.recipient}
                       <span className="text-slate-500"> · {q.title}</span>
                     </span>
@@ -310,10 +310,10 @@ export default async function AdminDashboard() {
                     <span
                       className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
                         days >= 4
-                          ? "bg-red-500/15 text-red-300"
+                          ? "bg-red-500/15 text-red-600"
                           : days >= 2
-                            ? "bg-amber-500/15 text-amber-300"
-                            : "bg-slate-800 text-slate-400"
+                            ? "bg-amber-500/15 text-amber-700"
+                            : "bg-slate-100 text-slate-400"
                       }`}
                     >
                       {days === 0 ? "היום" : `${days} ימים`}
@@ -329,7 +329,7 @@ export default async function AdminDashboard() {
       {/* 🎨 סטודיו — סקירה מהירה */}
       <Card className="mt-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-100">🎨 סטודיו</h2>
+          <h2 className="text-base font-bold text-slate-800">🎨 סטודיו</h2>
           <Link href="/admin/studio" className="text-xs text-cyan-400 hover:underline">
             ללוח הסטודיו ←
           </Link>
@@ -344,7 +344,7 @@ export default async function AdminDashboard() {
             <Link
               key={s.label}
               href="/admin/studio"
-              className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-center transition hover:border-cyan-500/40"
+              className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center transition hover:border-cyan-500/40"
             >
               <div className="text-2xl font-bold" style={{ color: s.color }}>
                 {s.value}

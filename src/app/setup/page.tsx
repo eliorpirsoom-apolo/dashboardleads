@@ -17,7 +17,7 @@ export default async function SetupPage() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-xl font-black text-white shadow-lg shadow-cyan-500/30">
             C
           </div>
-          <h1 className="text-2xl font-bold text-slate-100">
+          <h1 className="text-2xl font-bold text-slate-800">
             ברוכים הבאים 👋
           </h1>
           <p className="mt-1 text-sm text-slate-400">

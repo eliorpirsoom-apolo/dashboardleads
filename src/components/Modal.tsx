@@ -33,10 +33,10 @@ export default function Modal({
         aria-modal="true"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-100">{title}</h2>
+          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
+            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             aria-label="סגירה"
           >
             <Icon name="x" className="h-4 w-4" />

@@ -71,23 +71,23 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
                     {c.name.slice(0, 2)}
                   </div>
                   <div>
-                    <p className="font-bold text-slate-100">{c.name}</p>
+                    <p className="font-bold text-slate-800">{c.name}</p>
                     <p className="text-xs text-slate-500">{c.contactName ?? c.company ?? ""}</p>
                   </div>
                 </div>
                 <Chip color={TYPE_COLORS[c.type] ?? "#64748b"}>{clientTypeLabel(c.type)}</Chip>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl bg-slate-900/50 py-2">
-                  <p className="text-lg font-bold text-cyan-300">{c.newLeadsWeek}</p>
+                <div className="rounded-xl bg-slate-50 py-2">
+                  <p className="text-lg font-bold text-cyan-700">{c.newLeadsWeek}</p>
                   <p className="text-[10px] text-slate-500">לידים השבוע</p>
                 </div>
-                <div className="rounded-xl bg-slate-900/50 py-2">
-                  <p className="text-lg font-bold text-slate-200">{c._count.leads}</p>
+                <div className="rounded-xl bg-slate-50 py-2">
+                  <p className="text-lg font-bold text-slate-700">{c._count.leads}</p>
                   <p className="text-[10px] text-slate-500">סה&quot;כ לידים</p>
                 </div>
-                <div className="rounded-xl bg-slate-900/50 py-2">
-                  <p className="text-lg font-bold text-amber-300">{c.openTasks}</p>
+                <div className="rounded-xl bg-slate-50 py-2">
+                  <p className="text-lg font-bold text-amber-700">{c.openTasks}</p>
                   <p className="text-[10px] text-slate-500">משימות פתוחות</p>
                 </div>
               </div>
@@ -168,7 +168,7 @@ export function ClientFormModal({
   return (
     <Modal title={existing ? "עריכת לקוח" : "לקוח חדש"} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label="שם הלקוח">
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -204,7 +204,7 @@ export function ClientFormModal({
               type="color"
               value={form.color}
               onChange={(e) => setForm({ ...form, color: e.target.value })}
-              className="h-9 w-14 cursor-pointer rounded-lg border border-slate-700 bg-slate-900"
+              className="h-9 w-14 cursor-pointer rounded-lg border border-slate-300 bg-white"
             />
           </Field>
         </div>

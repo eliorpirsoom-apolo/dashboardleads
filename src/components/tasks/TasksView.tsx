@@ -130,7 +130,7 @@ export default function TasksView({
         </div>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {tasks.length === 0 ? (
         <div className="glass rounded-2xl p-2">
@@ -166,7 +166,7 @@ export default function TasksView({
                   />
 
                   <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-medium text-slate-200 ${t.status === "done" ? "line-through" : ""}`}>
+                    <p className={`text-sm font-medium text-slate-700 ${t.status === "done" ? "line-through" : ""}`}>
                       {t.title}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">
@@ -189,10 +189,10 @@ export default function TasksView({
                   ) : null}
 
                   <div className="flex gap-1">
-                    <button onClick={() => setEditTask(t)} className="rounded p-1.5 text-slate-500 hover:text-cyan-300" title="עריכה">
+                    <button onClick={() => setEditTask(t)} className="rounded p-1.5 text-slate-500 hover:text-cyan-700" title="עריכה">
                       <Icon name="edit" className="h-4 w-4" />
                     </button>
-                    <button onClick={() => remove(t.id)} className="rounded p-1.5 text-slate-500 hover:text-red-400" title="מחיקה">
+                    <button onClick={() => remove(t.id)} className="rounded p-1.5 text-slate-500 hover:text-red-600" title="מחיקה">
                       <Icon name="trash" className="h-4 w-4" />
                     </button>
                   </div>
@@ -305,7 +305,7 @@ export function TaskFormModal({
   return (
     <Modal title={task ? "עריכת משימה" : "משימה / פגישה חדשה"} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <div className="flex gap-2">
           {(["task", "meeting"] as const).map((t) => (
@@ -315,8 +315,8 @@ export function TaskFormModal({
               onClick={() => setForm({ ...form, type: t })}
               className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition ${
                 form.type === t
-                  ? "border-cyan-500/60 bg-cyan-500/15 text-cyan-300"
-                  : "border-slate-700 text-slate-400 hover:border-slate-500"
+                  ? "border-cyan-500/60 bg-cyan-500/15 text-cyan-700"
+                  : "border-slate-300 text-slate-400 hover:border-slate-500"
               }`}
             >
               {t === "task" ? "משימה" : "פגישה"}

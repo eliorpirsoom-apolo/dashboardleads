@@ -68,7 +68,7 @@ export default function MessagingPermsCard({
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-100">הרשאות דיוור (מה הלקוח רשאי)</h3>
+      <h3 className="mb-1 text-base font-bold text-slate-800">הרשאות דיוור (מה הלקוח רשאי)</h3>
       <p className="mb-4 text-xs text-slate-500">
         אתה מגדיר מה מותר; הלקוח בוחר להפעיל בהגדרות שלו. אפקטיבי = מותר + הופעל.
       </p>
@@ -77,21 +77,21 @@ export default function MessagingPermsCard({
         {CAPS.map((c) => (
           <div
             key={c.k}
-            className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5"
+            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
           >
             <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-200">{c.l}</p>
+              <p className="text-sm font-medium text-slate-700">{c.l}</p>
               <p className="truncate text-[11px] text-slate-500">{c.hint}</p>
             </div>
             <Toggle on={!!state[c.k]} onClick={() => set(c.k, !state[c.k])} />
           </div>
         ))}
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-          <p className="mb-2 text-sm font-medium text-slate-200">ערוצים מותרים</p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <p className="mb-2 text-sm font-medium text-slate-700">ערוצים מותרים</p>
           <div className="flex flex-wrap gap-4">
             {CHANS.map((ch) => (
-              <label key={ch.k} className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+              <label key={ch.k} className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"
                   checked={!!state[ch.k]}

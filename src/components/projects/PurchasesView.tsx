@@ -71,7 +71,7 @@ export default function PurchasesView({ clientId }: { clientId: string }) {
         </p>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {requests.length === 0 ? (
         <div className="glass rounded-2xl p-2">
@@ -81,9 +81,9 @@ export default function PurchasesView({ clientId }: { clientId: string }) {
         <div className="flex flex-col gap-2">
           {requests.map((r) => (
             <div key={r.id} className="glass flex flex-wrap items-center gap-3 rounded-xl px-4 py-3">
-              <Icon name="money" className="h-4 w-4 text-amber-300" />
+              <Icon name="money" className="h-4 w-4 text-amber-700" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-200">
+                <p className="text-sm font-medium text-slate-700">
                   {r.lead ? `${r.lead.fullName ?? "—"} (ליד #${r.lead.number})` : "ללא ליד"}
                 </p>
                 <p className="text-xs text-slate-500">
@@ -94,7 +94,7 @@ export default function PurchasesView({ clientId }: { clientId: string }) {
                 </p>
               </div>
               {r.amount ? (
-                <span className="text-sm font-bold text-amber-300">{formatCurrency(r.amount)}</span>
+                <span className="text-sm font-bold text-amber-700">{formatCurrency(r.amount)}</span>
               ) : null}
               <select
                 value={r.status}

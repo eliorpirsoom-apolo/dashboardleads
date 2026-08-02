@@ -37,7 +37,7 @@ export default function SetupForm() {
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       {error ? (
-        <div className="rounded-xl border border-red-800/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
           {error}
         </div>
       ) : null}

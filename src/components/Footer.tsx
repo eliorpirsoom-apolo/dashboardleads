@@ -43,7 +43,7 @@ const SOCIALS: { key: string; label: string; url: string | null; icon: JSX.Eleme
 export default function Footer() {
   const links = SOCIALS.filter((s) => s.url);
   return (
-    <footer className="mt-10 border-t border-slate-800/70 pt-5 pb-2">
+    <footer className="mt-10 border-t border-slate-200/70 pt-5 pb-2">
       <div className="flex flex-col items-center gap-3 text-slate-500 sm:flex-row sm:justify-between">
         <p className="text-[11px]">
           © {new Date().getFullYear()} Apollo CRM · אפולו פרסום
@@ -57,7 +57,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               title={s.label}
               aria-label={s.label}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-800 text-slate-400 transition hover:border-cyan-500/50 hover:text-cyan-300"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-cyan-500/50 hover:text-cyan-700"
             >
               <svg
                 viewBox="0 0 24 24"

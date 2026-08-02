@@ -45,7 +45,7 @@ export default function LoginForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       {error ? (
-        <div className="rounded-xl border border-red-800/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
           {error}
         </div>
       ) : null}
@@ -81,13 +81,13 @@ export default function LoginForm({
       {googleEnabled ? (
         <>
           <div className="flex items-center gap-3 text-xs text-slate-600">
-            <span className="h-px flex-1 bg-slate-800" />
+            <span className="h-px flex-1 bg-slate-100" />
             או
-            <span className="h-px flex-1 bg-slate-800" />
+            <span className="h-px flex-1 bg-slate-100" />
           </div>
           <a
             href="/api/auth/google"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-500/50"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-500/50"
           >
             <Icon name="google" className="h-4 w-4" />
             התחברות עם Google

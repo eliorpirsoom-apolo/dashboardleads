@@ -21,7 +21,7 @@ export default async function AppLayout({
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="glass max-w-md rounded-2xl p-6 text-center">
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-slate-600">
             המשתמש אינו משויך ללקוח. פנו למנהל המשרד.
           </p>
         </div>
@@ -36,7 +36,7 @@ export default async function AppLayout({
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="glass max-w-md rounded-2xl p-6 text-center">
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-slate-600">
             החשבון אינו פעיל. פנו למנהל המשרד.
           </p>
         </div>

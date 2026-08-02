@@ -128,7 +128,7 @@ export default function ProjectDetail({
           <img
             src={`/api/files/${project.logoKey}`}
             alt=""
-            className="h-12 w-12 rounded-xl border border-slate-700 bg-white/5 object-contain p-1"
+            className="h-12 w-12 rounded-xl border border-slate-300 bg-white/5 object-contain p-1"
           />
         ) : null}
         {project.status !== "active" ? (
@@ -158,7 +158,7 @@ export default function ProjectDetail({
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-100">מלאי דירות</h3>
+            <h3 className="text-base font-bold text-slate-800">מלאי דירות</h3>
             <p className="mt-0.5 text-xs text-slate-500">
               המלאי מתעדכן אוטומטית כשליד עובר לסטטוס &quot;עסקה&quot; — וחוזר כשמבטלים.
             </p>
@@ -174,10 +174,10 @@ export default function ProjectDetail({
             const available = u.totalUnits - u.soldUnits;
             const pct = u.totalUnits > 0 ? (u.soldUnits / u.totalUnits) * 100 : 0;
             return (
-              <div key={u.id} className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+              <div key={u.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-bold text-slate-100">{u.name}</p>
+                    <p className="font-bold text-slate-800">{u.name}</p>
                     <p className="text-xs text-slate-500">
                       {u.rooms ? `${u.rooms} חד׳ · ` : ""}
                       {u._count.leads} לידים משויכים
@@ -185,14 +185,14 @@ export default function ProjectDetail({
                   </div>
                   <button
                     onClick={() => setEditUnit(u)}
-                    className="rounded p-1.5 text-slate-500 hover:text-cyan-300"
+                    className="rounded p-1.5 text-slate-500 hover:text-cyan-700"
                     title="עריכה"
                   >
                     <Icon name="edit" className="h-4 w-4" />
                   </button>
                 </div>
 
-                <p className="mt-2 text-lg font-bold text-amber-300">{formatCurrency(u.price)}</p>
+                <p className="mt-2 text-lg font-bold text-amber-700">{formatCurrency(u.price)}</p>
                 {u.priceChanges.length > 0 ? (
                   <p className="text-[10px] text-slate-600">
                     עודכן {formatDate(u.priceChanges[0].createdAt)} (היה {formatCurrency(u.priceChanges[0].oldPrice)})
@@ -201,12 +201,12 @@ export default function ProjectDetail({
 
                 <div className="mt-3">
                   <div className="mb-1 flex justify-between text-xs">
-                    <span className={available === 0 ? "font-bold text-red-400" : "text-emerald-300"}>
+                    <span className={available === 0 ? "font-bold text-red-600" : "text-emerald-700"}>
                       {available === 0 ? "אזל המלאי" : `${available} זמינות`}
                     </span>
                     <span className="text-slate-500">{u.soldUnits}/{u.totalUnits} נמכרו</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                     <div
                       className={`h-full rounded-full ${available === 0 ? "bg-red-500/70" : "bg-gradient-to-l from-emerald-400 to-cyan-500"}`}
                       style={{ width: `${pct}%` }}
@@ -227,7 +227,7 @@ export default function ProjectDetail({
                   ) : (
                     <button
                       onClick={() => setUploadPlanFor(u)}
-                      className="inline-flex items-center gap-1 text-slate-500 hover:text-cyan-300"
+                      className="inline-flex items-center gap-1 text-slate-500 hover:text-cyan-700"
                     >
                       <Icon name="upload" className="h-3.5 w-3.5" />
                       העלאת תוכנית דירה
@@ -244,10 +244,10 @@ export default function ProjectDetail({
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-100">חוזים</h3>
+            <h3 className="text-base font-bold text-slate-800">חוזים</h3>
             <p className="mt-0.5 text-xs text-slate-500">
               {project.contracts.length} חוזים · ערך כולל:{" "}
-              <span className="font-bold text-amber-300">{formatCurrency(totalValue)}</span>
+              <span className="font-bold text-amber-700">{formatCurrency(totalValue)}</span>
             </p>
           </div>
           <Button size="sm" onClick={() => setAddContract(true)}>
@@ -260,13 +260,13 @@ export default function ProjectDetail({
         ) : (
           <div className="flex flex-col gap-2">
             {project.contracts.map((c) => (
-              <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 px-3 py-2">
-                <Icon name="doc" className="h-4 w-4 text-amber-300" />
-                <span className="text-sm text-slate-200">
+              <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+                <Icon name="doc" className="h-4 w-4 text-amber-700" />
+                <span className="text-sm text-slate-700">
                   {c.lead ? `${c.lead.fullName ?? ""} (ליד #${c.lead.number})` : "ללא ליד"}
                 </span>
                 {c.unitType ? <Chip color="#22d3ee">{c.unitType.name}</Chip> : null}
-                <span className="font-bold text-amber-300">{formatCurrency(c.value)}</span>
+                <span className="font-bold text-amber-700">{formatCurrency(c.value)}</span>
                 <span className="text-xs text-slate-500">
                   {c.signedAt ? `נחתם ${formatDate(c.signedAt)}` : "טרם נחתם"}
                 </span>
@@ -285,7 +285,7 @@ export default function ProjectDetail({
                   )}
                   <button
                     onClick={() => setEditContract(c)}
-                    className="rounded p-1.5 text-slate-500 hover:text-cyan-300"
+                    className="rounded p-1.5 text-slate-500 hover:text-cyan-700"
                     title="עריכת חוזה"
                   >
                     <Icon name="edit" className="h-4 w-4" />
@@ -300,7 +300,7 @@ export default function ProjectDetail({
                         alert(e.message);
                       }
                     }}
-                    className="rounded p-1.5 text-slate-500 hover:text-red-400"
+                    className="rounded p-1.5 text-slate-500 hover:text-red-600"
                     title="מחיקת חוזה"
                   >
                     <Icon name="trash" className="h-4 w-4" />
@@ -314,7 +314,7 @@ export default function ProjectDetail({
 
       {/* Purchase requests */}
       <Card>
-        <h3 className="mb-3 text-base font-bold text-slate-100">בקשות רכישה</h3>
+        <h3 className="mb-3 text-base font-bold text-slate-800">בקשות רכישה</h3>
         {project.purchaseRequests.length === 0 ? (
           <p className="py-4 text-center text-xs text-slate-600">
             אין בקשות רכישה. נפתחות מכרטיס ליד או מעמוד &quot;בקשות רכישה&quot;.
@@ -322,12 +322,12 @@ export default function ProjectDetail({
         ) : (
           <div className="flex flex-col gap-2">
             {project.purchaseRequests.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 px-3 py-2">
-                <span className="text-sm text-slate-200">
+              <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+                <span className="text-sm text-slate-700">
                   {r.lead ? `${r.lead.fullName ?? ""} (#${r.lead.number})` : "—"}
                 </span>
                 {r.unitType ? <Chip color="#22d3ee">{r.unitType.name}</Chip> : null}
-                {r.amount ? <span className="text-xs text-amber-300">{formatCurrency(r.amount)}</span> : null}
+                {r.amount ? <span className="text-xs text-amber-700">{formatCurrency(r.amount)}</span> : null}
                 <Chip color={REQ_STATUS[r.status]?.color ?? "#64748b"}>
                   {REQ_STATUS[r.status]?.label ?? r.status}
                 </Chip>
@@ -346,7 +346,7 @@ export default function ProjectDetail({
 
       {/* Inventory audit trail */}
       <Card>
-        <h3 className="mb-3 text-base font-bold text-slate-100">יומן מלאי</h3>
+        <h3 className="mb-3 text-base font-bold text-slate-800">יומן מלאי</h3>
         {events.length === 0 ? (
           <p className="py-4 text-center text-xs text-slate-600">אין תנועות מלאי עדיין.</p>
         ) : (
@@ -356,7 +356,7 @@ export default function ProjectDetail({
                 <span
                   className={`flex h-5 w-5 items-center justify-center rounded-full font-bold ${
                     ev.delta < 0
-                      ? "bg-red-500/15 text-red-400"
+                      ? "bg-red-500/15 text-red-600"
                       : ev.delta > 0
                         ? "bg-emerald-500/15 text-emerald-400"
                         : "bg-slate-700/40 text-slate-400"
@@ -364,7 +364,7 @@ export default function ProjectDetail({
                 >
                   {ev.delta < 0 ? "−" : ev.delta > 0 ? "+" : "!"}
                 </span>
-                <span className="text-slate-300">{ev.unitType.name}</span>
+                <span className="text-slate-600">{ev.unitType.name}</span>
                 <span className="text-slate-500">
                   {ev.reason === "sold" ? "נמכרה" : ev.reason === "reverted" ? "חזרה למלאי" : "עדכון ידני"}
                   {ev.lead ? ` · ליד #${ev.lead.number} ${ev.lead.fullName ?? ""}` : ""}
@@ -526,7 +526,7 @@ function EditProjectModal({
   return (
     <Modal title="עריכת פרויקט" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם הפרויקט">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         </Field>
@@ -591,7 +591,7 @@ function EditContractModal({
   return (
     <Modal title="עריכת חוזה" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label="ערך החוזה (₪)">
             <Input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required />
@@ -649,7 +649,7 @@ function UnitEditModal({
   return (
     <Modal title={`עריכה — ${unit.name}`} onClose={onClose}>
       <div className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label="מחיר (₪)" hint="שינוי נשמר בהיסטוריית מחירים">
             <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
@@ -659,7 +659,7 @@ function UnitEditModal({
           </Field>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="mb-2 text-xs text-slate-400">
             תיקון מלאי ידני (נמכרו: {unit.soldUnits} / {unit.totalUnits})
           </p>
@@ -764,7 +764,7 @@ function AddUnitModal({
   return (
     <Modal title="טיפוס דירה חדש" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Field label="שם הטיפוס">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder='"דירת גן 4 חד׳"' required />
         </Field>
@@ -849,7 +849,7 @@ function AddContractModal({
     <>
       <Modal title="חוזה חדש" onClose={onClose}>
         <form onSubmit={submit} className="flex flex-col gap-3">
-          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <div className="grid grid-cols-2 gap-3">
             <Field label="טיפוס דירה">
               <Select value={form.unitTypeId} onChange={(e) => setForm({ ...form, unitTypeId: e.target.value })}>
@@ -867,7 +867,7 @@ function AddContractModal({
             <Input type="date" value={form.signedAt} onChange={(e) => setForm({ ...form, signedAt: e.target.value })} />
           </Field>
 
-          <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
             <span className="text-xs text-slate-400">
               {documentId ? "✓ PDF חתום צורף" : "PDF חתום (אופציונלי)"}
             </span>
@@ -973,14 +973,14 @@ function AgentsCard({
   return (
     <Card>
       <div className="mb-3">
-        <h3 className="text-base font-bold text-slate-100">אנשי המכירות של הפרויקט</h3>
+        <h3 className="text-base font-bold text-slate-800">אנשי המכירות של הפרויקט</h3>
         <p className="mt-0.5 text-xs text-slate-500">
           הראשי (★) מקבל אוטומטית את הלידים הנכנסים ממקורות הפרויקט. סוכן משויך רואה רק את
           הפרויקטים שלו.
         </p>
       </div>
 
-      {error ? <p className="mb-2 text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
 
       {project.assignments.length === 0 ? (
         <p className="py-3 text-center text-xs text-slate-600">
@@ -991,17 +991,17 @@ function AgentsCard({
           {project.assignments.map((a) => (
             <div
               key={a.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 px-3 py-2"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-3 py-2"
             >
-              <Icon name="users" className="h-4 w-4 text-cyan-300" />
-              <span className="text-sm font-medium text-slate-200">{a.user.name}</span>
+              <Icon name="users" className="h-4 w-4 text-cyan-700" />
+              <span className="text-sm font-medium text-slate-700">{a.user.name}</span>
               <span className="text-xs text-slate-500">{a.user.email}</span>
               {a.isPrimary ? (
                 <Chip color="#22d3ee">★ ראשי</Chip>
               ) : (
                 <button
                   onClick={() => setPrimary(a.userId)}
-                  className="text-xs text-slate-500 hover:text-cyan-300"
+                  className="text-xs text-slate-500 hover:text-cyan-700"
                 >
                   קבע כראשי
                 </button>
@@ -1009,7 +1009,7 @@ function AgentsCard({
               {!a.user.active ? <Chip color="#f87171">לא פעיל</Chip> : null}
               <button
                 onClick={() => remove(a.userId)}
-                className="mr-auto rounded p-1.5 text-slate-500 hover:text-red-400"
+                className="mr-auto rounded p-1.5 text-slate-500 hover:text-red-600"
                 title="הסרת שיוך"
               >
                 <Icon name="trash" className="h-4 w-4" />
@@ -1096,7 +1096,7 @@ function MaterialsCard({ projectId }: { projectId: string }) {
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-bold text-slate-100">📦 חומרים מהלקוח</h3>
+          <h3 className="text-base font-bold text-slate-800">📦 חומרים מהלקוח</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             {requestedAt
               ? `נשלחה בקשה · ${remindersSent} תזכורות`
@@ -1109,7 +1109,7 @@ function MaterialsCard({ projectId }: { projectId: string }) {
             <button
               onClick={() => act({ action: "toggleReceived", received: !received })}
               className={`rounded-full px-3 py-1 text-xs font-bold ${
-                received ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-800 text-slate-400"
+                received ? "bg-emerald-500/15 text-emerald-700" : "bg-slate-100 text-slate-400"
               }`}
             >
               {received ? "✓ חומרים התקבלו" : "סמן: חומרים התקבלו"}
@@ -1154,20 +1154,20 @@ function MaterialsCard({ projectId }: { projectId: string }) {
                   onClick={() => act({ action: "toggleItem", itemId: m.id, received: !m.received })}
                   className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
                     m.received
-                      ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                      ? "border-emerald-500 bg-emerald-500/20 text-emerald-700"
                       : "border-slate-600 text-transparent"
                   }`}
                 >
                   ✓
                 </button>
-                <span className={`flex-1 text-sm ${m.received ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                <span className={`flex-1 text-sm ${m.received ? "text-slate-500 line-through" : "text-slate-700"}`}>
                   {m.label}
                 </span>
                 <button
                   onClick={() =>
                     fetch(`/api/projects/${projectId}/materials?itemId=${m.id}`, { method: "DELETE" }).then(load)
                   }
-                  className="rounded p-1 text-slate-600 hover:text-red-400"
+                  className="rounded p-1 text-slate-600 hover:text-red-600"
                 >
                   <Icon name="trash" className="h-3.5 w-3.5" />
                 </button>

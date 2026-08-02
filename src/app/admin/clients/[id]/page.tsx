@@ -81,14 +81,14 @@ export default async function ClientOverview({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-3 text-base font-bold text-slate-100">התפלגות סטטוסים</h3>
+          <h3 className="mb-3 text-base font-bold text-slate-800">התפלגות סטטוסים</h3>
           <div className="flex flex-col gap-2">
             {statusDist.map((s) => {
               const max = Math.max(...statusDist.map((x) => x._count.leads), 1);
               return (
                 <div key={s.id} className="flex items-center gap-3">
                   <span className="w-28 truncate text-xs text-slate-400">{s.name}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                     <div
                       className="h-full rounded-full"
                       style={{
@@ -97,7 +97,7 @@ export default async function ClientOverview({
                       }}
                     />
                   </div>
-                  <span className="w-8 text-left text-xs font-bold text-slate-300">
+                  <span className="w-8 text-left text-xs font-bold text-slate-600">
                     {s._count.leads}
                   </span>
                 </div>
@@ -107,15 +107,15 @@ export default async function ClientOverview({
         </Card>
 
         <Card>
-          <h3 className="mb-3 text-base font-bold text-slate-100">לידים אחרונים</h3>
+          <h3 className="mb-3 text-base font-bold text-slate-800">לידים אחרונים</h3>
           {latest.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-600">אין לידים עדיין</p>
           ) : (
             <div className="flex flex-col gap-2">
               {latest.map((l) => (
-                <div key={l.id} className="flex items-center gap-3 rounded-xl border border-slate-800 px-3 py-2">
+                <div key={l.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
                   <span className="font-mono text-xs text-slate-600">#{l.number}</span>
-                  <span className="flex-1 truncate text-sm text-slate-200">
+                  <span className="flex-1 truncate text-sm text-slate-700">
                     {l.fullName ?? l.phone ?? "—"}
                   </span>
                   <span className="text-[11px] text-slate-500">{formatDateTime(l.receivedAt)}</span>

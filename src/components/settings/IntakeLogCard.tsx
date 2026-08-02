@@ -90,7 +90,7 @@ export default function IntakeLogCard({ clientId }: { clientId: string }) {
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-bold text-slate-100">יומן קליטה</h3>
+          <h3 className="text-base font-bold text-slate-800">יומן קליטה</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             כל בקשה שהגיעה ל-webhooks של הלקוח — כולל דחיות, כפולים ושגיאות.
           </p>
@@ -107,29 +107,29 @@ export default function IntakeLogCard({ clientId }: { clientId: string }) {
         </div>
       </div>
 
-      {error ? <p className="mb-2 text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
 
       {logs.length === 0 ? (
         <p className="py-4 text-center text-xs text-slate-600">אין רשומות קליטה עדיין.</p>
       ) : (
-        <div className="flex flex-col divide-y divide-slate-800/60">
+        <div className="flex flex-col divide-y divide-slate-200">
           {logs.map((log) => (
             <div key={log.id}>
               <button
                 onClick={() => setExpanded(expanded === log.id ? null : log.id)}
-                className="flex w-full flex-wrap items-center gap-2 px-1 py-2 text-right transition hover:bg-slate-800/30"
+                className="flex w-full flex-wrap items-center gap-2 px-1 py-2 text-right transition hover:bg-slate-100/30"
               >
                 <Chip color={STATUS_META[log.status]?.color ?? "#64748b"}>
                   {STATUS_META[log.status]?.label ?? log.status}
                 </Chip>
                 <span className="text-xs text-slate-400">{log.source?.name ?? "מקור נמחק"}</span>
                 {log.error ? (
-                  <span className="max-w-[280px] truncate text-xs text-red-400/80">{log.error}</span>
+                  <span className="max-w-[280px] truncate text-xs text-red-600/80">{log.error}</span>
                 ) : null}
                 <span className="mr-auto text-[11px] text-slate-600">{formatDateTime(log.createdAt)}</span>
               </button>
               {expanded === log.id ? (
-                <div className="mb-2 rounded-lg bg-slate-950/60 p-3">
+                <div className="mb-2 rounded-lg bg-slate-50 p-3">
                   <pre dir="ltr" className="thin-scroll max-h-40 overflow-auto whitespace-pre-wrap break-all text-[11px] text-slate-400">
                     {log.payload ?? "(ללא פיילוד)"}
                   </pre>

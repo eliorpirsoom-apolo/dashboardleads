@@ -106,7 +106,7 @@ export default async function ClientDashboard() {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-100">היום שלי</h2>
+            <h2 className="text-base font-bold text-slate-800">היום שלי</h2>
             <Link href="/app/calendar" className="text-xs text-cyan-400 hover:underline">
               ללוח השנה ←
             </Link>
@@ -116,13 +116,13 @@ export default async function ClientDashboard() {
           ) : (
             <div className="flex flex-col gap-2">
               {todayTasks.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-800 px-3 py-2">
+                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
                   <span className="font-mono text-xs text-slate-500">{formatTime(t.dueAt)}</span>
                   <Icon
                     name={t.type === "meeting" ? "calendar" : "tasks"}
                     className={`h-4 w-4 ${t.type === "meeting" ? "text-violet-400" : "text-cyan-400"}`}
                   />
-                  <span className="flex-1 truncate text-sm text-slate-200">
+                  <span className="flex-1 truncate text-sm text-slate-700">
                     {t.title}
                     {t.lead ? (
                       <span className="text-xs text-slate-500"> · ליד #{t.lead.number}</span>
@@ -136,7 +136,7 @@ export default async function ClientDashboard() {
 
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-100">לידים אחרונים</h2>
+            <h2 className="text-base font-bold text-slate-800">לידים אחרונים</h2>
             <Link href="/app/leads" className="text-xs text-cyan-400 hover:underline">
               לכל הלידים ←
             </Link>
@@ -146,9 +146,9 @@ export default async function ClientDashboard() {
           ) : (
             <div className="flex flex-col gap-2">
               {recentLeads.map((l) => (
-                <div key={l.id} className="flex items-center gap-3 rounded-xl border border-slate-800 px-3 py-2">
+                <div key={l.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
                   <span className="font-mono text-xs text-slate-600">#{l.number}</span>
-                  <span className="flex-1 truncate text-sm text-slate-200">
+                  <span className="flex-1 truncate text-sm text-slate-700">
                     {l.fullName ?? l.phone ?? "—"}
                   </span>
                   <span className="text-[11px] text-slate-500">{formatDateTime(l.receivedAt)}</span>
@@ -166,20 +166,20 @@ export default async function ClientDashboard() {
 
       <div className="mt-4">
         <Card>
-          <h2 className="mb-3 text-base font-bold text-slate-100">לידים החודש לפי סטטוס</h2>
+          <h2 className="mb-3 text-base font-bold text-slate-800">לידים החודש לפי סטטוס</h2>
           <div className="flex flex-col gap-2">
             {statusDist.map((s) => {
               const max = Math.max(...statusDist.map((x) => x._count.leads), 1);
               return (
                 <div key={s.id} className="flex items-center gap-3">
                   <span className="w-28 truncate text-xs text-slate-400">{s.name}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${(s._count.leads / max) * 100}%`, backgroundColor: s.color }}
                     />
                   </div>
-                  <span className="w-8 text-left text-xs font-bold text-slate-300">{s._count.leads}</span>
+                  <span className="w-8 text-left text-xs font-bold text-slate-600">{s._count.leads}</span>
                 </div>
               );
             })}

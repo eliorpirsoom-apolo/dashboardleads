@@ -114,26 +114,26 @@ export default function MessagesLog({
         <span className="mr-auto text-xs text-slate-500">{total} הודעות</span>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {messages.length === 0 ? (
         <div className="glass rounded-2xl p-2">
           <EmptyState icon="mail" title="אין הודעות ביומן" />
         </div>
       ) : (
-        <div className="glass flex flex-col divide-y divide-slate-800/60 rounded-2xl p-2">
+        <div className="glass flex flex-col divide-y divide-slate-200 rounded-2xl p-2">
           {messages.map((m) => (
             <button
               key={m.id}
               onClick={() => setExpanded(expanded === m.id ? null : m.id)}
-              className="flex flex-col gap-1 px-3 py-2.5 text-right transition hover:bg-slate-800/30"
+              className="flex flex-col gap-1 px-3 py-2.5 text-right transition hover:bg-slate-100/30"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <Icon
                   name={m.channel === "email" ? "mail" : m.channel === "whatsapp" ? "whatsapp" : "phone"}
                   className="h-4 w-4 text-slate-500"
                 />
-                <span dir="ltr" className="text-xs text-slate-300">{m.to}</span>
+                <span dir="ltr" className="text-xs text-slate-600">{m.to}</span>
                 <Chip color={STATUS_META[m.status]?.color ?? "#64748b"}>
                   {STATUS_META[m.status]?.label ?? m.status}
                 </Chip>
@@ -145,14 +145,14 @@ export default function MessagesLog({
                 <span className="mr-auto text-[11px] text-slate-600">{formatDateTime(m.createdAt)}</span>
               </div>
               {expanded === m.id ? (
-                <div className="mt-1 whitespace-pre-line rounded-lg bg-slate-950/60 p-3 text-xs text-slate-300">
+                <div className="mt-1 whitespace-pre-line rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
                   {m.subject ? <p className="mb-1 font-bold">{m.subject}</p> : null}
                   {m.body}
-                  {m.error ? <p className="mt-2 text-red-400">שגיאה: {m.error}</p> : null}
+                  {m.error ? <p className="mt-2 text-red-600">שגיאה: {m.error}</p> : null}
                   {m.status === "failed" || m.status === "skipped" ? (
                     <span
                       role="button"
-                      className="mt-2 inline-block cursor-pointer rounded-lg border border-cyan-700/60 px-3 py-1 font-bold text-cyan-300 hover:border-cyan-400"
+                      className="mt-2 inline-block cursor-pointer rounded-lg border border-cyan-700/60 px-3 py-1 font-bold text-cyan-700 hover:border-cyan-400"
                       onClick={async (e) => {
                         e.stopPropagation();
                         try {

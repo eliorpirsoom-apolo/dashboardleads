@@ -46,8 +46,8 @@ export default function Sidebar({
             onClick={() => setOpen(false)}
             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
               active
-                ? "bg-cyan-500/15 font-semibold text-cyan-300 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]"
-                : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
+                ? "bg-cyan-500/15 font-semibold text-cyan-700 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]"
+                : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             }`}
           >
             <Icon name={item.icon} className="h-[18px] w-[18px]" />
@@ -59,10 +59,10 @@ export default function Sidebar({
   );
 
   const userBlock = (
-    <div className="border-t border-slate-800/80 p-3">
+    <div className="border-t border-slate-200/80 p-3">
       <div className="flex items-center justify-between gap-2 rounded-xl px-2 py-1.5">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-200">
+          <p className="truncate text-sm font-medium text-slate-700">
             {userName}
           </p>
           <p className="truncate text-xs text-slate-500">{roleLabel}</p>
@@ -70,7 +70,7 @@ export default function Sidebar({
         <button
           onClick={logout}
           title="יציאה"
-          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-800 hover:text-red-400"
+          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-red-600"
         >
           <Icon name="logout" className="h-[18px] w-[18px]" />
         </button>
@@ -85,7 +85,7 @@ export default function Sidebar({
         <img
           src={logoUrl}
           alt=""
-          className="h-9 w-9 rounded-xl border border-slate-700 bg-white/5 object-contain p-0.5"
+          className="h-9 w-9 rounded-xl border border-slate-300 bg-white/5 object-contain p-0.5"
         />
       ) : null}
       <div>
@@ -104,10 +104,10 @@ export default function Sidebar({
   return (
     <>
       {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-800/70 bg-[#060912]/90 px-4 py-3 backdrop-blur md:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/70 bg-[#060912]/90 px-4 py-3 backdrop-blur md:hidden">
         <button
           onClick={() => setOpen(true)}
-          className="rounded-lg p-1.5 text-slate-300"
+          className="rounded-lg p-1.5 text-slate-600"
           aria-label="פתח תפריט"
         >
           <Icon name="menu" />
@@ -142,7 +142,7 @@ export default function Sidebar({
       ) : null}
 
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-60 flex-col border-l border-slate-800/70 bg-slate-950/40 backdrop-blur-xl md:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 flex-col border-l border-slate-200/70 bg-slate-50 backdrop-blur-xl md:flex">
         {brand}
         {homeHref === "/admin" ? <AdminSearch /> : null}
         {nav}
