@@ -163,7 +163,8 @@ export async function readLocalObject(key: string): Promise<Buffer> {
  */
 export async function presignDownload(
   key: string,
-  fileName: string
+  fileName: string,
+  expiresIn = 600
 ): Promise<string | null> {
   if (!r2Configured()) return null;
   const { GetObjectCommand } = await import("@aws-sdk/client-s3");
@@ -175,7 +176,7 @@ export async function presignDownload(
       Key: key,
       ResponseContentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     }),
-    { expiresIn: 600 }
+    { expiresIn }
   );
 }
 

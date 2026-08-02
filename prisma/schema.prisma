@@ -1111,6 +1111,9 @@ model DesignMessage {
   authorName   String?
   body         String
   createdAt    DateTime   @default(now())
+  editedAt       DateTime? // אם מוגדר — העדכון נערך אחרי הפרסום (מציג "נערך")
+  sharedChannels String? // ערוצים שאליהם נשלח הבלוק ללקוח (רשימה מופרדת בפסיקים: "email,whatsapp")
+  sharedAt       DateTime? // מתי נשלח לאחרונה ללקוח
 
   @@index([designTaskId])
 }

@@ -36,7 +36,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
 });
 
 const NewMessage = z.object({
-  body: z.string().min(1, "הודעה ריקה").max(3000),
+  body: z.string().min(1, "הודעה ריקה").max(20000),
   assetId: z.string().nullable().optional(), // הערה ממוקדת על תוצר ספציפי
   channel: z.enum(["client", "internal"]).default("client"), // "internal" = משרד בלבד
 });

@@ -119,9 +119,8 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
           color: true,
           contactPhone: true,
           users: {
-            where: { active: true, phone: { not: null } },
-            select: { phone: true },
-            take: 1,
+            where: { active: true },
+            select: { phone: true, email: true },
           },
         },
       },
@@ -134,9 +133,12 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
     },
   });
   if (!task) throw new ApiError(404, "משימת עיצוב לא נמצאה");
-  // טלפון ליצירת קשר עם הלקוח (איש קשר, או המשתמש הפעיל הראשון) — לכפתור וואטסאפ.
-  const clientPhone = task.client?.contactPhone || task.client?.users?.[0]?.phone || null;
-  return NextResponse.json({ task: { ...task, clientPhone } });
+  // טלפון ליצירת קשר עם הלקוח (איש קשר, או המשתמש הפעיל הראשון עם טלפון) — לכפתור וואטסאפ.
+  const clientPhone =
+    task.client?.contactPhone || task.client?.users?.find((u) => u.phone)?.phone || null;
+  // האם ללקוח יש כתובת מייל פעילה — להפעלת כפתור "שלח במייל".
+  const clientHasEmail = (task.client?.users || []).some((u) => !!u.email);
+  return NextResponse.json({ task: { ...task, clientPhone, clientHasEmail } });
 });
 
 const UpdateDesignTask = z.object({

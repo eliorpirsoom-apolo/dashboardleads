@@ -33,6 +33,9 @@ interface Msg {
   authorName: string | null;
   body: string;
   createdAt: string;
+  editedAt: string | null;
+  sharedChannels: string | null;
+  sharedAt: string | null;
 }
 interface WaMsg {
   id: string;
@@ -56,6 +59,7 @@ interface Detail {
   round: number;
   client: { id: string; name: string } | null;
   clientPhone: string | null;
+  clientHasEmail: boolean;
   designer: { id: string; name: string } | null;
   assets: Asset[];
   feedback: Fb[];
@@ -156,6 +160,10 @@ export default function StudioTaskDrawer({
   const [chatText, setChatText] = useState("");
   const [internalHtml, setInternalHtml] = useState("");
   const [internalSignal, setInternalSignal] = useState(0);
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editHtml, setEditHtml] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [blockBusy, setBlockBusy] = useState<string | null>(null); // id של בלוק בפעולה (שליחה/עריכה/מחיקה)
   const [briefDraft, setBriefDraft] = useState<string | null>(null);
   const [briefSaving, setBriefSaving] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
@@ -352,6 +360,74 @@ export default function StudioTaskDrawer({
     } finally {
       setChatBusy(false);
     }
+  }
+
+  // שליחת תוכן בלוק עדכון ללקוח (מייל/וואטסאפ) — מסמן "נשלח" על הבלוק.
+  async function shareBlock(id: string, channel: "email" | "whatsapp") {
+    setOpenMenuId(null);
+    setBlockBusy(id);
+    setError("");
+    try {
+      await api(`/api/design-tasks/${taskId}/messages/${id}/share`, { method: "POST", json: { channel } });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBlockBusy(null);
+    }
+  }
+
+  function startEdit(m: Msg) {
+    setOpenMenuId(null);
+    setEditingMsgId(m.id);
+    setEditHtml(m.body);
+  }
+  function cancelEdit() {
+    setEditingMsgId(null);
+    setEditHtml("");
+  }
+  async function saveEdit(id: string) {
+    if (isHtmlEmpty(editHtml)) return;
+    setBlockBusy(id);
+    setError("");
+    try {
+      await api(`/api/design-tasks/${taskId}/messages/${id}`, { method: "PATCH", json: { body: editHtml } });
+      setEditingMsgId(null);
+      setEditHtml("");
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBlockBusy(null);
+    }
+  }
+  async function deleteBlock(id: string) {
+    setOpenMenuId(null);
+    if (!confirm("למחוק את העדכון? פעולה זו אינה הפיכה.")) return;
+    setBlockBusy(id);
+    setError("");
+    try {
+      await api(`/api/design-tasks/${taskId}/messages/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBlockBusy(null);
+    }
+  }
+
+  // ראשי-תיבות לאווטאר העדכון.
+  function initials(name: string | null): string {
+    const parts = (name || "משרד").trim().split(/\s+/).slice(0, 2);
+    return parts.map((p) => p[0]).join("") || "מ";
+  }
+  // צבע יציב לאווטאר לפי שם.
+  function avatarColor(name: string | null): string {
+    const palette = ["#3a5bd9", "#0ea5e9", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#ef4444", "#14b8a6"];
+    const s = name || "משרד";
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return palette[h % palette.length];
   }
 
   async function saveBrief() {
@@ -732,17 +808,114 @@ export default function StudioTaskDrawer({
             </>
           ) : (
             <>
-              <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
+              <div className="thin-scroll min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4">
                 <div className="flex flex-col gap-3">
-                  {internalMsgs.map((m) => (
-                    <div key={m.id} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-                      <p className="mb-1 text-[10px] text-amber-700">{m.authorName || "משרד"} · {formatDateTime(m.createdAt)}</p>
-                      <div className="rich-content" dangerouslySetInnerHTML={{ __html: m.body }} />
-                    </div>
-                  ))}
                   {internalMsgs.length === 0 ? (
-                    <p className="text-center text-xs text-slate-600">עדכונים פנימיים בין המעצב/ת למנהל התיק. הלקוח לא רואה זאת.</p>
+                    <p className="mt-6 text-center text-xs text-slate-500">עדכונים פנימיים בין המעצב/ת למנהל התיק. הלקוח לא רואה זאת.</p>
                   ) : null}
+                  {internalMsgs.map((m) => {
+                    const shared = (m.sharedChannels || "").split(",").map((s) => s.trim()).filter(Boolean);
+                    const sentEmail = shared.includes("email");
+                    const sentWa = shared.includes("whatsapp");
+                    const editing = editingMsgId === m.id;
+                    const busyThis = blockBusy === m.id;
+                    return (
+                      <div key={m.id} className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                        {/* ראש הכרטיס: אווטאר + שם + זמן + תפריט */}
+                        <div className="flex items-start gap-2.5 px-4 pt-3">
+                          <div
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                            style={{ background: avatarColor(m.authorName) }}
+                          >
+                            {initials(m.authorName)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-800">{m.authorName || "משרד"}</p>
+                            <p className="text-[11px] text-slate-400">
+                              {formatDateTime(m.createdAt)}
+                              {m.editedAt ? " · נערך" : ""}
+                            </p>
+                          </div>
+                          {!editing ? (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setOpenMenuId(openMenuId === m.id ? null : m.id)}
+                                className="rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                aria-label="פעולות"
+                              >
+                                ⋯
+                              </button>
+                              {openMenuId === m.id ? (
+                                <>
+                                  <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                                  <div className="absolute left-0 z-20 mt-1 w-32 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
+                                    <button type="button" onClick={() => startEdit(m)} className="block w-full px-3 py-1.5 text-right text-slate-700 hover:bg-slate-50">✏️ עריכה</button>
+                                    <button type="button" onClick={() => deleteBlock(m.id)} className="block w-full px-3 py-1.5 text-right text-red-600 hover:bg-red-50">🗑️ מחיקה</button>
+                                  </div>
+                                </>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                        {/* גוף */}
+                        <div className="px-4 py-2.5">
+                          {editing ? (
+                            <>
+                              <RichEditor
+                                key={`edit-${m.id}`}
+                                value={m.body}
+                                onChange={setEditHtml}
+                                uploadImage={uploadStudioImage}
+                                placeholder="עריכת עדכון…"
+                                minHeight={80}
+                              />
+                              <div className="mt-2 flex items-center justify-end gap-2">
+                                <button type="button" onClick={cancelEdit} className="rounded-lg px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-100">ביטול</button>
+                                <Button disabled={busyThis || isHtmlEmpty(editHtml)} onClick={() => saveEdit(m.id)}>שמירה</Button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="rich-content" dangerouslySetInnerHTML={{ __html: m.body }} />
+                          )}
+                        </div>
+                        {/* שורת פעולות: מצב + שליחה ללקוח */}
+                        {!editing ? (
+                          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2">
+                            {shared.length === 0 ? (
+                              <span className="text-[11px] text-slate-400">🔒 פנימי</span>
+                            ) : (
+                              <span className="text-[11px] font-medium text-emerald-600">
+                                {sentEmail ? "✉️ נשלח במייל" : ""}
+                                {sentEmail && sentWa ? " · " : ""}
+                                {sentWa ? "💬 נשלח בוואטסאפ" : ""}
+                              </span>
+                            )}
+                            <div className="ms-auto flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={busyThis || !t.clientHasEmail}
+                                onClick={() => shareBlock(m.id, "email")}
+                                title={t.clientHasEmail ? "שלח את התוכן ללקוח במייל" : "אין כתובת מייל ללקוח"}
+                                className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                {busyThis ? "…" : `${sentEmail ? "✓ " : ""}שלח במייל`}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busyThis || !t.clientPhone || !waConfigured}
+                                onClick={() => shareBlock(m.id, "whatsapp")}
+                                title={!t.clientPhone ? "אין טלפון ללקוח" : !waConfigured ? "וואטסאפ אינו מוגדר" : "שלח את התוכן ללקוח בוואטסאפ"}
+                                className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                {busyThis ? "…" : `${sentWa ? "✓ " : ""}שלח בוואטסאפ`}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                   <div ref={chatEndRef} />
                 </div>
               </div>
@@ -756,7 +929,7 @@ export default function StudioTaskDrawer({
                   minHeight={80}
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <p className="text-[10px] text-amber-700">🔒 פנימי — צוות המשרד בלבד. הלקוח אינו נחשף לזה.</p>
+                  <p className="text-[10px] text-slate-500">🔒 העדכון נשמר פנימי — שליחה ללקוח דרך הכפתורים שבכל בלוק.</p>
                   <Button disabled={chatBusy || isHtmlEmpty(internalHtml)} onClick={sendInternal}>פרסום עדכון</Button>
                 </div>
               </div>
