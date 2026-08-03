@@ -457,7 +457,9 @@ model TaskInbox {
 model AiAgentConfig {
   id             String   @id @default(cuid())
   key            String   @unique @default("task-capture")
-  enabled        Boolean  @default(false)
+  name           String   @default("יעקב") // שם הסוכן = מילת הטריגר בקבוצות
+  enabled        Boolean  @default(false) // לכידה מצ'אט פרטי (מספרים מורשים)
+  groupsEnabled  Boolean  @default(false) // לכידה מקבוצות (בקריאה בשם)
   allowedNumbers String   @default("") // מספרים מורשים (מופרדים בפסיק/שורה)
   instructions   String? // הנחיה מותאמת ל-AI
   model          String? // מודל עוקף (אופציונלי)

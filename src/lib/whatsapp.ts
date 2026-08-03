@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { sendMessage } from "./messaging";
-import { maybeHandleTaskAgent } from "./taskAgent";
+import { maybeHandleTaskAgent, maybeHandleGroupAgent } from "./taskAgent";
 
 const APP_URL = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
 
@@ -36,6 +36,34 @@ export async function sendWhatsappRaw(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chatId: `${intl}@c.us`, message: body }),
+    });
+    const text = await res.text();
+    if (!res.ok) return { ok: false, error: `Green API HTTP ${res.status}: ${text.slice(0, 200)}` };
+    let idMessage: string | undefined;
+    try {
+      idMessage = JSON.parse(text)?.idMessage;
+    } catch {
+      /* ignore */
+    }
+    return { ok: true, idMessage };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message || e).slice(0, 200) };
+  }
+}
+
+// שליחת הודעה ל-chatId גולמי (למשל קבוצה: ...@g.us) — בלי נרמול מספר.
+export async function sendWhatsappToChat(
+  chatId: string,
+  body: string
+): Promise<{ ok: boolean; idMessage?: string; error?: string }> {
+  if (!whatsappConfigured()) return { ok: false, error: "וואטסאפ אינו מוגדר" };
+  const id = process.env.GREENAPI_ID_INSTANCE!;
+  const token = process.env.GREENAPI_API_TOKEN!;
+  try {
+    const res = await fetch(`${gaBase()}/waInstance${id}/sendMessage/${token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId, message: body }),
     });
     const text = await res.text();
     if (!res.ok) return { ok: false, error: `Green API HTTP ${res.status}: ${text.slice(0, 200)}` };
@@ -157,8 +185,9 @@ export async function resolveClientIdByPhone(phone: string): Promise<string | nu
 export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boolean; reason?: string }> {
   if (payload?.typeWebhook !== "incomingMessageReceived") return { stored: false, reason: "type" };
   const chatId: string = payload?.senderData?.chatId || "";
-  if (!chatId.endsWith("@c.us")) return { stored: false, reason: "not-private" };
-  const phone = chatId.replace("@c.us", "");
+  const isGroup = chatId.endsWith("@g.us");
+  const isPrivate = chatId.endsWith("@c.us");
+  if (!isGroup && !isPrivate) return { stored: false, reason: "not-supported" };
   const idMessage: string | null = payload?.idMessage || null;
 
   const md = payload?.messageData || {};
@@ -176,6 +205,26 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
     body = md.fileMessageData.caption || mediaName || "[קובץ מדיה מהלקוח]";
   } else body = "[התקבלה הודעה בוואטסאפ]";
   if (!body.trim() && !mediaUrl) return { stored: false, reason: "empty" };
+
+  // קבוצות וואטסאפ: אם ההודעה קוראת בשם הסוכן ("יעקב") → חילוץ משימה למאגר + תגובה בקבוצה.
+  // הודעות קבוצה אינן נשמרות כשיחת לקוח.
+  if (isGroup) {
+    try {
+      const handled = await maybeHandleGroupAgent({
+        groupId: chatId,
+        groupName: payload?.senderData?.chatName || null,
+        body,
+        senderName: payload?.senderData?.senderName || null,
+        idMessage,
+      });
+      return { stored: handled, reason: handled ? "group-agent" : "group-ignored" };
+    } catch (e) {
+      console.error("[group-agent]", e);
+      return { stored: false, reason: "group-error" };
+    }
+  }
+
+  const phone = chatId.replace("@c.us", "");
 
   // סוכן משימות: הודעה ממספר מורשה → חילוץ משימות למאגר (לא נשמרת כשיחת לקוח).
   try {

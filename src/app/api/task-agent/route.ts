@@ -16,7 +16,9 @@ export const GET = handle(async () => {
 });
 
 const UpdateAgent = z.object({
+  name: z.string().min(1, "חסר שם לסוכן").max(40).optional(),
   enabled: z.boolean().optional(),
+  groupsEnabled: z.boolean().optional(),
   allowedNumbers: z.string().max(2000).optional(),
   instructions: z.string().max(2000).nullable().optional(),
   model: z.string().max(80).nullable().optional(),
@@ -29,7 +31,9 @@ export const PATCH = handle(async (req) => {
   const b = UpdateAgent.parse(await readJson(req));
   const cur = await getTaskAgentConfig();
   const data: Record<string, unknown> = {};
+  if (b.name !== undefined) data.name = b.name.trim();
   if (b.enabled !== undefined) data.enabled = b.enabled;
+  if (b.groupsEnabled !== undefined) data.groupsEnabled = b.groupsEnabled;
   if (b.allowedNumbers !== undefined) data.allowedNumbers = b.allowedNumbers;
   if (b.instructions !== undefined) data.instructions = b.instructions?.trim() || null;
   if (b.model !== undefined) data.model = b.model?.trim() || null;

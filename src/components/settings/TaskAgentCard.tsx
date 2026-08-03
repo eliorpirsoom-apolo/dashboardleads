@@ -6,7 +6,9 @@ import { Button, Card, Field, Input, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 
 interface AgentConfig {
+  name: string;
   enabled: boolean;
+  groupsEnabled: boolean;
   allowedNumbers: string;
   instructions: string | null;
   model: string | null;
@@ -65,7 +67,9 @@ export default function TaskAgentCard() {
       await api("/api/task-agent", {
         method: "PATCH",
         json: {
+          name: cfg.name,
           enabled: cfg.enabled,
+          groupsEnabled: cfg.groupsEnabled,
           allowedNumbers: cfg.allowedNumbers,
           instructions: cfg.instructions,
           model: cfg.model,
@@ -108,7 +112,7 @@ export default function TaskAgentCard() {
         <h3 className="text-base font-bold text-slate-800">סוכן משימות (וואטסאפ ← מאגר)</h3>
       </div>
       <p className="mb-4 text-xs text-slate-500">
-        שולחים הודעת וואטסאפ ממספר מורשה למספר של המשרד, והסוכן מזהה משימות ומוסיף אותן אוטומטית ל<b>מאגר המהיר</b>.
+        הסוכן מזהה משימות מהודעות וואטסאפ ומוסיף אותן אוטומטית ל<b>מאגר המהיר</b> — בקבוצות (בקריאה בשמו) או מצ׳אט פרטי ממספר מורשה. שום דבר לא הופך למשימה אמיתית בלי אישור אנושי.
       </p>
 
       {!aiReady ? (
@@ -120,12 +124,29 @@ export default function TaskAgentCard() {
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-          <Toggle on={cfg.enabled} onClick={() => setCfg({ ...cfg, enabled: !cfg.enabled })} label={cfg.enabled ? "הסוכן פעיל" : "הסוכן כבוי"} />
+        <Field label="שם הסוכן" hint="זו מילת ההפעלה בקבוצות — כשכותבים את השם בהודעה, הסוכן הופך אותה למשימה.">
+          <Input value={cfg.name} onChange={(e) => setCfg({ ...cfg, name: e.target.value })} placeholder="יעקב" />
+        </Field>
+
+        <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+          <Toggle
+            on={cfg.groupsEnabled}
+            onClick={() => setCfg({ ...cfg, groupsEnabled: !cfg.groupsEnabled })}
+            label={`לכידה מקבוצות וואטסאפ (בקריאה בשם "${cfg.name || "יעקב"}")`}
+          />
+          <p className="pr-11 text-[11px] text-slate-400">
+            בכל קבוצה שמספר המשרד חבר בה — כשכותבים ״{cfg.name || "יעקב"} …״, הסוכן מוסיף למאגר ומגיב בקבוצה.
+          </p>
+          <div className="h-px bg-slate-200" />
+          <Toggle
+            on={cfg.enabled}
+            onClick={() => setCfg({ ...cfg, enabled: !cfg.enabled })}
+            label="לכידה מצ׳אט פרטי (מספרים מורשים)"
+          />
           <Toggle on={cfg.replyConfirm} onClick={() => setCfg({ ...cfg, replyConfirm: !cfg.replyConfirm })} label="אישור חזרה בוואטסאפ" />
         </div>
 
-        <Field label="מספרים מורשים" hint="רק הודעות מהמספרים האלה יעובדו. מספר בכל שורה (או מופרד בפסיק). פורמט: 0501234567 / 972501234567.">
+        <Field label="מספרים מורשים (לצ׳אט פרטי)" hint="רק הודעות מהמספרים האלה יעובדו בצ׳אט פרטי. מספר בכל שורה (או מופרד בפסיק). פורמט: 0501234567 / 972501234567.">
           <Textarea
             dir="ltr"
             rows={3}

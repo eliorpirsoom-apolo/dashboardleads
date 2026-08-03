@@ -5,7 +5,7 @@
 
 import { prisma } from "./prisma";
 import { aiComplete, aiConfigured } from "./ai";
-import { waIntl, sendWhatsappRaw } from "./whatsapp";
+import { waIntl, sendWhatsappRaw, sendWhatsappToChat } from "./whatsapp";
 
 export interface ExtractedTask {
   title: string;
@@ -90,6 +90,27 @@ function itemText(t: ExtractedTask): string {
   return t.dueHint ? `${t.title} — ${t.dueHint}` : t.title;
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// האם ההודעה קוראת בשם הסוכן (כמילה עצמאית, ללא תלות ברישיות)?
+export function mentionsAgentName(body: string, name: string): boolean {
+  if (!body || !name) return false;
+  const re = new RegExp(`(^|[\\s,.:;!?"'()\\-])${escapeRegex(name)}([\\s,.:;!?"'()\\-]|$)`, "i");
+  return re.test(body);
+}
+
+// הסרת קריאת השם מההודעה כדי להשאיר את תוכן המשימה בלבד.
+function stripAgentName(body: string, name: string): string {
+  const re = new RegExp(`(^|[\\s,.:;!?"'()\\-])${escapeRegex(name)}([\\s,.:;!?"'()\\-]|$)`, "gi");
+  return body
+    .replace(re, "$1$2")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s,.:;!?"'()\-]+/, "")
+    .trim();
+}
+
 // עיבוד הודעת וואטסאפ נכנסת ע"י הסוכן. מחזיר true אם ההודעה טופלה ע"י הסוכן
 // (ואז לא נשמרת כשיחת לקוח). מוסיף משימות למאגר + אישור חזרה אופציונלי.
 export async function maybeHandleTaskAgent(input: {
@@ -126,6 +147,51 @@ export async function maybeHandleTaskAgent(input: {
       const lines = tasks.map((t) => `• ${itemText(t)}`).join("\n");
       await sendWhatsappRaw(input.phone, `✅ נוספו למאגר (${tasks.length}):\n${lines}`).catch(() => {});
     }
+  }
+  return true;
+}
+
+// עיבוד הודעת קבוצה: פועל רק כשההודעה קוראת בשם הסוכן ("יעקב"). מחלץ משימה,
+// מכניס למאגר, ומגיב בקבוצה. מחזיר true אם ההודעה נקראה בשם (טופלה ע"י הסוכן).
+export async function maybeHandleGroupAgent(input: {
+  groupId: string;
+  groupName?: string | null;
+  body: string;
+  senderName?: string | null;
+  idMessage?: string | null;
+}): Promise<boolean> {
+  const cfg = await getTaskAgentConfig();
+  if (!cfg.groupsEnabled) return false;
+  const name = (cfg.name || "").trim();
+  if (!name || !mentionsAgentName(input.body, name)) return false;
+
+  // דדופ מול משלוח חוזר של אותה הודעה.
+  if (input.idMessage) {
+    const exists = await prisma.taskInbox.findFirst({
+      where: { sourceRef: input.idMessage },
+      select: { id: true },
+    });
+    if (exists) return true;
+  }
+
+  const cleaned = stripAgentName(input.body, name);
+  const tasks = await extractTasks(cleaned || input.body, cfg.instructions, cfg.model);
+  const byLabel = input.senderName?.trim() || input.groupName?.trim() || "וואטסאפ";
+  if (tasks.length > 0) {
+    await prisma.taskInbox.createMany({
+      data: tasks.map((t) => ({
+        text: itemText(t),
+        source: "whatsapp",
+        sourceRef: input.idMessage || null,
+        createdByName: byLabel,
+      })),
+    });
+    if (cfg.replyConfirm) {
+      const lines = tasks.map((t) => `• ${itemText(t)}`).join("\n");
+      await sendWhatsappToChat(input.groupId, `✅ נוספו למאגר (${tasks.length}):\n${lines}`).catch(() => {});
+    }
+  } else if (cfg.replyConfirm) {
+    await sendWhatsappToChat(input.groupId, "🤔 לא זיהיתי משימה בהודעה.").catch(() => {});
   }
   return true;
 }
