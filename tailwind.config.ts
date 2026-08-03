@@ -14,6 +14,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
+          "Ploni",
           "Rubik",
           "ui-sans-serif",
           "system-ui",

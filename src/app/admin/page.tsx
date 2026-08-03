@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { PageHeader, StatCard, Card, Chip } from "@/components/ui";
+import { PageHeader, Card, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { formatTime, formatCurrency } from "@/lib/format";
 import { ilDayStart, ilDayEnd } from "@/lib/time";
@@ -113,6 +113,20 @@ export default async function AdminDashboard() {
     return { ...c, current };
   });
 
+  const kpis = [
+    { label: "לקוחות פעילים", value: activeClients, icon: "users" as const, color: "#3a5bd9", href: "/admin/clients" },
+    { label: "לידים היום", value: leadsToday, icon: "leads" as const, color: "#06b6d4", href: "/admin/clients" },
+    { label: "לידים ב-7 ימים", value: leadsWeek, icon: "chart" as const, color: "#8b5cf6", href: "/admin/clients" },
+    { label: "משימות משרד פתוחות", value: openAgencyTasks, icon: "tasks" as const, color: "#f59e0b", href: "/admin/tasks" },
+  ];
+
+  const studioTiles = [
+    { label: "בעבודה", value: studioInProgress, color: "#06b6d4" },
+    { label: "ממתין ללקוח", value: studioAwaitingClient, color: "#f59e0b" },
+    { label: "ממתין לאישור סופי", value: studioAwaitingQc, color: "#8b5cf6" },
+    { label: "באיחור", value: studioOverdue, color: "#ef4444" },
+  ];
+
   return (
     <>
       <PageHeader
@@ -120,82 +134,64 @@ export default async function AdminDashboard() {
         subtitle="סקירה כללית — תמונת מצב כלל הלקוחות"
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="לקוחות פעילים" value={activeClients} icon="users" />
-        <StatCard label="לידים היום" value={leadsToday} icon="leads" />
-        <StatCard label="לידים ב-7 ימים" value={leadsWeek} icon="chart" />
-        <StatCard label="משימות משרד פתוחות" value={openAgencyTasks} icon="tasks" />
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {/* Today */}
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-800">היום שלי</h2>
-            <Link href="/admin/calendar" className="text-xs text-cyan-400 hover:underline">
-              ללוח השנה ←
+      {/* 🎨 סטודיו — רצועת סטטוס בראש הלובי */}
+      <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-[#3a5bd9] via-[#8b5cf6] to-transparent" />
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
+            <span>🎨</span> סטודיו
+          </h2>
+          <Link href="/admin/studio" className="text-xs font-semibold text-[#3a5bd9] hover:underline">
+            ללוח הסטודיו ←
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {studioTiles.map((s) => (
+            <Link
+              key={s.label}
+              href="/admin/studio"
+              className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 text-center transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+            >
+              <div className="text-3xl font-bold tabular-nums" style={{ color: s.color }}>
+                {s.value}
+              </div>
+              <div className="mt-0.5 text-[11px] font-medium text-slate-500">{s.label}</div>
             </Link>
-          </div>
-          {todayItems.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-600">אין משימות להיום 🎉</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {todayItems.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                  <span className="font-mono text-xs text-slate-500">{formatTime(t.dueAt)}</span>
-                  <Icon
-                    name={t.type === "meeting" ? "calendar" : "tasks"}
-                    className={`h-4 w-4 ${t.type === "meeting" ? "text-violet-400" : "text-cyan-400"}`}
-                  />
-                  <span className="flex-1 truncate text-sm text-slate-700">{t.title}</span>
-                  {t.client ? (
-                    <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip>
-                  ) : (
-                    <Chip color="#818cf8">פנימי</Chip>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+          ))}
+        </div>
+      </section>
 
-        {/* Recent leads across clients */}
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-800">לידים אחרונים</h2>
-            <Link href="/admin/clients" className="text-xs text-cyan-400 hover:underline">
-              לכל הלקוחות ←
-            </Link>
-          </div>
-          {recentLeads.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-600">אין לידים עדיין</p>
-          ) : (
-            <div className="thin-scroll flex max-h-80 flex-col gap-2 overflow-y-auto pl-1">
-              {recentLeads.map((l) => (
-                <Link
-                  key={l.id}
-                  href={`/admin/clients/${l.client.id}/leads`}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 transition hover:border-cyan-500/40"
-                >
-                  <span className="flex-1 truncate text-sm text-slate-700">
-                    {l.fullName ?? l.phone ?? "ליד"}
-                  </span>
-                  {l.status ? <Chip color={l.status.color}>{l.status.name}</Chip> : null}
-                  <Chip color={l.client.color ?? "#64748b"}>{l.client.name}</Chip>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Card>
+      {/* שורת KPI — כרטיסי מדד מלוטשים */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((k) => (
+          <Link
+            key={k.label}
+            href={k.href}
+            className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <span
+              className="absolute inset-x-0 top-0 h-1 opacity-80"
+              style={{ background: `linear-gradient(90deg, ${k.color}, transparent)` }}
+            />
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{ backgroundColor: `${k.color}1a`, color: k.color }}
+            >
+              <Icon name={k.icon} className="h-5 w-5" />
+            </span>
+            <div className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{k.value}</div>
+            <div className="mt-0.5 text-xs text-slate-500">{k.label}</div>
+          </Link>
+        ))}
       </div>
 
       {/* שורת הפאנלים: פגישות היום · עכשיו בצוות · עסקאות שנסגרו · הצעות מחיר */}
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {/* 📅 פגישות היום — מהיומנים המחוברים + פגישות המערכת */}
-        <Card className="flex h-72 flex-col">
+        <Card className="glass-hover flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">📅 פגישות היום</h2>
-            <Link href="/admin/calendar" className="text-xs text-cyan-400 hover:underline">
+            <h2 className="text-sm font-bold text-slate-900">📅 פגישות היום</h2>
+            <Link href="/admin/calendar" className="text-xs font-medium text-[#3a5bd9] hover:underline">
               ללוח ←
             </Link>
           </div>
@@ -221,8 +217,8 @@ export default async function AdminDashboard() {
         </Card>
 
         {/* ⏱️ עכשיו בצוות — מה שרץ ברגע זה בכל יומן מחובר */}
-        <Card className="flex h-72 flex-col">
-          <h2 className="mb-2 text-sm font-bold text-slate-800">⏱️ עכשיו בצוות</h2>
+        <Card className="glass-hover flex h-72 flex-col">
+          <h2 className="mb-2 text-sm font-bold text-slate-900">⏱️ עכשיו בצוות</h2>
           {teamNow.length === 0 ? (
             <p className="flex flex-1 items-center justify-center px-4 text-center text-xs text-slate-600">
               אין יומנים מחוברים — חברו יומן Google מלוח השנה
@@ -239,7 +235,7 @@ export default async function AdminDashboard() {
                   {m.current ? (
                     <span className="flex-1 truncate text-xs text-slate-700">{m.current.title}</span>
                   ) : (
-                    <span className="flex-1 text-xs text-emerald-400/80">פנוי ✓</span>
+                    <span className="flex-1 text-xs text-emerald-500">פנוי ✓</span>
                   )}
                 </div>
               ))}
@@ -248,10 +244,10 @@ export default async function AdminDashboard() {
         </Card>
 
         {/* 🔥 עסקאות שנסגרו — 30 הימים האחרונים */}
-        <Card className="flex h-72 flex-col">
+        <Card className="glass-hover flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">🔥 עסקאות שנסגרו</h2>
-            <Chip color="#34d399">{deals.length}</Chip>
+            <h2 className="text-sm font-bold text-slate-900">🔥 עסקאות שנסגרו</h2>
+            <Chip color="#10b981">{deals.length}</Chip>
           </div>
           {deals.length === 0 ? (
             <p className="flex flex-1 items-center justify-center text-xs text-slate-600">
@@ -278,10 +274,10 @@ export default async function AdminDashboard() {
         </Card>
 
         {/* 📄 הצעות מחיר ממתינות — הכי מוזנחת קודם */}
-        <Card className="flex h-72 flex-col">
+        <Card className="glass-hover flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">📄 הצעות מחיר ממתינות</h2>
-            <Link href="/admin/quotes" className="text-xs text-cyan-400 hover:underline">
+            <h2 className="text-sm font-bold text-slate-900">📄 הצעות מחיר ממתינות</h2>
+            <Link href="/admin/quotes" className="text-xs font-medium text-[#3a5bd9] hover:underline">
               לכולן ←
             </Link>
           </div>
@@ -297,7 +293,7 @@ export default async function AdminDashboard() {
                   <Link
                     key={q.id}
                     href="/admin/quotes"
-                    className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 transition hover:border-cyan-500/40"
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 transition hover:border-[#3a5bd9]/40"
                   >
                     <span className="flex-1 truncate text-xs text-slate-700">
                       {q.recipient}
@@ -313,7 +309,7 @@ export default async function AdminDashboard() {
                           ? "bg-red-500/15 text-red-600"
                           : days >= 2
                             ? "bg-amber-500/15 text-amber-700"
-                            : "bg-slate-100 text-slate-400"
+                            : "bg-slate-100 text-slate-500"
                       }`}
                     >
                       {days === 0 ? "היום" : `${days} ימים`}
@@ -326,37 +322,73 @@ export default async function AdminDashboard() {
         </Card>
       </div>
 
-      {/* 🎨 סטודיו — סקירה מהירה */}
-      <Card className="mt-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-800">🎨 סטודיו</h2>
-          <Link href="/admin/studio" className="text-xs text-cyan-400 hover:underline">
-            ללוח הסטודיו ←
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "בעבודה", value: studioInProgress, color: "#22d3ee" },
-            { label: "ממתין ללקוח", value: studioAwaitingClient, color: "#f59e0b" },
-            { label: "ממתין לאישור סופי", value: studioAwaitingQc, color: "#a78bfa" },
-            { label: "באיחור", value: studioOverdue, color: "#f87171" },
-          ].map((s) => (
-            <Link
-              key={s.label}
-              href="/admin/studio"
-              className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center transition hover:border-cyan-500/40"
-            >
-              <div className="text-2xl font-bold" style={{ color: s.color }}>
-                {s.value}
-              </div>
-              <div className="mt-0.5 text-[11px] text-slate-500">{s.label}</div>
+      {/* היום שלי + לידים אחרונים */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {/* Today */}
+        <Card className="glass-hover">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-900">היום שלי</h2>
+            <Link href="/admin/calendar" className="text-xs font-medium text-[#3a5bd9] hover:underline">
+              ללוח השנה ←
             </Link>
-          ))}
-        </div>
-      </Card>
+          </div>
+          {todayItems.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-600">אין משימות להיום 🎉</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {todayItems.map((t) => (
+                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+                  <span className="font-mono text-xs text-slate-500">{formatTime(t.dueAt)}</span>
+                  <Icon
+                    name={t.type === "meeting" ? "calendar" : "tasks"}
+                    className={`h-4 w-4 ${t.type === "meeting" ? "text-violet-500" : "text-[#3a5bd9]"}`}
+                  />
+                  <span className="flex-1 truncate text-sm text-slate-700">{t.title}</span>
+                  {t.client ? (
+                    <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip>
+                  ) : (
+                    <Chip color="#818cf8">פנימי</Chip>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Recent leads across clients */}
+        <Card className="glass-hover">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-900">לידים אחרונים</h2>
+            <Link href="/admin/clients" className="text-xs font-medium text-[#3a5bd9] hover:underline">
+              לכל הלקוחות ←
+            </Link>
+          </div>
+          {recentLeads.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-600">אין לידים עדיין</p>
+          ) : (
+            <div className="thin-scroll flex max-h-80 flex-col gap-2 overflow-y-auto pl-1">
+              {recentLeads.map((l) => (
+                <Link
+                  key={l.id}
+                  href={`/admin/clients/${l.client.id}/leads`}
+                  className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 transition hover:border-[#3a5bd9]/40"
+                >
+                  <span className="flex-1 truncate text-sm text-slate-700">
+                    {l.fullName ?? l.phone ?? "ליד"}
+                  </span>
+                  {l.status ? <Chip color={l.status.color}>{l.status.name}</Chip> : null}
+                  <Chip color={l.client.color ?? "#64748b"}>{l.client.name}</Chip>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
 
       {/* 🚀 נכנס לעבודה — רוחב מלא */}
-      <EngagementsPanel />
+      <div className="mt-4">
+        <EngagementsPanel />
+      </div>
     </>
   );
 }

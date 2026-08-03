@@ -18,13 +18,16 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl" className="dark">
       <head>
+        {/* Ploni (self-hosted, licensed) — primary UI font. Preload the common weights. */}
+        <link rel="preload" href="/fonts/ploni-regular.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/ploni-bold.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
-        {/* Rubik: full Hebrew + Latin coverage. Falls back to system fonts. */}
+        {/* Rubik: fallback for any glyphs Ploni doesn't cover. */}
         <link
           href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"
