@@ -436,6 +436,23 @@ model Task {
   @@index([status, dueAt])
 }
 
+// מאגר לכידה מהיר ("Inbox") — זריקת משימות/תזכורות ללא שדות חובה, לסידור מאוחר.
+// משותף לכל המשרד. מוכן לחיבור עתידי לסוכן AI שיזין פריטים מהוואטסאפ (source).
+model TaskInbox {
+  id              String   @id @default(cuid())
+  text            String
+  status          String   @default("inbox") // "inbox" | "done" | "converted"
+  source          String   @default("manual") // "manual" | "whatsapp" | "ai"
+  sourceRef       String? // מזהה/פרטי מקור (למשל שולח וואטסאפ) — לעתיד
+  createdById     String? // מי לכד (סקלרי — ללא FK, לקלילות)
+  createdByName   String?
+  convertedTaskId String? // המשימה שנוצרה מהפריט (אם הומר)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
 model Reminder {
   id        String    @id @default(cuid())
   task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)

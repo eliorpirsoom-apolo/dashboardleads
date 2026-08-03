@@ -6,6 +6,7 @@ import { formatDateTime, formatDayHeader } from "@/lib/format";
 import { Button, Chip, EmptyState, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
+import TaskInboxPanel from "@/components/tasks/TaskInboxPanel";
 
 export interface TaskRow {
   id: string;
@@ -50,6 +51,13 @@ export default function TasksView({
   const [error, setError] = useState("");
   const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  // מאגר לכידה מהיר (רק בעמוד המשימות הראשי של המשרד).
+  const showInboxTab = isAdmin && !clientId;
+  const [view, setView] = useState<"tasks" | "inbox">("tasks");
+  const [inboxOpenCount, setInboxOpenCount] = useState(0);
+  const [inboxReload, setInboxReload] = useState(0);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [createTitle, setCreateTitle] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +76,22 @@ export default function TasksView({
   useEffect(() => {
     load();
   }, [load]);
+
+  // ספירת פריטים פתוחים במאגר — לתגית בלשונית (גם כשלא נמצאים במאגר).
+  useEffect(() => {
+    if (!showInboxTab) return;
+    api<{ openCount: number }>(`/api/task-inbox?status=inbox`)
+      .then((d) => setInboxOpenCount(d.openCount))
+      .catch(() => {});
+  }, [showInboxTab, inboxReload]);
+
+  // "הפוך למשימה" מהמאגר — פותח את טופס יצירת המשימה ממולא-מראש.
+  function startConvert(item: { id: string; text: string }) {
+    setConvertingId(item.id);
+    setCreateTitle(item.text);
+    setEditTask(null);
+    setShowCreate(true);
+  }
 
   async function toggleDone(t: TaskRow) {
     await api(`/api/tasks/${t.id}`, {
@@ -92,6 +116,31 @@ export default function TasksView({
 
   return (
     <div className="flex flex-col gap-4">
+      {showInboxTab ? (
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setView("tasks")}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              view === "tasks" ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            משימות
+          </button>
+          <button
+            onClick={() => setView("inbox")}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              view === "inbox" ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            מאגר מהיר{inboxOpenCount > 0 ? ` (${inboxOpenCount})` : ""}
+          </button>
+        </div>
+      ) : null}
+
+      {showInboxTab && view === "inbox" ? (
+        <TaskInboxPanel onConvert={startConvert} reloadSignal={inboxReload} onOpenCount={setInboxOpenCount} />
+      ) : (
+      <>
       <div className="glass flex flex-wrap items-end gap-3 rounded-2xl p-4">
         <div className="w-32">
           <Field label="מצב">
@@ -123,7 +172,7 @@ export default function TasksView({
           </div>
         ) : null}
         <div className="mr-auto">
-          <Button onClick={() => setShowCreate(true)}>
+          <Button onClick={() => { setCreateTitle(""); setConvertingId(null); setShowCreate(true); }}>
             <Icon name="plus" className="h-4 w-4" />
             משימה / פגישה
           </Button>
@@ -202,6 +251,8 @@ export default function TasksView({
           </div>
         ))
       )}
+      </>
+      )}
 
       {showCreate || editTask ? (
         <TaskFormModal
@@ -210,13 +261,27 @@ export default function TasksView({
           clients={clients}
           users={users}
           task={editTask}
+          defaultTitle={createTitle}
           onClose={() => {
             setShowCreate(false);
             setEditTask(null);
+            setConvertingId(null);
+            setCreateTitle("");
           }}
-          onSaved={() => {
+          onSaved={async () => {
             setShowCreate(false);
             setEditTask(null);
+            // אם המשימה נוצרה מפריט במאגר — מסמנים את הפריט כ"הומר".
+            if (convertingId) {
+              try {
+                await api(`/api/task-inbox/${convertingId}`, { method: "PATCH", json: { status: "converted" } });
+              } catch {
+                /* ignore */
+              }
+              setConvertingId(null);
+              setInboxReload((s) => s + 1);
+            }
+            setCreateTitle("");
             load();
           }}
         />
@@ -232,6 +297,7 @@ export function TaskFormModal({
   users,
   task,
   defaultDate,
+  defaultTitle,
   onClose,
   onSaved,
 }: {
@@ -241,6 +307,7 @@ export function TaskFormModal({
   users: { id: string; name: string }[];
   task: TaskRow | null;
   defaultDate?: string;
+  defaultTitle?: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -251,7 +318,7 @@ export function TaskFormModal({
   };
 
   const [form, setForm] = useState({
-    title: task?.title ?? "",
+    title: task?.title ?? defaultTitle ?? "",
     description: task?.description ?? "",
     type: task?.type ?? "task",
     ownerSide: task?.ownerSide ?? (isAdmin ? "agency" : "client"),
