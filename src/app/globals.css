@@ -112,7 +112,7 @@ body {
 /* Remap the few dark utilities that leak in via shared components (ghost Button,
    Modal) so they read correctly on the light surface — scoped to studio only. */
 .theme-light .text-slate-300 {
-  color: #475569;
+  color: #374151;
 }
 .theme-light .border-slate-700 {
   border-color: #cbd5e1;
@@ -122,6 +122,32 @@ body {
 }
 .theme-light .hover\:text-slate-200:hover {
   color: #334155;
+}
+
+/* ---------------------------------------------------------------------------
+   Text contrast — darker, higher-readability text across the whole app.
+   The muted grays (slate-300/400/500/600) were too light to read comfortably;
+   bump them toward near-black. Colored text (links, chips, status, white button
+   text) is untouched. Unlayered so it wins over Tailwind's utility layer.
+--------------------------------------------------------------------------- */
+.text-slate-300,
+.text-slate-400 {
+  color: #374151;
+}
+.text-slate-500,
+.text-slate-600 {
+  color: #1f2937;
+}
+.text-slate-700,
+.text-slate-800,
+.text-slate-900,
+.text-gradient {
+  color: #0f172a;
+}
+/* Placeholders stay a soft gray (they should read as hints, not content). */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
 }
 
 /* ---------------------------------------------------------------------------
