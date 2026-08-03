@@ -196,7 +196,8 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
   let mediaName: string | null = null;
   let mediaMime: string | null = null;
   if (md.typeMessage === "textMessage") body = md.textMessageData?.textMessage || "";
-  else if (md.typeMessage === "extendedTextMessage") body = md.extendedTextMessageData?.text || "";
+  else if (md.typeMessage === "extendedTextMessage" || md.typeMessage === "quotedMessage")
+    body = md.extendedTextMessageData?.text || "";
   else if (md.fileMessageData) {
     // imageMessage / documentMessage / videoMessage / audioMessage
     mediaUrl = md.fileMessageData.downloadUrl || null;
@@ -204,7 +205,14 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
     mediaMime = md.fileMessageData.mimeType || null;
     body = md.fileMessageData.caption || mediaName || "[קובץ מדיה מהלקוח]";
   } else body = "[התקבלה הודעה בוואטסאפ]";
-  if (!body.trim() && !mediaUrl) return { stored: false, reason: "empty" };
+
+  // טקסט הודעה מצוטטת (Reply) — לסוכן: לקיחת משימה מהודעה של מישהו אחר.
+  const q: any = md?.quotedMessage;
+  const quotedText: string | null = q
+    ? q.textMessage || q.extendedTextMessageData?.text || q.caption || q.fileMessageData?.caption || null
+    : null;
+
+  if (!body.trim() && !mediaUrl && !quotedText) return { stored: false, reason: "empty" };
 
   // קבוצות וואטסאפ: אם ההודעה קוראת בשם הסוכן ("יעקב") → חילוץ משימה למאגר + תגובה בקבוצה.
   // הודעות קבוצה אינן נשמרות כשיחת לקוח.
@@ -216,6 +224,7 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
         body,
         senderName: payload?.senderData?.senderName || null,
         idMessage,
+        quotedText,
       });
       return { stored: handled, reason: handled ? "group-agent" : "group-ignored" };
     } catch (e) {
@@ -229,7 +238,7 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
   // סוכן משימות: הודעה ממספר מורשה → חילוץ משימות למאגר (לא נשמרת כשיחת לקוח).
   try {
     const senderName = payload?.senderData?.senderName || null;
-    const handled = await maybeHandleTaskAgent({ phone, body, senderName, idMessage });
+    const handled = await maybeHandleTaskAgent({ phone, body, senderName, idMessage, quotedText });
     if (handled) return { stored: true, reason: "task-agent" };
   } catch (e) {
     console.error("[task-agent]", e);

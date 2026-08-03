@@ -90,6 +90,14 @@ function itemText(t: ExtractedTask): string {
   return t.dueHint ? `${t.title} — ${t.dueHint}` : t.title;
 }
 
+// שילוב הודעה מצוטטת (Reply) עם הוראת המשתמש — התוכן המצוטט הוא העיקר.
+function combineWithQuote(content: string, quotedText?: string | null): string {
+  const q = (quotedText || "").trim();
+  const c = (content || "").trim();
+  if (!q) return c;
+  return c ? `${q}\n(הערת המשתמש: ${c})` : q;
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -118,11 +126,12 @@ export async function maybeHandleTaskAgent(input: {
   body: string;
   senderName?: string | null;
   idMessage?: string | null;
+  quotedText?: string | null;
 }): Promise<boolean> {
   const cfg = await getTaskAgentConfig();
   if (!cfg.enabled) return false;
   if (!isWhitelisted(cfg.allowedNumbers, input.phone)) return false;
-  if (!input.body.trim()) return true; // ממספר מורשה אך ריק — נבלע (לא שיחת לקוח)
+  if (!input.body.trim() && !input.quotedText?.trim()) return true; // ריק — נבלע (לא שיחת לקוח)
 
   // דדופ מול משלוח חוזר של אותה הודעה (webhook retries).
   if (input.idMessage) {
@@ -133,7 +142,7 @@ export async function maybeHandleTaskAgent(input: {
     if (exists) return true;
   }
 
-  const tasks = await extractTasks(input.body, cfg.instructions, cfg.model);
+  const tasks = await extractTasks(combineWithQuote(input.body, input.quotedText), cfg.instructions, cfg.model);
   if (tasks.length > 0) {
     await prisma.taskInbox.createMany({
       data: tasks.map((t) => ({
@@ -159,6 +168,7 @@ export async function maybeHandleGroupAgent(input: {
   body: string;
   senderName?: string | null;
   idMessage?: string | null;
+  quotedText?: string | null;
 }): Promise<boolean> {
   const cfg = await getTaskAgentConfig();
   if (!cfg.groupsEnabled) return false;
@@ -174,8 +184,10 @@ export async function maybeHandleGroupAgent(input: {
     if (exists) return true;
   }
 
+  // תוכן לחילוץ: אם צוטטה הודעה (Reply) — היא העיקר; ההודעה עם השם היא ההוראה.
   const cleaned = stripAgentName(input.body, name);
-  const tasks = await extractTasks(cleaned || input.body, cfg.instructions, cfg.model);
+  const textForExtraction = combineWithQuote(cleaned, input.quotedText) || input.body;
+  const tasks = await extractTasks(textForExtraction, cfg.instructions, cfg.model);
   const byLabel = input.senderName?.trim() || input.groupName?.trim() || "וואטסאפ";
   if (tasks.length > 0) {
     await prisma.taskInbox.createMany({

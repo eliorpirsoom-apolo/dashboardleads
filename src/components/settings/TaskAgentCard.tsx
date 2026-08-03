@@ -136,6 +136,7 @@ export default function TaskAgentCard() {
           />
           <p className="pr-11 text-[11px] text-slate-400">
             בכל קבוצה שמספר המשרד חבר בה — כשכותבים ״{cfg.name || "יעקב"} …״, הסוכן מוסיף למאגר ומגיב בקבוצה.
+            אפשר גם <b>להשיב (Reply)</b> על הודעה של מישהו אחר ולכתוב ״{cfg.name || "יעקב"}, תכניס למשימות״ — הוא ייקח את ההודעה המצוטטת.
           </p>
           <div className="h-px bg-slate-200" />
           <Toggle
