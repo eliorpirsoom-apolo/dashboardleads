@@ -32,6 +32,7 @@ export default function AdminSettingsView() {
   const [globals, setGlobals] = useState<Record<string, boolean>>({});
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -106,6 +107,13 @@ export default function AdminSettingsView() {
               <span className="mr-auto text-[11px] text-slate-600">
                 {u.lastLoginAt ? `כניסה אחרונה: ${formatDateTime(u.lastLoginAt)}` : "טרם התחבר"}
               </span>
+              <button
+                onClick={() => setEditUser(u)}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-indigo-600"
+                title="ניהול משתמש"
+              >
+                <Icon name="edit" className="h-4 w-4" />
+              </button>
             </div>
           ))}
         </div>
@@ -128,6 +136,17 @@ export default function AdminSettingsView() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
+            load();
+          }}
+        />
+      ) : null}
+
+      {editUser ? (
+        <EditAdminModal
+          user={editUser}
+          onClose={() => setEditUser(null)}
+          onSaved={() => {
+            setEditUser(null);
             load();
           }}
         />
@@ -437,6 +456,101 @@ function CreateAdminModal({
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
           <Button type="submit" disabled={busy}>{busy ? "יוצר…" : "יצירה"}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditAdminModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(user.name);
+  const [adminRole, setAdminRole] = useState(user.adminRole);
+  const [active, setActive] = useState(user.active);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const json: Record<string, unknown> = { name, adminRole, active };
+      if (password.trim()) json.password = password.trim();
+      await api(`/api/users/${user.id}`, { method: "PATCH", json });
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm(`למחוק לצמיתות את "${user.name}"? פעולה זו אינה הפיכה. (היסטוריה נשמרת, אך החשבון יימחק.)`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/users/${user.id}`, { method: "DELETE" });
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`ניהול משתמש — ${user.name}`} onClose={onClose}>
+      <form onSubmit={save} className="flex flex-col gap-3">
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <p dir="ltr" className="text-xs text-slate-500">{user.email}</p>
+
+        <Field label="שם מלא">
+          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+        </Field>
+
+        <Field label="תפקיד" hint="עובד: עבודה שוטפת. מנהל: גם ניהול משתמשים, לקוחות וחיבורים.">
+          <select
+            value={adminRole}
+            onChange={(e) => setAdminRole(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+          >
+            <option value="staff">עובד משרד</option>
+            <option value="manager">מנהל משרד</option>
+          </select>
+        </Field>
+
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4" />
+          חשבון פעיל <span className="text-xs text-slate-400">(ביטול הסימון ישבית את החשבון וינתק את כל החיבורים)</span>
+        </label>
+
+        <Field label="איפוס סיסמה" hint="השאירו ריק כדי לא לשנות. שינוי מנתק את כל החיבורים הפעילים.">
+          <Input dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="סיסמה חדשה (אופציונלי)" />
+        </Field>
+
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={remove}
+            disabled={busy}
+            className="rounded-xl px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            מחיקה לצמיתות
+          </button>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
+            <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>
+          </div>
         </div>
       </form>
     </Modal>
