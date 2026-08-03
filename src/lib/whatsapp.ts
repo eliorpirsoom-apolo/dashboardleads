@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { sendMessage } from "./messaging";
+import { maybeHandleTaskAgent } from "./taskAgent";
 
 const APP_URL = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
 
@@ -175,6 +176,15 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
     body = md.fileMessageData.caption || mediaName || "[קובץ מדיה מהלקוח]";
   } else body = "[התקבלה הודעה בוואטסאפ]";
   if (!body.trim() && !mediaUrl) return { stored: false, reason: "empty" };
+
+  // סוכן משימות: הודעה ממספר מורשה → חילוץ משימות למאגר (לא נשמרת כשיחת לקוח).
+  try {
+    const senderName = payload?.senderData?.senderName || null;
+    const handled = await maybeHandleTaskAgent({ phone, body, senderName, idMessage });
+    if (handled) return { stored: true, reason: "task-agent" };
+  } catch (e) {
+    console.error("[task-agent]", e);
+  }
 
   if (idMessage) {
     const exists = await prisma.whatsappMessage.findUnique({ where: { waMessageId: idMessage }, select: { id: true } });

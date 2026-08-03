@@ -453,6 +453,19 @@ model TaskInbox {
   @@index([status, createdAt])
 }
 
+// סוכן AI ללכידת משימות מהוואטסאפ אל המאגר. סינגלטון (key="task-capture").
+model AiAgentConfig {
+  id             String   @id @default(cuid())
+  key            String   @unique @default("task-capture")
+  enabled        Boolean  @default(false)
+  allowedNumbers String   @default("") // מספרים מורשים (מופרדים בפסיק/שורה)
+  instructions   String? // הנחיה מותאמת ל-AI
+  model          String? // מודל עוקף (אופציונלי)
+  replyConfirm   Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model Reminder {
   id        String    @id @default(cuid())
   task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)

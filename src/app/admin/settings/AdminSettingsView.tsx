@@ -7,6 +7,7 @@ import { Button, Card, Chip, Field, Input } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import MaterialTemplatesManager from "@/components/settings/MaterialTemplatesManager";
+import TaskAgentCard from "@/components/settings/TaskAgentCard";
 
 interface AdminUser {
   id: string;
@@ -117,6 +118,8 @@ export default function AdminSettingsView() {
       <SmsCard />
 
       <WhatsAppCard />
+
+      <TaskAgentCard />
 
       <AuditLogCard />
 
