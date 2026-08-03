@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/fetcher";
 import { Button, Card } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import Modal from "@/components/Modal";
 import { ClientFormModal } from "@/components/clients/ClientsGrid";
 import { UploadModal } from "@/components/documents/DocumentsView";
 
@@ -30,6 +31,22 @@ export default function ClientEditCard({
   const router = useRouter();
   const [showEdit, setShowEdit] = useState(false);
   const [showLogoUpload, setShowLogoUpload] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [delError, setDelError] = useState("");
+
+  async function deleteClient() {
+    setDeleting(true);
+    setDelError("");
+    try {
+      await api(`/api/clients/${client.id}`, { method: "DELETE", json: { confirmName: confirmText.trim() } });
+      router.push("/admin/clients");
+    } catch (e: any) {
+      setDelError(e.message);
+      setDeleting(false);
+    }
+  }
 
   async function toggleAutoAssign() {
     await api(`/api/clients/${client.id}`, {
@@ -125,6 +142,24 @@ export default function ClientEditCard({
         </button>
       </div>
 
+      {/* אזור מסוכן — מחיקה לצמיתות */}
+      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-red-700">מחיקת לקוח לצמיתות</p>
+            <p className="text-[11px] text-red-600">
+              מוחק את הלקוח וכל המידע המקושר (לידים, משימות, סטודיו, מסמכים, חשבוניות) — בלתי הפיך. לרוב עדיף ״השבתת לקוח״.
+            </p>
+          </div>
+          <button
+            onClick={() => { setConfirmText(""); setDelError(""); setShowDelete(true); }}
+            className="rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
+          >
+            מחיקה לצמיתות
+          </button>
+        </div>
+      </div>
+
       {showEdit ? (
         <ClientFormModal
           existing={client}
@@ -134,6 +169,39 @@ export default function ClientEditCard({
             router.refresh();
           }}
         />
+      ) : null}
+
+      {showDelete ? (
+        <Modal title="מחיקת לקוח לצמיתות" onClose={() => setShowDelete(false)}>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-slate-700">
+              פעולה זו תמחק את הלקוח <b>{client.name}</b> ואת <b>כל</b> המידע המקושר אליו — לידים, משימות, עבודות סטודיו, מסמכים, חשבוניות ומשתמשי הלקוח.{" "}
+              <b className="text-red-600">אין אפשרות לשחזר.</b>
+            </p>
+            <p className="text-xs text-slate-500">לרוב עדיף ״השבתת לקוח״ שמשאירה את כל המידע. המשך רק אם אתה בטוח לחלוטין.</p>
+            {delError ? <p className="text-sm text-red-600">{delError}</p> : null}
+            <label className="text-xs text-slate-600">
+              לאישור, הקלד/י את שם הלקוח במדויק: <b dir="ltr">{client.name}</b>
+            </label>
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoFocus
+              placeholder={client.name}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-red-500 focus:outline-none"
+            />
+            <div className="mt-1 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowDelete(false)}>ביטול</Button>
+              <button
+                disabled={deleting || confirmText.trim() !== client.name.trim()}
+                onClick={deleteClient}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {deleting ? "מוחק…" : "מחק לצמיתות"}
+              </button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </Card>
   );

@@ -36,6 +36,8 @@ export default function TaskInboxPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const quickRef = useRef<HTMLTextAreaElement>(null);
   const onCountRef = useRef(onOpenCount);
   onCountRef.current = onOpenCount;
@@ -87,6 +89,34 @@ export default function TaskInboxPanel({
       await load();
     } catch (e: any) {
       setError(e.message);
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) => (prev.size === items.length ? new Set() : new Set(items.map((i) => i.id))));
+  }
+  async function bulkAction(action: "done" | "delete") {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (action === "delete" && !confirm(`למחוק ${ids.length} פריטים מהמאגר?`)) return;
+    setBulkBusy(true);
+    setError("");
+    try {
+      await api("/api/task-inbox/bulk", { method: "POST", json: { ids, action } });
+      setSelected(new Set());
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBulkBusy(false);
     }
   }
   function startEdit(it: InboxItem) {
@@ -144,7 +174,7 @@ export default function TaskInboxPanel({
         {FILTERS.map((f) => (
           <button
             key={f.key}
-            onClick={() => setFilter(f.key)}
+            onClick={() => { setFilter(f.key); setSelected(new Set()); }}
             className={`rounded-full px-3 py-1 text-xs font-medium transition ${
               filter === f.key ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
@@ -153,6 +183,43 @@ export default function TaskInboxPanel({
           </button>
         ))}
       </div>
+
+      {/* בחירה מרובה + פעולות קבוצתיות */}
+      {items.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={selected.size === items.length && items.length > 0}
+              onChange={toggleAll}
+            />
+            בחר הכל
+          </label>
+          {selected.size > 0 ? (
+            <>
+              <span className="text-xs font-medium text-slate-700">נבחרו {selected.size}</span>
+              <button
+                disabled={bulkBusy}
+                onClick={() => bulkAction("done")}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
+              >
+                ✓ סמן כבוצע
+              </button>
+              <button
+                disabled={bulkBusy}
+                onClick={() => bulkAction("delete")}
+                className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+              >
+                🗑 מחיקה
+              </button>
+              <button onClick={() => setSelected(new Set())} className="text-xs text-slate-400 hover:text-slate-600">
+                נקה בחירה
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* רשימה */}
       {items.length === 0 ? (
@@ -168,10 +235,17 @@ export default function TaskInboxPanel({
             return (
               <div
                 key={it.id}
-                className={`flex flex-wrap items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm ${
-                  done || converted ? "opacity-60" : ""
-                }`}
+                className={`flex flex-wrap items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm ${
+                  selected.has(it.id) ? "border-[#3a5bd9]" : "border-slate-200"
+                } ${done || converted ? "opacity-60" : ""}`}
               >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  checked={selected.has(it.id)}
+                  onChange={() => toggleSelect(it.id)}
+                  title="בחירה"
+                />
                 <button
                   onClick={() => patch(it.id, { status: done ? "inbox" : "done" })}
                   className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${

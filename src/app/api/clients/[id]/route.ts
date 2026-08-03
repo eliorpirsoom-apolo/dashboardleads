@@ -101,3 +101,22 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   }
   return NextResponse.json({ client });
 });
+
+// DELETE /api/clients/[id] — מחיקה קבועה (מנהל בלבד) + כל המידע המקושר (cascade):
+// לידים, משימות, סטודיו, מסמכים, חשבוניות ומשתמשי הלקוח. בלתי-הפיך.
+// אישור חזק: גוף הבקשה חייב לכלול confirmName התואם בדיוק לשם הלקוח.
+export const DELETE = handle(async (req, { params }: { params: { id: string } }) => {
+  const actor = await requireManager();
+  const client = await prisma.client.findUnique({ where: { id: params.id } });
+  if (!client) throw new ApiError(404, "לקוח לא נמצא");
+
+  const body = await readJson(req).catch(() => ({}));
+  const confirmName = typeof (body as any)?.confirmName === "string" ? (body as any).confirmName.trim() : "";
+  if (confirmName !== client.name.trim()) {
+    throw new ApiError(400, "שם האישור אינו תואם לשם הלקוח");
+  }
+
+  await prisma.client.delete({ where: { id: params.id } });
+  await audit(actor, "client_deleted", "client", client.id, client.name);
+  return NextResponse.json({ ok: true });
+});
