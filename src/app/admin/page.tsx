@@ -134,8 +134,32 @@ export default async function AdminDashboard() {
         subtitle="סקירה כללית — תמונת מצב כלל הלקוחות"
       />
 
-      {/* 🎨 סטודיו — רצועת סטטוס בראש הלובי */}
-      <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* שורת KPI — כרטיסי מדד מלוטשים (סיכום לידים/מדדים) */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((k) => (
+          <Link
+            key={k.label}
+            href={k.href}
+            className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <span
+              className="absolute inset-x-0 top-0 h-1 opacity-80"
+              style={{ background: `linear-gradient(90deg, ${k.color}, transparent)` }}
+            />
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{ backgroundColor: `${k.color}1a`, color: k.color }}
+            >
+              <Icon name={k.icon} className="h-5 w-5" />
+            </span>
+            <div className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{k.value}</div>
+            <div className="mt-0.5 text-xs text-slate-500">{k.label}</div>
+          </Link>
+        ))}
+      </div>
+
+      {/* 🎨 סטודיו — רצועת סטטוס */}
+      <section className="relative mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-[#3a5bd9] via-[#8b5cf6] to-transparent" />
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
@@ -160,30 +184,6 @@ export default async function AdminDashboard() {
           ))}
         </div>
       </section>
-
-      {/* שורת KPI — כרטיסי מדד מלוטשים */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((k) => (
-          <Link
-            key={k.label}
-            href={k.href}
-            className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <span
-              className="absolute inset-x-0 top-0 h-1 opacity-80"
-              style={{ background: `linear-gradient(90deg, ${k.color}, transparent)` }}
-            />
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-xl"
-              style={{ backgroundColor: `${k.color}1a`, color: k.color }}
-            >
-              <Icon name={k.icon} className="h-5 w-5" />
-            </span>
-            <div className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{k.value}</div>
-            <div className="mt-0.5 text-xs text-slate-500">{k.label}</div>
-          </Link>
-        ))}
-      </div>
 
       {/* שורת הפאנלים: פגישות היום · עכשיו בצוות · עסקאות שנסגרו · הצעות מחיר */}
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
