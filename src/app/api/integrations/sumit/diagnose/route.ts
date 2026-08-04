@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
 import { sumitListDocuments, sumitDocType } from "@/lib/integrations/sumit";
@@ -38,8 +39,15 @@ export const GET = handle(async () => {
   const proposals = docs.filter((d) => sumitDocType(d.Type).category === "proposal");
   const proposalsLast14d = proposals.filter((d) => d.Date && new Date(d.Date) >= cutoff).length;
 
+  // מה *נשמר* בפועל ב-CRM מ-SUMIT (בניגוד למה שרק נסרק).
+  const [storedQuotes, storedDocuments] = await Promise.all([
+    prisma.quote.count({ where: { notes: { contains: "[sumit:" } } }),
+    prisma.document.count({ where: { provider: "sumit" } }),
+  ]);
+
   return NextResponse.json({
-    totalDocs: docs.length,
+    scannedFromSumit: docs.length, // נסרק בלבד (קריאה) — לא נשמר
+    stored: { quotes: storedQuotes, documents: storedDocuments }, // מה שבאמת נשמר במערכת
     byType: Object.values(histogram).sort((a, b) => b.count - a.count),
     proposalsTotal: proposals.length,
     proposalsLast14d,
