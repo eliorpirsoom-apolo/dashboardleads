@@ -235,61 +235,67 @@ export default function TaskInboxPanel({
             return (
               <div
                 key={it.id}
-                className={`flex flex-wrap items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm ${
+                className={`rounded-xl border bg-white px-4 py-3 shadow-sm ${
                   selected.has(it.id) ? "border-[#3a5bd9]" : "border-slate-200"
                 } ${done || converted ? "opacity-60" : ""}`}
               >
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4 shrink-0"
-                  checked={selected.has(it.id)}
-                  onChange={() => toggleSelect(it.id)}
-                  title="בחירה"
-                />
-                <button
-                  onClick={() => patch(it.id, { status: done ? "inbox" : "done" })}
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
-                    done ? "border-emerald-500 bg-emerald-500/20 text-emerald-600" : "border-slate-300 text-transparent hover:border-[#3a5bd9]"
-                  }`}
-                  title={done ? "החזרה למאגר" : "סימון כבוצע"}
-                >
-                  <Icon name="check" className="h-3.5 w-3.5" />
-                </button>
+                {/* שורה עליונה: בחירה + סימון-בוצע + טקסט (רוחב מלא) + תג מקור */}
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0"
+                    checked={selected.has(it.id)}
+                    onChange={() => toggleSelect(it.id)}
+                    title="בחירה"
+                  />
+                  <button
+                    onClick={() => patch(it.id, { status: done ? "inbox" : "done" })}
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
+                      done ? "border-emerald-500 bg-emerald-500/20 text-emerald-600" : "border-slate-300 text-transparent hover:border-[#3a5bd9]"
+                    }`}
+                    title={done ? "החזרה למאגר" : "סימון כבוצע"}
+                  >
+                    <Icon name="check" className="h-3.5 w-3.5" />
+                  </button>
 
-                <div className="min-w-0 flex-1">
-                  {editing ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveEdit(it.id);
-                          if (e.key === "Escape") { setEditingId(null); setEditText(""); }
-                        }}
-                        autoFocus
-                        className="flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
-                      />
-                      <Button size="sm" onClick={() => saveEdit(it.id)}>שמירה</Button>
-                      <button onClick={() => { setEditingId(null); setEditText(""); }} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">ביטול</button>
-                    </div>
-                  ) : (
-                    <p className={`whitespace-pre-wrap break-words text-sm text-slate-700 ${done ? "line-through" : ""}`}>{it.text}</p>
-                  )}
-                  {!editing ? (
-                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
-                      {it.createdByName ? <span>{it.createdByName}</span> : null}
-                      <span>{formatDateTime(it.createdAt)}</span>
-                      {converted ? <span className="text-[#3a5bd9]">· ➜ הפך למשימה</span> : null}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    {editing ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveEdit(it.id);
+                            if (e.key === "Escape") { setEditingId(null); setEditText(""); }
+                          }}
+                          autoFocus
+                          className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
+                        />
+                        <Button size="sm" onClick={() => saveEdit(it.id)}>שמירה</Button>
+                        <button onClick={() => { setEditingId(null); setEditText(""); }} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">ביטול</button>
+                      </div>
+                    ) : (
+                      <p className={`whitespace-pre-wrap break-words text-sm text-slate-700 ${done ? "line-through" : ""}`}>{it.text}</p>
+                    )}
+                    {!editing ? (
+                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
+                        {it.createdByName ? <span>{it.createdByName}</span> : null}
+                        <span>{formatDateTime(it.createdAt)}</span>
+                        {converted ? <span className="text-[#3a5bd9]">· ➜ הפך למשימה</span> : null}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {it.source !== "manual" ? (
+                    <span className="shrink-0">
+                      <Chip color={SOURCE_COLOR[it.source] || "#94a3b8"}>{SOURCE_LABEL[it.source] || it.source}</Chip>
+                    </span>
                   ) : null}
                 </div>
 
-                {it.source !== "manual" ? (
-                  <Chip color={SOURCE_COLOR[it.source] || "#94a3b8"}>{SOURCE_LABEL[it.source] || it.source}</Chip>
-                ) : null}
-
+                {/* שורת פעולות — נפרדת, כדי שהטקסט יישאר קריא גם במובייל */}
                 {!editing ? (
-                  <div className="flex items-center gap-1">
+                  <div className="mt-2 flex items-center justify-end gap-1 border-t border-slate-100 pt-2">
                     {it.status === "inbox" ? (
                       <button
                         onClick={() => onConvert({ id: it.id, text: it.text })}
