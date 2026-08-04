@@ -111,6 +111,25 @@ export async function sendWhatsappFile(
   }
 }
 
+// רשימת קבוצות הוואטסאפ שהמספר חבר בהן (Green API getContacts → סינון type=group).
+export async function listWhatsappGroups(): Promise<{ id: string; name: string }[]> {
+  if (!whatsappConfigured()) return [];
+  const id = process.env.GREENAPI_ID_INSTANCE!;
+  const token = process.env.GREENAPI_API_TOKEN!;
+  try {
+    const res = await fetch(`${gaBase()}/waInstance${id}/getContacts/${token}`);
+    if (!res.ok) return [];
+    const arr = await res.json().catch(() => []);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((c: any) => c?.type === "group" || String(c?.id || "").endsWith("@g.us"))
+      .map((c: any) => ({ id: String(c.id), name: String(c.name || c.contactName || c.id) }))
+      .filter((g) => g.id.endsWith("@g.us"));
+  } catch {
+    return [];
+  }
+}
+
 // תמונת הפרופיל בוואטסאפ של מספר (Green API getAvatar) — best-effort.
 export async function getWhatsappAvatar(phone: string): Promise<string | null> {
   if (!whatsappConfigured()) return null;

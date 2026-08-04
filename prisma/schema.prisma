@@ -464,6 +464,15 @@ model AiAgentConfig {
   instructions   String? // הנחיה מותאמת ל-AI
   model          String? // מודל עוקף (אופציונלי)
   replyConfirm   Boolean  @default(true)
+  // בוט תזמון לקבוצות: הודעת בוקר + סוף-יום לכל הקבוצות שהמספר חבר בהן.
+  broadcastEnabled  Boolean @default(false)
+  morningTime       String  @default("09:00") // HH:MM שעון ישראל
+  morningText       String  @default("בוקר טוב לכולם ☀️")
+  eodTime           String  @default("17:00")
+  eodText           String  @default("היי כולם, אנחנו תכף מסיימים את היום — יש בקשות / הערות?")
+  broadcastDays     String  @default("0,1,2,3,4") // ימי שבוע (0=ראשון .. 6=שבת)
+  lastMorningSentOn String? // YYYY-MM-DD (ישראל) — מניעת כפילות
+  lastEodSentOn     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
