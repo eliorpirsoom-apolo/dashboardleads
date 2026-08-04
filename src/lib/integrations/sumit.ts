@@ -119,3 +119,19 @@ export async function sumitDocumentEmail(documentID: number): Promise<string | n
   );
   return r.data?.Document?.Customer?.EmailAddress?.toLowerCase().trim() || null;
 }
+
+/** פרטי הלקוח המלאים מהמסמך (שם/מייל/טלפון) — לפתיחת לקוח חדש מהצעת מחיר. */
+export async function sumitDocumentCustomer(
+  documentID: number
+): Promise<{ name: string | null; email: string | null; phone: string | null } | null> {
+  const r = await sumitCall<{ Document?: { Customer?: Record<string, any> } }>(
+    "/accounting/documents/getdetails/",
+    { DocumentID: documentID }
+  );
+  const c = r.data?.Document?.Customer;
+  if (!c) return null;
+  const email = String(c.EmailAddress || c.Email || "").toLowerCase().trim() || null;
+  const phone = String(c.Phone || c.PhoneNumber || c.Mobile || c.TelephoneNumber || "").trim() || null;
+  const name = String(c.Name || c.CompanyName || c.ContactPersonName || "").trim() || null;
+  return { name, email, phone };
+}
