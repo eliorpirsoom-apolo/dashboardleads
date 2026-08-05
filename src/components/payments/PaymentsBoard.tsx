@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart } from "@tremor/react";
 import { api } from "@/lib/fetcher";
 import { formatCurrency } from "@/lib/format";
@@ -9,14 +9,29 @@ import { Icon } from "@/components/Icon";
 
 interface Client { id: string; name: string; color: string | null }
 interface Status { id: string; name: string; color: string; order: number; isPaid: boolean }
-interface Cell { amount: number | null; statusId: string | null; note: string | null }
+interface Keyword { id: string; keyword: string; kind: Kind }
+interface Cell { amount: number | null; sumitAmount: number | null; statusId: string | null; note: string | null }
+
+type Kind = "retainer" | "oneoff";
+const KINDS: { key: Kind; label: string }[] = [
+  { key: "retainer", label: "ריטיינר" },
+  { key: "oneoff", label: "חד-פעמי" },
+];
 
 const MONTHS = ["ינו", "פבר", "מרץ", "אפר", "מאי", "יונ", "יול", "אוג", "ספט", "אוק", "נוב", "דצמ"];
 const MONTHS_FULL = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
 
+// סכום אפקטיבי: דריסה ידנית גוברת על הסכום האוטומטי מ-SUMIT.
+function eff(c?: Cell | null): number | null {
+  if (!c) return null;
+  return c.amount ?? c.sumitAmount ?? null;
+}
+
 function hexTint(hex: string, alpha = "22"): string {
   return /^#[0-9a-fA-F]{6}$/.test(hex) ? `${hex}${alpha}` : "#f1f5f9";
 }
+
+type CellMap = Record<string, Record<number, Partial<Record<Kind, Cell>>>>;
 
 export default function PaymentsBoard() {
   const nowYear = new Date().getFullYear();
@@ -24,23 +39,31 @@ export default function PaymentsBoard() {
   const [month, setMonth] = useState(0); // 0 = כל השנה, 1-12 = חודש ספציפי
   const [clients, setClients] = useState<Client[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
-  const [cells, setCells] = useState<Record<string, Record<number, Cell>>>({});
+  const [cells, setCells] = useState<CellMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showStatusMgr, setShowStatusMgr] = useState(false);
+  const [panel, setPanel] = useState<"" | "status" | "keywords">("");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const d = await api<{ clients: Client[]; statuses: Status[]; payments: { clientId: string; month: number; amount: number | null; statusId: string | null; note: string | null }[] }>(
-        `/api/payments?year=${year}`
-      );
+      const d = await api<{
+        clients: Client[];
+        statuses: Status[];
+        payments: { clientId: string; month: number; kind: Kind; amount: number | null; sumitAmount: number | null; statusId: string | null; note: string | null }[];
+      }>(`/api/payments?year=${year}`);
       setClients(d.clients);
       setStatuses(d.statuses);
-      const map: Record<string, Record<number, Cell>> = {};
+      const map: CellMap = {};
       for (const p of d.payments) {
-        (map[p.clientId] ??= {})[p.month] = { amount: p.amount, statusId: p.statusId, note: p.note };
+        const kind: Kind = p.kind === "oneoff" ? "oneoff" : "retainer";
+        ((map[p.clientId] ??= {})[p.month] ??= {})[kind] = {
+          amount: p.amount,
+          sumitAmount: p.sumitAmount,
+          statusId: p.statusId,
+          note: p.note,
+        };
       }
       setCells(map);
     } catch (e: any) {
@@ -56,64 +79,72 @@ export default function PaymentsBoard() {
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
   const paidIds = useMemo(() => new Set(statuses.filter((s) => s.isPaid).map((s) => s.id)), [statuses]);
 
-  // חישוב מקומי (אופטימיסטי) של הסטטיסטיקות מהתאים הנוכחיים.
-  // הגרף החודשי תמיד מציג 12 חודשים; שאר הסטטיסטיקות ממוקדות לחודש הנבחר (0 = כל השנה).
+  // חישוב מקומי (אופטימיסטי). הגרף תמיד 12 חודשים; שאר הסטטיסטיקות ממוקדות לחודש הנבחר (0 = כל השנה).
   const stats = useMemo(() => {
-    const byMonth = MONTHS.map((m) => ({ month: m, "צפוי": 0, "נגבה": 0 }));
+    const byMonth = MONTHS.map((m) => ({ month: m, "ריטיינר": 0, "חד-פעמי": 0 }));
     const byStatus = new Map<string, number>();
-    let totalExpected = 0;
-    let totalCollected = 0;
-    let yearExpected = 0;
+    let rExp = 0, rCol = 0, oExp = 0, oCol = 0, yearTotal = 0;
     for (const clientId of Object.keys(cells)) {
       for (const mo of Object.keys(cells[clientId])) {
         const mNum = Number(mo);
-        const c = cells[clientId][mNum];
-        const amt = c.amount || 0;
-        if (!amt) continue;
-        const paid = !!(c.statusId && paidIds.has(c.statusId));
-        yearExpected += amt;
-        byMonth[mNum - 1]["צפוי"] += amt;
-        if (paid) byMonth[mNum - 1]["נגבה"] += amt;
-        // סינון לפי החודש הנבחר עבור התיבות והפילוח
-        if (month === 0 || mNum === month) {
-          totalExpected += amt;
-          if (paid) totalCollected += amt;
-          if (c.statusId) byStatus.set(c.statusId, (byStatus.get(c.statusId) || 0) + amt);
+        for (const k of KINDS) {
+          const c = cells[clientId][mNum][k.key];
+          const amt = eff(c) || 0;
+          if (!amt || !c) continue;
+          const paid = !!(c.statusId && paidIds.has(c.statusId));
+          yearTotal += amt;
+          byMonth[mNum - 1][k.key === "retainer" ? "ריטיינר" : "חד-פעמי"] += amt;
+          if (month === 0 || mNum === month) {
+            if (k.key === "retainer") { rExp += amt; if (paid) rCol += amt; }
+            else { oExp += amt; if (paid) oCol += amt; }
+            if (c.statusId) byStatus.set(c.statusId, (byStatus.get(c.statusId) || 0) + amt);
+          }
         }
       }
     }
-    return { byMonth, byStatus, totalExpected, totalCollected, totalPending: totalExpected - totalCollected, yearExpected };
+    const totalExpected = rExp + oExp;
+    const totalCollected = rCol + oCol;
+    return {
+      byMonth, byStatus, yearTotal,
+      retainerExpected: rExp, oneoffExpected: oExp,
+      totalExpected, totalCollected, totalPending: totalExpected - totalCollected,
+    };
   }, [cells, paidIds, month]);
 
   const scopeLabel = month === 0 ? "שנה" : MONTHS_FULL[month - 1];
 
-  function setCell(clientId: string, month: number, patch: Partial<Cell>) {
+  function setCell(clientId: string, mNum: number, kind: Kind, patch: Partial<Cell>) {
     setCells((prev) => {
       const next = { ...prev };
       const row = { ...(next[clientId] || {}) };
-      const base: Cell = row[month] || { amount: null, statusId: null, note: null };
-      row[month] = { ...base, ...patch };
+      const monthCell = { ...(row[mNum] || {}) };
+      const base: Cell = monthCell[kind] || { amount: null, sumitAmount: null, statusId: null, note: null };
+      monthCell[kind] = { ...base, ...patch };
+      row[mNum] = monthCell;
       next[clientId] = row;
       return next;
     });
   }
 
-  async function saveCell(clientId: string, month: number) {
-    const c = cells[clientId]?.[month] || { amount: null, statusId: null, note: null };
+  async function saveCell(clientId: string, mNum: number, kind: Kind) {
+    const c = cells[clientId]?.[mNum]?.[kind] || { amount: null, sumitAmount: null, statusId: null, note: null };
     try {
       await api("/api/payments", {
         method: "POST",
-        json: { clientId, year, month, amount: c.amount, statusId: c.statusId, note: c.note },
+        json: { clientId, year, month: mNum, kind, amount: c.amount, statusId: c.statusId, note: c.note },
       });
     } catch (e: any) {
       setError(e.message);
     }
   }
 
-  const clientTotal = (clientId: string) =>
-    Object.values(cells[clientId] || {}).reduce((s, c) => s + (c.amount || 0), 0);
-  const monthTotal = (month: number) =>
-    Object.keys(cells).reduce((s, cid) => s + (cells[cid]?.[month]?.amount || 0), 0);
+  const rowTotal = (clientId: string, kind: Kind) =>
+    Object.values(cells[clientId] || {}).reduce((s, mc) => s + (eff(mc[kind]) || 0), 0);
+  const monthTotal = (mNum: number) =>
+    Object.keys(cells).reduce((s, cid) => {
+      const mc = cells[cid]?.[mNum];
+      return s + (eff(mc?.retainer) || 0) + (eff(mc?.oneoff) || 0);
+    }, 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -135,36 +166,44 @@ export default function PaymentsBoard() {
             <option key={m} value={i + 1}>{m}</option>
           ))}
         </select>
-        <Button variant="ghost" onClick={() => setShowStatusMgr((s) => !s)}>
+        <Button variant="ghost" onClick={() => setPanel((p) => (p === "status" ? "" : "status"))}>
           <Icon name="edit" className="h-4 w-4" />
           ניהול סטטוסים
+        </Button>
+        <Button variant="ghost" onClick={() => setPanel((p) => (p === "keywords" ? "" : "keywords"))}>
+          <Icon name="edit" className="h-4 w-4" />
+          מילות סיווג
         </Button>
         {error ? <span className="text-sm text-red-600">{error}</span> : null}
       </div>
 
-      {/* סטטיסטיקות */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label={`סה״כ צפוי (${scopeLabel})`} value={stats.totalExpected} color="#3a5bd9" />
+      {/* סטטיסטיקות — מופרד ריטיינר/חד-פעמי */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile label={`ריטיינר — צפוי (${scopeLabel})`} value={stats.retainerExpected} color="#3a5bd9" />
+        <StatTile label={`חד-פעמי — צפוי (${scopeLabel})`} value={stats.oneoffExpected} color="#f59e0b" />
         <StatTile label={`נגבה (${scopeLabel})`} value={stats.totalCollected} color="#10b981" />
-        <StatTile label={`ממתין לגבייה (${scopeLabel})`} value={stats.totalPending} color="#f59e0b" />
+        <StatTile label={`ממתין לגבייה (${scopeLabel})`} value={stats.totalPending} color="#ef4444" />
       </div>
 
       {/* גרפים */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <h3 className="mb-2 text-sm font-bold text-slate-800">תזרים חודשי — צפוי מול נגבה <span className="text-xs font-normal text-slate-400">(כל השנה)</span></h3>
+          <h3 className="mb-2 text-sm font-bold text-slate-800">
+            תזרים חודשי — ריטיינר מול חד-פעמי <span className="text-xs font-normal text-slate-400">(כל השנה)</span>
+          </h3>
           <BarChart
             data={stats.byMonth}
             index="month"
-            categories={["צפוי", "נגבה"]}
-            colors={["blue", "emerald"]}
+            categories={["ריטיינר", "חד-פעמי"]}
+            colors={["blue", "amber"]}
+            stack
             valueFormatter={(n) => `₪${Math.round(n).toLocaleString()}`}
             yAxisWidth={64}
             className="h-64"
           />
         </Card>
         <Card>
-          <h3 className="mb-2 text-sm font-bold text-slate-800">פילוח לפי סטטוס</h3>
+          <h3 className="mb-2 text-sm font-bold text-slate-800">פילוח לפי סטטוס <span className="text-xs font-normal text-slate-400">({scopeLabel})</span></h3>
           <div className="flex flex-col gap-2">
             {statuses.map((s) => {
               const total = stats.byStatus.get(s.id) || 0;
@@ -189,9 +228,10 @@ export default function PaymentsBoard() {
         </Card>
       </div>
 
-      {showStatusMgr ? <StatusManager statuses={statuses} onChange={load} /> : null}
+      {panel === "status" ? <StatusManager statuses={statuses} onChange={load} /> : null}
+      {panel === "keywords" ? <KeywordManager /> : null}
 
-      {/* טבלת התשלומים */}
+      {/* טבלת התשלומים — שתי תת-שורות לכל לקוח (ריטיינר / חד-פעמי) */}
       <Card className="!p-0">
         {loading ? (
           <p className="p-6 text-center text-sm text-slate-500">טוען…</p>
@@ -202,11 +242,12 @@ export default function PaymentsBoard() {
             <table className="w-full border-collapse text-right text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="sticky right-0 z-10 min-w-[160px] bg-slate-50 px-3 py-2 text-slate-600">לקוח</th>
+                  <th className="sticky right-0 z-10 min-w-[150px] bg-slate-50 px-3 py-2 text-slate-600">לקוח</th>
+                  <th className="min-w-[70px] bg-slate-50 px-2 py-2 text-slate-500">סוג</th>
                   {MONTHS.map((m, i) => (
                     <th
                       key={m}
-                      className={`min-w-[92px] px-2 py-2 text-center font-medium ${month === i + 1 ? "bg-[#3a5bd9]/10 text-[#3a5bd9]" : "text-slate-500"}`}
+                      className={`min-w-[90px] px-2 py-2 text-center font-medium ${month === i + 1 ? "bg-[#3a5bd9]/10 text-[#3a5bd9]" : "text-slate-500"}`}
                     >
                       {m}
                     </th>
@@ -216,55 +257,69 @@ export default function PaymentsBoard() {
               </thead>
               <tbody>
                 {clients.map((cl) => (
-                  <tr key={cl.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                    <td className="sticky right-0 z-10 bg-white px-3 py-1.5 font-medium text-slate-800">
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cl.color ?? "#94a3b8" }} />
-                        <span className="truncate">{cl.name}</span>
-                      </span>
-                    </td>
-                    {MONTHS.map((_, i) => {
-                      const mNum = i + 1;
-                      const c = cells[cl.id]?.[mNum];
-                      const st = c?.statusId ? statusById.get(c.statusId) : null;
-                      const selected = month === mNum;
-                      return (
-                        <td
-                          key={mNum}
-                          className={`px-1 py-1 align-top ${selected ? "ring-1 ring-inset ring-[#3a5bd9]/30" : ""}`}
-                          style={{ background: st ? hexTint(st.color) : selected ? "#3a5bd90d" : undefined }}
-                        >
-                          <input
-                            type="number"
-                            value={c?.amount ?? ""}
-                            onChange={(e) => setCell(cl.id, mNum, { amount: e.target.value === "" ? null : Number(e.target.value) })}
-                            onBlur={() => saveCell(cl.id, mNum)}
-                            placeholder="—"
-                            className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-center text-[11px] text-slate-800 hover:border-slate-300 focus:border-[#3a5bd9] focus:bg-white focus:outline-none"
-                          />
-                          <select
-                            value={c?.statusId ?? ""}
-                            onChange={(e) => { setCell(cl.id, mNum, { statusId: e.target.value || null }); setTimeout(() => saveCell(cl.id, mNum), 0); }}
-                            className="mt-0.5 w-full rounded border-0 bg-transparent text-center text-[10px] text-slate-600 focus:outline-none"
-                            style={{ color: st?.color }}
-                          >
-                            <option value="">—</option>
-                            {statuses.map((s) => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                          </select>
+                  <Fragment key={cl.id}>
+                    {KINDS.map((k, ki) => (
+                      <tr key={k.key} className={`hover:bg-slate-50/50 ${ki === KINDS.length - 1 ? "border-b border-slate-200" : ""}`}>
+                        {ki === 0 ? (
+                          <td rowSpan={KINDS.length} className="sticky right-0 z-10 border-l border-slate-100 bg-white px-3 py-1.5 align-top font-medium text-slate-800">
+                            <span className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cl.color ?? "#94a3b8" }} />
+                              <span className="truncate">{cl.name}</span>
+                            </span>
+                          </td>
+                        ) : null}
+                        <td className="whitespace-nowrap px-2 py-1 text-[11px] font-medium text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: k.key === "retainer" ? "#3a5bd9" : "#f59e0b" }} />
+                            {k.label}
+                          </span>
                         </td>
-                      );
-                    })}
-                    <td className="px-2 py-1.5 text-center font-mono font-bold text-slate-800">
-                      {clientTotal(cl.id) ? formatCurrency(clientTotal(cl.id)) : "—"}
-                    </td>
-                  </tr>
+                        {MONTHS.map((_, i) => {
+                          const mNum = i + 1;
+                          const c = cells[cl.id]?.[mNum]?.[k.key];
+                          const st = c?.statusId ? statusById.get(c.statusId) : null;
+                          const selected = month === mNum;
+                          const isAuto = c?.amount == null && c?.sumitAmount != null;
+                          return (
+                            <td
+                              key={mNum}
+                              className={`px-1 py-1 align-top ${selected ? "ring-1 ring-inset ring-[#3a5bd9]/30" : ""}`}
+                              style={{ background: st ? hexTint(st.color) : selected ? "#3a5bd90d" : undefined }}
+                            >
+                              <input
+                                type="number"
+                                value={c?.amount ?? c?.sumitAmount ?? ""}
+                                onChange={(e) => setCell(cl.id, mNum, k.key, { amount: e.target.value === "" ? null : Number(e.target.value) })}
+                                onBlur={() => saveCell(cl.id, mNum, k.key)}
+                                placeholder="—"
+                                title={isAuto ? "סכום אוטומטי מ-SUMIT — הקלדה תדרוס ידנית" : undefined}
+                                className={`w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-center text-[11px] hover:border-slate-300 focus:border-[#3a5bd9] focus:bg-white focus:outline-none ${isAuto ? "italic text-slate-500" : "text-slate-800"}`}
+                              />
+                              <select
+                                value={c?.statusId ?? ""}
+                                onChange={(e) => { setCell(cl.id, mNum, k.key, { statusId: e.target.value || null }); setTimeout(() => saveCell(cl.id, mNum, k.key), 0); }}
+                                className="mt-0.5 w-full rounded border-0 bg-transparent text-center text-[10px] text-slate-600 focus:outline-none"
+                                style={{ color: st?.color }}
+                              >
+                                <option value="">—</option>
+                                {statuses.map((s) => (
+                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                          );
+                        })}
+                        <td className="px-2 py-1.5 text-center font-mono font-bold text-slate-800">
+                          {rowTotal(cl.id, k.key) ? formatCurrency(rowTotal(cl.id, k.key)) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
-                  <td className="sticky right-0 z-10 bg-slate-50 px-3 py-2 text-slate-700">סה״כ חודשי</td>
+                  <td colSpan={2} className="sticky right-0 z-10 bg-slate-50 px-3 py-2 text-slate-700">סה״כ חודשי</td>
                   {MONTHS.map((_, i) => (
                     <td
                       key={i}
@@ -273,7 +328,7 @@ export default function PaymentsBoard() {
                       {monthTotal(i + 1) ? formatCurrency(monthTotal(i + 1)) : "—"}
                     </td>
                   ))}
-                  <td className="px-2 py-2 text-center font-mono text-slate-900">{formatCurrency(stats.yearExpected)}</td>
+                  <td className="px-2 py-2 text-center font-mono text-slate-900">{formatCurrency(stats.yearTotal)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -365,6 +420,98 @@ function StatusManager({ statuses, onChange }: { statuses: Status[]; onChange: (
           נחשב כ״נגבה״
         </label>
         <Button size="sm" disabled={busy || !name.trim()} onClick={add}>הוספה</Button>
+      </div>
+    </Card>
+  );
+}
+
+// ניהול מילות הסיווג לחשבוניות SUMIT — לריטיינר ולחד-פעמי.
+function KeywordManager() {
+  const [keywords, setKeywords] = useState<Keyword[]>([]);
+  const [text, setText] = useState("");
+  const [kind, setKind] = useState<Kind>("retainer");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api<{ keywords: Keyword[] }>("/api/payment-keywords");
+      setKeywords(d.keywords);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function add() {
+    if (!text.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api("/api/payment-keywords", { method: "POST", json: { keyword: text.trim(), kind } });
+      setText("");
+      load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove(id: string) {
+    await api(`/api/payment-keywords/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  const groups: { key: Kind; label: string; color: string }[] = [
+    { key: "retainer", label: "ריטיינר", color: "#3a5bd9" },
+    { key: "oneoff", label: "חד-פעמי", color: "#f59e0b" },
+  ];
+
+  return (
+    <Card>
+      <h3 className="mb-1 text-sm font-bold text-slate-800">מילות סיווג לחשבוניות SUMIT</h3>
+      <p className="mb-3 text-xs text-slate-500">
+        כשמונפקת חשבונית, המערכת בודקת אם תיאור הפריטים מכיל אחת מהמילים ומסווגת לריטיינר או חד-פעמי בהתאם.
+      </p>
+      {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {groups.map((g) => (
+          <div key={g.key} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-700">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: g.color }} />
+              {g.label}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {keywords.filter((k) => k.kind === g.key).map((k) => (
+                <span key={k.id} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-700">
+                  {k.keyword}
+                  <button onClick={() => remove(k.id)} className="text-slate-400 hover:text-red-600" title="הסרה">×</button>
+                </span>
+              ))}
+              {keywords.filter((k) => k.kind === g.key).length === 0 ? (
+                <span className="text-[11px] text-slate-400">אין מילים.</span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+          placeholder="מילת מפתח חדשה"
+          className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
+        />
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as Kind)}
+          className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
+        >
+          <option value="retainer">ריטיינר</option>
+          <option value="oneoff">חד-פעמי</option>
+        </select>
+        <Button size="sm" disabled={busy || !text.trim()} onClick={add}>הוספה</Button>
       </div>
     </Card>
   );

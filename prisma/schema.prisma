@@ -493,22 +493,35 @@ model PaymentStatus {
   payments  ClientPayment[]
 }
 
-// תא בטבלה: לקוח × חודש (שנה) → סכום + סטטוס. תא אחד לכל לקוח/חודש.
+// תא בטבלה: לקוח × חודש (שנה) × סוג → סכום + סטטוס.
+// kind מפריד בין תשלום חודשי קבוע ("retainer") לחד-פעמי ("oneoff") — שורה נפרדת לכל סוג.
 model ClientPayment {
   id        String         @id @default(cuid())
   client    Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId  String
   year      Int
   month     Int // 1-12
-  amount    Float?
+  kind      String         @default("retainer") // "retainer" | "oneoff"
+  amount    Float? // דריסה ידנית (גובר על הסכום מ-SUMIT)
+  sumitAmount Float? // סכום אוטומטי מחשבוניות SUMIT (סכום החשבוניות לאותו סוג/חודש)
   status    PaymentStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
   statusId  String?
   note      String?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  @@unique([clientId, year, month])
+  @@unique([clientId, year, month, kind])
   @@index([year])
+}
+
+// מילות מפתח לסיווג חשבוניות SUMIT לריטיינר/חד-פעמי — ניתנות לעריכה בדשבורד.
+model PaymentKeyword {
+  id        String   @id @default(cuid())
+  keyword   String
+  kind      String // "retainer" | "oneoff"
+  createdAt DateTime @default(now())
+
+  @@unique([keyword, kind])
 }
 
 model Reminder {
