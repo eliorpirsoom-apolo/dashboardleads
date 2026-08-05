@@ -45,7 +45,38 @@ interface LeadRow {
   project: { id: string; name: string } | null;
   unitType: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
+  callStatus: string | null;
+  callDurationSec: number | null;
   _count: { notes: number };
+}
+
+// סטטוס שיחת טלפון → תווית + צבע לתצוגה בטבלה (עברית או ערך גולמי מ-CheckCall).
+function callStatusStyle(raw: string | null): { label: string; color: string } | null {
+  if (!raw) return null;
+  const s = raw.trim();
+  const he: Record<string, string> = {
+    "נענתה": "#10b981",
+    "לא נענתה": "#ef4444",
+    "בוטלה": "#94a3b8",
+    "תפוס": "#f59e0b",
+  };
+  if (he[s]) return { label: s, color: he[s] };
+  const rawMap: Record<string, { label: string; color: string }> = {
+    ANSWER: { label: "נענתה", color: "#10b981" },
+    NOANSWER: { label: "לא נענתה", color: "#ef4444" },
+    BUSY: { label: "תפוס", color: "#f59e0b" },
+    CANCEL: { label: "בוטלה", color: "#94a3b8" },
+    CHANUNAVAIL: { label: "לא זמין", color: "#94a3b8" },
+    CONGESTION: { label: "לא זמין", color: "#94a3b8" },
+  };
+  return rawMap[s.toUpperCase()] ?? { label: s, color: "#64748b" };
+}
+
+function fmtCallDur(sec: number | null): string {
+  if (!sec) return "";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 export default function LeadsView({
@@ -437,13 +468,27 @@ export default function LeadsView({
                   {formatDateTime(l.receivedAt)}
                 </td>
                 <td className="px-3 py-2.5 font-medium text-slate-700">
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex flex-wrap items-center gap-1.5">
                     {l.kind === "call" ? (
                       <Icon name="phone" className="h-3.5 w-3.5 text-emerald-400" />
                     ) : l.kind === "whatsapp" ? (
                       <Icon name="whatsapp" className="h-3.5 w-3.5 text-emerald-400" />
                     ) : null}
                     {l.fullName ?? "—"}
+                    {l.kind === "call" && callStatusStyle(l.callStatus)
+                      ? (() => {
+                          const c = callStatusStyle(l.callStatus)!;
+                          return (
+                            <span
+                              className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium"
+                              style={{ color: c.color, backgroundColor: `${c.color}1a` }}
+                            >
+                              {c.label}
+                              {l.callDurationSec ? ` · ${fmtCallDur(l.callDurationSec)}` : ""}
+                            </span>
+                          );
+                        })()
+                      : null}
                   </span>
                 </td>
                 <td className="px-3 py-2.5 text-slate-600" dir="ltr">{l.phone ?? "—"}</td>
