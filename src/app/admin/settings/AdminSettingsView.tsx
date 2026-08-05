@@ -146,6 +146,8 @@ export default function AdminSettingsView() {
 
       <TaskAgentCard />
 
+      <WhatsappBroadcastCard />
+
       <AuditLogCard />
 
       {showCreate ? (
@@ -358,6 +360,177 @@ function WhatsAppCard() {
         </Button>
       </div>
       {result ? <p className="mt-2 text-xs text-slate-400">{result}</p> : null}
+    </Card>
+  );
+}
+
+// בוט קבוצות וואטסאפ — הודעת בוקר/סוף-יום מתוזמנת לקבוצות שהמספר חבר בהן.
+const DAY_LABELS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+interface BroadcastCfg {
+  broadcastEnabled: boolean;
+  morningTime: string; morningText: string;
+  eodTime: string; eodText: string;
+  broadcastDays: string;
+  lastMorningSentOn: string | null; lastEodSentOn: string | null;
+}
+function WhatsappBroadcastCard() {
+  const [waReady, setWaReady] = useState<boolean | null>(null);
+  const [cfg, setCfg] = useState<BroadcastCfg | null>(null);
+  const [groups, setGroups] = useState<{ id: string; name: string; included: boolean }[]>([]);
+  const [days, setDays] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api<{ waReady: boolean; config: BroadcastCfg; groups: typeof groups }>("/api/admin-ops/broadcast");
+      setWaReady(d.waReady);
+      setCfg(d.config);
+      setGroups(d.groups);
+      setDays(new Set((d.config.broadcastDays || "").split(",").map((s) => s.trim()).filter(Boolean)));
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function toggleDay(d: string) {
+    setDays((prev) => { const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n; });
+  }
+  function toggleGroup(id: string) {
+    setGroups((gs) => gs.map((g) => (g.id === id ? { ...g, included: !g.included } : g)));
+  }
+
+  async function save() {
+    if (!cfg) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await api("/api/admin-ops/broadcast", {
+        method: "PATCH",
+        json: {
+          broadcastEnabled: cfg.broadcastEnabled,
+          morningTime: cfg.morningTime, morningText: cfg.morningText,
+          eodTime: cfg.eodTime, eodText: cfg.eodText,
+          broadcastDays: Array.from(days).sort().join(","),
+          excludeGroups: groups.filter((g) => !g.included).map((g) => g.id),
+        },
+      });
+      setMsg("נשמר ✓");
+      load();
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  async function testSend() {
+    if (!confirm("שליחת בדיקה מיידית לכל הקבוצות המסומנות — עכשיו. להמשיך?")) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const r = await api<{ result: { morning: number | false; eod: number | false } }>("/api/admin-ops/broadcast", { method: "POST" });
+      setMsg(`נשלח לבדיקה — בוקר: ${r.result.morning || 0} קבוצות · סוף-יום: ${r.result.eod || 0} קבוצות`);
+      load();
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  const includedCount = groups.filter((g) => g.included).length;
+
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-bold text-slate-800">בוט קבוצות וואטסאפ</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            הודעת בוקר וסוף-יום אוטומטיות לקבוצות שהמספר חבר בהן, בימים ובשעות שתגדיר.
+          </p>
+        </div>
+        <Chip color={cfg?.broadcastEnabled ? "#34d399" : "#94a3b8"}>
+          {cfg?.broadcastEnabled ? "פעיל" : "כבוי"}
+        </Chip>
+      </div>
+
+      {err ? <p className="mb-2 text-sm text-red-600">{err}</p> : null}
+      {msg ? <p className="mb-2 text-sm text-emerald-600">{msg}</p> : null}
+      {waReady === false ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          וואטסאפ (Green API) אינו מוגדר — הבוט לא יוכל לשלוח.
+        </p>
+      ) : null}
+
+      {!cfg ? (
+        <p className="py-3 text-center text-sm text-slate-500">טוען…</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={cfg.broadcastEnabled} onChange={(e) => setCfg({ ...cfg, broadcastEnabled: e.target.checked })} className="h-4 w-4" />
+            הפעלת הבוט
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-sm font-bold text-slate-700">בוקר</p>
+              <Field label="שעה"><Input dir="ltr" value={cfg.morningTime} onChange={(e) => setCfg({ ...cfg, morningTime: e.target.value })} placeholder="09:00" /></Field>
+              <div className="mt-2">
+                <label className="mb-1 block text-xs text-slate-500">טקסט</label>
+                <textarea value={cfg.morningText} onChange={(e) => setCfg({ ...cfg, morningText: e.target.value })} rows={2} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#3a5bd9] focus:outline-none" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-sm font-bold text-slate-700">סוף יום</p>
+              <Field label="שעה"><Input dir="ltr" value={cfg.eodTime} onChange={(e) => setCfg({ ...cfg, eodTime: e.target.value })} placeholder="17:00" /></Field>
+              <div className="mt-2">
+                <label className="mb-1 block text-xs text-slate-500">טקסט</label>
+                <textarea value={cfg.eodText} onChange={(e) => setCfg({ ...cfg, eodText: e.target.value })} rows={2} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#3a5bd9] focus:outline-none" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-sm font-bold text-slate-700">ימי שליחה</p>
+            <div className="flex flex-wrap gap-1.5">
+              {DAY_LABELS.map((lbl, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => toggleDay(String(i))}
+                  className={`h-9 w-9 rounded-full text-sm font-medium transition ${days.has(String(i)) ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-sm font-bold text-slate-700">
+              קבוצות ({includedCount} מתוך {groups.length} יקבלו)
+            </p>
+            {groups.length === 0 ? (
+              <p className="text-xs text-slate-500">{waReady ? "לא נמצאו קבוצות שהמספר חבר בהן." : "—"}</p>
+            ) : (
+              <div className="thin-scroll flex max-h-52 flex-col gap-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
+                {groups.map((g) => (
+                  <label key={g.id} className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-slate-700 hover:bg-slate-50">
+                    <input type="checkbox" checked={g.included} onChange={() => toggleGroup(g.id)} className="h-4 w-4" />
+                    <span className="truncate">{g.name || g.id}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <span className="text-[11px] text-slate-500">
+              {cfg.lastMorningSentOn ? `בוקר אחרון: ${cfg.lastMorningSentOn}` : "בוקר: טרם נשלח"} · {cfg.lastEodSentOn ? `סוף-יום אחרון: ${cfg.lastEodSentOn}` : "סוף-יום: טרם נשלח"}
+            </span>
+            <div className="flex gap-2">
+              <Button variant="ghost" disabled={busy || !waReady || includedCount === 0} onClick={testSend}>
+                <Icon name="whatsapp" className="h-4 w-4" />
+                שלח בדיקה עכשיו
+              </Button>
+              <Button disabled={busy} onClick={save}>{busy ? "שומר…" : "שמירה"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

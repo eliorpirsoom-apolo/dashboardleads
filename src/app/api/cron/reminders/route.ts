@@ -11,6 +11,7 @@ import {
 } from "@/lib/transcription";
 import { sendDueBirthdayGreetings } from "@/lib/birthday";
 import { sendDueDesignApprovalReminders, markOverdueDesignTasks } from "@/lib/studioReminders";
+import { runWhatsappBroadcast } from "@/lib/whatsappBroadcast";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -193,6 +194,17 @@ export async function GET(req: Request) {
     console.error("[studio]", err);
   }
 
+  // 📣 בוט קבוצות וואטסאפ — הודעת בוקר/סוף-יום לקבוצות (כבוי כברירת מחדל).
+  // מתוזמן לפי שעון ישראל עם dedup יומי; ?broadcast=force לשליחה מיידית לבדיקה.
+  let broadcast: unknown = null;
+  try {
+    broadcast = await runWhatsappBroadcast(
+      new URL(req.url).searchParams.get("broadcast") === "force"
+    );
+  } catch (err) {
+    console.error("[wa-broadcast]", err);
+  }
+
   return NextResponse.json({
     processed: due.length,
     sent,
@@ -204,5 +216,6 @@ export async function GET(req: Request) {
     recordings,
     transcriptions,
     studio,
+    broadcast,
   });
 }

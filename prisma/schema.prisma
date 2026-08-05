@@ -475,6 +475,7 @@ model AiAgentConfig {
   eodTime           String  @default("17:00")
   eodText           String  @default("היי כולם, אנחנו תכף מסיימים את היום — יש בקשות / הערות?")
   broadcastDays     String  @default("0,1,2,3,4") // ימי שבוע (0=ראשון .. 6=שבת)
+  broadcastExcludeGroups String? // JSON: chatIds של קבוצות שהוחרגו מהבוט (ריק = כל הקבוצות)
   lastMorningSentOn String? // YYYY-MM-DD (ישראל) — מניעת כפילות
   lastEodSentOn     String?
   createdAt      DateTime @default(now())

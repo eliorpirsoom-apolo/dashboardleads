@@ -34,10 +34,20 @@ function toMin(hhmm: string): number {
   return h * 60 + m;
 }
 
-async function sendToAllGroups(text: string): Promise<number> {
+function parseExcluded(json: string | null | undefined): Set<string> {
+  try {
+    const arr = json ? JSON.parse(json) : [];
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+async function sendToGroups(text: string, excluded: Set<string>): Promise<number> {
   const groups = await listWhatsappGroups();
   let sent = 0;
   for (const g of groups) {
+    if (excluded.has(g.id)) continue; // קבוצה שהוחרגה ידנית
     const r = await sendWhatsappToChat(g.id, text);
     if (r.ok) sent++;
   }
@@ -64,12 +74,14 @@ export async function runWhatsappBroadcast(
   const eodDue =
     force || (cfg.lastEodSentOn !== date && minutes >= eodMin && minutes < eodMin + GRACE_MIN);
 
+  const excluded = parseExcluded(cfg.broadcastExcludeGroups);
+
   if (morningDue && cfg.morningText.trim()) {
-    out.morning = await sendToAllGroups(cfg.morningText.trim());
+    out.morning = await sendToGroups(cfg.morningText.trim(), excluded);
     await prisma.aiAgentConfig.update({ where: { id: cfg.id }, data: { lastMorningSentOn: date } });
   }
   if (eodDue && cfg.eodText.trim()) {
-    out.eod = await sendToAllGroups(cfg.eodText.trim());
+    out.eod = await sendToGroups(cfg.eodText.trim(), excluded);
     await prisma.aiAgentConfig.update({ where: { id: cfg.id }, data: { lastEodSentOn: date } });
   }
   return out;
