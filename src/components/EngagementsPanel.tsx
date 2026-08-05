@@ -69,9 +69,13 @@ export default function EngagementsPanel() {
     load();
   }
   async function deleteEngagement(id: string, name: string) {
-    if (!confirm(`למחוק את הליווי של "${name}"? כל משימות האונבורדינג יימחקו. ההצעה עצמה תישאר.`))
+    if (
+      !confirm(
+        `לבטל את הכניסה-לעבודה של "${name}"?\n\nכל משימות האונבורדינג יימחקו, וההצעה תחזור לסטטוס "נשלחה" (ביטול אישור שנעשה בטעות). תמיד אפשר לאשר אותה שוב מאוחר יותר.`
+      )
+    )
       return;
-    await api(`/api/engagements/${id}`, { method: "DELETE" });
+    await api(`/api/engagements/${id}`, { method: "DELETE", json: { revertQuote: true } });
     load();
   }
 
@@ -128,9 +132,10 @@ export default function EngagementsPanel() {
                       </button>
                       <button
                         onClick={() => deleteEngagement(e.id, e.client.name)}
-                        className="text-[10px] text-slate-600 hover:text-rose-400"
+                        className="text-[10px] text-slate-600 hover:text-rose-500"
+                        title="ביטול אישור שגוי — מוחק את הכניסה-לעבודה ומחזיר את ההצעה ל'נשלחה'"
                       >
-                        מחק ליווי
+                        בטל ומחק
                       </button>
                     </div>
                   </td>

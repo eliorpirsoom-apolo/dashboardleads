@@ -32,11 +32,23 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 });
 
 // DELETE /api/engagements/[id] — מחיקת ליווי מהמודול "נכנס לעבודה".
-// המשימות המשויכות נמחקות בקסקייד; ההצעה עצמה נשמרת (quoteId → null).
-export const DELETE = handle(async (_req, { params }: { params: { id: string } }) => {
+// המשימות המשויכות נמחקות בקסקייד. בגוף הבקשה: revertQuote — אם true, ההצעה
+// המקושרת חוזרת לסטטוס "נשלחה" (ביטול אישור שנעשה בטעות). אחרת ההצעה נשמרת כפי שהיא.
+export const DELETE = handle(async (req, { params }: { params: { id: string } }) => {
   await requireAdmin();
   const existing = await prisma.engagement.findUnique({ where: { id: params.id } });
   if (!existing) throw new ApiError(404, "ליווי לא נמצא");
+
+  const body = (await readJson(req).catch(() => ({}))) as { revertQuote?: boolean };
+  let quoteReverted = false;
+  if (body?.revertQuote && existing.quoteId) {
+    // ביטול אישור שגוי — ההצעה חוזרת ל"נשלחה" ותופיע שוב ב"הצעות מחיר ממתינות".
+    await prisma.quote
+      .update({ where: { id: existing.quoteId }, data: { status: "sent" } })
+      .then(() => { quoteReverted = true; })
+      .catch(() => {});
+  }
+
   await prisma.engagement.delete({ where: { id: params.id } });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, quoteReverted });
 });
