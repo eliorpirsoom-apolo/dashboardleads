@@ -539,6 +539,19 @@ model SumitInvoice {
   @@index([clientId, year, month])
 }
 
+// משוב עובדים על המערכת — כל עובד משרד יכול לשלוח מכל מקום; מרוכז למנהלים.
+model Feedback {
+  id         String   @id @default(cuid())
+  authorId   String? // מזהה העובד (ללא FK — נשמר גם אם המשתמש נמחק)
+  authorName String // תצלום שם השולח
+  category   String   @default("improvement") // "improvement" | "bug" | "idea" | "other"
+  text       String
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([resolved, createdAt])
+}
+
 model Reminder {
   id        String    @id @default(cuid())
   task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)

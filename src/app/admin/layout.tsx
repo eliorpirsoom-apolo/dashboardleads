@@ -5,6 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import BirthdayBanner from "@/components/BirthdayBanner";
 import { FridayBanner } from "@/components/FestiveBanners";
 import Footer from "@/components/Footer";
+import FeedbackWidget from "@/components/feedback/FeedbackWidget";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function AdminLayout({
         {children}
         <Footer />
       </main>
+      <FeedbackWidget />
     </div>
   );
 }

@@ -13,6 +13,7 @@ export interface NavItem {
   icon: string;
   module?: ModuleKey; // client-side module gate
   adminModule?: string; // agency-side module gate (per-staff permission)
+  managerOnly?: boolean; // agency-side: visible only to managers (not staff)
 }
 
 export const ADMIN_NAV: NavItem[] = [
@@ -25,14 +26,21 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/payments", label: "תשלומים", icon: "chart", adminModule: "payments" },
   { href: "/admin/studio", label: "סטודיו", icon: "edit", adminModule: "studio" },
   { href: "/admin/messages", label: "הודעות", icon: "megaphone", adminModule: "messages" },
+  { href: "/admin/feedback", label: "משוב", icon: "note", managerOnly: true },
   { href: "/admin/settings", label: "הגדרות", icon: "settings", adminModule: "settings" },
   { href: "/admin/profile", label: "החשבון שלי", icon: "users" },
 ];
 
-// סינון ניווט המשרד לפי הרשאות המודולים של המשתמש (מנהל → הכל; עובד → מותרים בלבד).
+// סינון ניווט המשרד לפי הרשאות המשתמש: מודולים (מנהל → הכל; עובד → מותרים בלבד)
+// + פריטים "managerOnly" שמוצגים למנהל בלבד.
 export function adminNavFor(user: SessionUser): NavItem[] {
   const allowed = new Set(effectiveAdminModules(user));
-  return ADMIN_NAV.filter((item) => !item.adminModule || allowed.has(item.adminModule));
+  const isManager = user.adminRole === "manager";
+  return ADMIN_NAV.filter(
+    (item) =>
+      (!item.managerOnly || isManager) &&
+      (!item.adminModule || allowed.has(item.adminModule))
+  );
 }
 
 const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
