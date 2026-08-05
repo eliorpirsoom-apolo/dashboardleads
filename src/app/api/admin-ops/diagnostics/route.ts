@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
+import { debugTranscribeNext } from "@/lib/transcription";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+// POST /api/admin-ops/diagnostics — מריץ תמלול על השיחה הבאה בתור ומחזיר תוצאה/שגיאה.
+export const POST = handle(async () => {
+  await requireManager();
+  const result = await debugTranscribeNext();
+  return NextResponse.json(result);
+});
 
 // GET /api/admin-ops/diagnostics — אבחון תשתית למנהל: נוכחות משתני סביבה
 // (בוליאני בלבד — לעולם לא ערכים) + תמונת מצב של תור תמלול השיחות.

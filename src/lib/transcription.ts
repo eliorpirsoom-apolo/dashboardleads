@@ -272,6 +272,49 @@ export interface TranscriptionRunResult {
   failed: number;
 }
 
+/** אבחון: מתמלל את השיחה הבאה בתור ומחזיר את התוצאה + טקסט השגיאה (אם יש)
+ *  ישירות — לבדיקה ידנית מהמשרד, בלי להמתין לקרון ובלי לחפש בלוגים. */
+export async function debugTranscribeNext(): Promise<{
+  configured: boolean;
+  leadId: string | null;
+  outcome?: string;
+  error?: string;
+}> {
+  if (!transcriptionConfigured()) return { configured: false, leadId: null };
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const lead = await prisma.lead.findFirst({
+    where: {
+      kind: "call",
+      callRecordingUrl: { startsWith: "http" },
+      OR: [
+        { callTranscriptStatus: null },
+        { callTranscriptStatus: { in: ["failed", "pending"] }, createdAt: { gte: weekAgo } },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      callRecordingUrl: true,
+      callRecordingKey: true,
+      callTargetName: true,
+      callDurationSec: true,
+    },
+  });
+  if (!lead) return { configured: true, leadId: null };
+  try {
+    const outcome = await processLead(lead);
+    if (outcome === "no_audio") {
+      await prisma.lead.update({ where: { id: lead.id }, data: { callTranscriptStatus: "no_audio" } });
+    }
+    return { configured: true, leadId: lead.id, outcome };
+  } catch (err: any) {
+    await prisma.lead
+      .update({ where: { id: lead.id }, data: { callTranscriptStatus: "failed" } })
+      .catch(() => {});
+    return { configured: true, leadId: lead.id, outcome: "failed", error: String(err?.message || err).slice(0, 500) };
+  }
+}
+
 /**
  * מעבד לידי שיחה שיש להם הקלטה וטרם תומללו. מוגבל למספר קטן לריצה כדי
  * להישאר תחת מגבלת 60 שניות של Vercel. רץ מה-cron.
