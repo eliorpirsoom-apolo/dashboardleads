@@ -138,9 +138,11 @@ export default function AdminSettingsView() {
 
       <SumitCard />
 
-      <SmsCard />
-
-      <WhatsAppCard />
+      {/* בדיקות SMS + וואטסאפ — 2 עמודות כדי לחסוך מקום (נערמות במובייל) */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SmsCard />
+        <WhatsAppCard />
+      </div>
 
       <TaskAgentCard />
 
@@ -425,14 +427,55 @@ function CreateAdminModal({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // הצעת צירוף משתמש קיים (החזרת 409 עם canPromote מהשרת)
+  const [promoteHint, setPromoteHint] = useState<string>("");
+
+  // POST גולמי כדי לקרוא את גוף ה-409 (api() משאיר רק את הודעת השגיאה).
+  async function post(promoteExisting: boolean) {
+    const res = await fetch("/api/admin-users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, promoteExisting }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { res, data } as { res: Response; data: any };
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
+    setPromoteHint("");
     try {
-      await api("/api/admin-users", { method: "POST", json: form });
-      onCreated();
+      const { res, data } = await post(false);
+      if (res.ok) {
+        onCreated();
+        return;
+      }
+      // המייל קיים על משתמש שאינו-משרד — נציע לצרף אותו.
+      if (res.status === 409 && data?.canPromote) {
+        setPromoteHint(data.message || "כבר קיים משתמש עם האימייל הזה. לצרף אותו כמשתמש משרד?");
+        return;
+      }
+      setError(data?.error || `שגיאה (${res.status})`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmPromote() {
+    setBusy(true);
+    setError("");
+    try {
+      const { res, data } = await post(true);
+      if (res.ok) {
+        onCreated();
+        return;
+      }
+      setError(data?.error || `שגיאה (${res.status})`);
+      setPromoteHint("");
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -444,6 +487,21 @@ function CreateAdminModal({
     <Modal title="משתמש משרד חדש" onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {promoteHint ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            <p className="mb-2">{promoteHint}</p>
+            <p className="mb-3 text-[11px] text-amber-700">
+              הצירוף יהפוך את המשתמש הקיים למשתמש משרד וינתק אותו מהלקוח שאליו הוא משויך כרגע.
+              ההתחברות הקיימת (Google / סיסמה) נשמרת אלא אם תזינו סיסמה חדשה.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setPromoteHint("")}>ביטול</Button>
+              <Button type="button" disabled={busy} onClick={confirmPromote}>
+                {busy ? "מצרף…" : "צרף כמשתמש משרד"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <Field label="שם מלא">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         </Field>

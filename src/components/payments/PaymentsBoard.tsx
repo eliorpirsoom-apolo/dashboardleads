@@ -12,6 +12,7 @@ interface Status { id: string; name: string; color: string; order: number; isPai
 interface Cell { amount: number | null; statusId: string | null; note: string | null }
 
 const MONTHS = ["ינו", "פבר", "מרץ", "אפר", "מאי", "יונ", "יול", "אוג", "ספט", "אוק", "נוב", "דצמ"];
+const MONTHS_FULL = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
 
 function hexTint(hex: string, alpha = "22"): string {
   return /^#[0-9a-fA-F]{6}$/.test(hex) ? `${hex}${alpha}` : "#f1f5f9";
@@ -20,6 +21,7 @@ function hexTint(hex: string, alpha = "22"): string {
 export default function PaymentsBoard() {
   const nowYear = new Date().getFullYear();
   const [year, setYear] = useState(nowYear);
+  const [month, setMonth] = useState(0); // 0 = כל השנה, 1-12 = חודש ספציפי
   const [clients, setClients] = useState<Client[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [cells, setCells] = useState<Record<string, Record<number, Cell>>>({});
@@ -55,27 +57,35 @@ export default function PaymentsBoard() {
   const paidIds = useMemo(() => new Set(statuses.filter((s) => s.isPaid).map((s) => s.id)), [statuses]);
 
   // חישוב מקומי (אופטימיסטי) של הסטטיסטיקות מהתאים הנוכחיים.
+  // הגרף החודשי תמיד מציג 12 חודשים; שאר הסטטיסטיקות ממוקדות לחודש הנבחר (0 = כל השנה).
   const stats = useMemo(() => {
-    const byMonth = MONTHS.map((m, i) => ({ month: m, "צפוי": 0, "נגבה": 0 }));
+    const byMonth = MONTHS.map((m) => ({ month: m, "צפוי": 0, "נגבה": 0 }));
     const byStatus = new Map<string, number>();
     let totalExpected = 0;
     let totalCollected = 0;
+    let yearExpected = 0;
     for (const clientId of Object.keys(cells)) {
       for (const mo of Object.keys(cells[clientId])) {
-        const c = cells[clientId][Number(mo)];
+        const mNum = Number(mo);
+        const c = cells[clientId][mNum];
         const amt = c.amount || 0;
         if (!amt) continue;
-        totalExpected += amt;
-        byMonth[Number(mo) - 1]["צפוי"] += amt;
-        if (c.statusId && paidIds.has(c.statusId)) {
-          totalCollected += amt;
-          byMonth[Number(mo) - 1]["נגבה"] += amt;
+        const paid = !!(c.statusId && paidIds.has(c.statusId));
+        yearExpected += amt;
+        byMonth[mNum - 1]["צפוי"] += amt;
+        if (paid) byMonth[mNum - 1]["נגבה"] += amt;
+        // סינון לפי החודש הנבחר עבור התיבות והפילוח
+        if (month === 0 || mNum === month) {
+          totalExpected += amt;
+          if (paid) totalCollected += amt;
+          if (c.statusId) byStatus.set(c.statusId, (byStatus.get(c.statusId) || 0) + amt);
         }
-        if (c.statusId) byStatus.set(c.statusId, (byStatus.get(c.statusId) || 0) + amt);
       }
     }
-    return { byMonth, byStatus, totalExpected, totalCollected, totalPending: totalExpected - totalCollected };
-  }, [cells, paidIds]);
+    return { byMonth, byStatus, totalExpected, totalCollected, totalPending: totalExpected - totalCollected, yearExpected };
+  }, [cells, paidIds, month]);
+
+  const scopeLabel = month === 0 ? "שנה" : MONTHS_FULL[month - 1];
 
   function setCell(clientId: string, month: number, patch: Partial<Cell>) {
     setCells((prev) => {
@@ -107,13 +117,24 @@ export default function PaymentsBoard() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* בקרת שנה */}
+      {/* בקרת שנה + חודש */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
           <button onClick={() => setYear((y) => y - 1)} className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100">‹</button>
           <span className="min-w-16 text-center text-sm font-bold text-slate-800">{year}</span>
           <button onClick={() => setYear((y) => y + 1)} className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100">›</button>
         </div>
+        <select
+          value={month}
+          onChange={(e) => setMonth(Number(e.target.value))}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 focus:border-[#3a5bd9] focus:outline-none"
+          title="סינון לפי חודש"
+        >
+          <option value={0}>כל השנה</option>
+          {MONTHS_FULL.map((m, i) => (
+            <option key={m} value={i + 1}>{m}</option>
+          ))}
+        </select>
         <Button variant="ghost" onClick={() => setShowStatusMgr((s) => !s)}>
           <Icon name="edit" className="h-4 w-4" />
           ניהול סטטוסים
@@ -123,15 +144,15 @@ export default function PaymentsBoard() {
 
       {/* סטטיסטיקות */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="סה״כ צפוי (שנה)" value={stats.totalExpected} color="#3a5bd9" />
-        <StatTile label="נגבה" value={stats.totalCollected} color="#10b981" />
-        <StatTile label="ממתין לגבייה" value={stats.totalPending} color="#f59e0b" />
+        <StatTile label={`סה״כ צפוי (${scopeLabel})`} value={stats.totalExpected} color="#3a5bd9" />
+        <StatTile label={`נגבה (${scopeLabel})`} value={stats.totalCollected} color="#10b981" />
+        <StatTile label={`ממתין לגבייה (${scopeLabel})`} value={stats.totalPending} color="#f59e0b" />
       </div>
 
       {/* גרפים */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <h3 className="mb-2 text-sm font-bold text-slate-800">תזרים חודשי — צפוי מול נגבה</h3>
+          <h3 className="mb-2 text-sm font-bold text-slate-800">תזרים חודשי — צפוי מול נגבה <span className="text-xs font-normal text-slate-400">(כל השנה)</span></h3>
           <BarChart
             data={stats.byMonth}
             index="month"
@@ -182,8 +203,13 @@ export default function PaymentsBoard() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="sticky right-0 z-10 min-w-[160px] bg-slate-50 px-3 py-2 text-slate-600">לקוח</th>
-                  {MONTHS.map((m) => (
-                    <th key={m} className="min-w-[92px] px-2 py-2 text-center font-medium text-slate-500">{m}</th>
+                  {MONTHS.map((m, i) => (
+                    <th
+                      key={m}
+                      className={`min-w-[92px] px-2 py-2 text-center font-medium ${month === i + 1 ? "bg-[#3a5bd9]/10 text-[#3a5bd9]" : "text-slate-500"}`}
+                    >
+                      {m}
+                    </th>
                   ))}
                   <th className="min-w-[90px] px-2 py-2 text-center text-slate-600">סה״כ</th>
                 </tr>
@@ -198,22 +224,27 @@ export default function PaymentsBoard() {
                       </span>
                     </td>
                     {MONTHS.map((_, i) => {
-                      const month = i + 1;
-                      const c = cells[cl.id]?.[month];
+                      const mNum = i + 1;
+                      const c = cells[cl.id]?.[mNum];
                       const st = c?.statusId ? statusById.get(c.statusId) : null;
+                      const selected = month === mNum;
                       return (
-                        <td key={month} className="px-1 py-1 align-top" style={{ background: st ? hexTint(st.color) : undefined }}>
+                        <td
+                          key={mNum}
+                          className={`px-1 py-1 align-top ${selected ? "ring-1 ring-inset ring-[#3a5bd9]/30" : ""}`}
+                          style={{ background: st ? hexTint(st.color) : selected ? "#3a5bd90d" : undefined }}
+                        >
                           <input
                             type="number"
                             value={c?.amount ?? ""}
-                            onChange={(e) => setCell(cl.id, month, { amount: e.target.value === "" ? null : Number(e.target.value) })}
-                            onBlur={() => saveCell(cl.id, month)}
+                            onChange={(e) => setCell(cl.id, mNum, { amount: e.target.value === "" ? null : Number(e.target.value) })}
+                            onBlur={() => saveCell(cl.id, mNum)}
                             placeholder="—"
                             className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-center text-[11px] text-slate-800 hover:border-slate-300 focus:border-[#3a5bd9] focus:bg-white focus:outline-none"
                           />
                           <select
                             value={c?.statusId ?? ""}
-                            onChange={(e) => { setCell(cl.id, month, { statusId: e.target.value || null }); setTimeout(() => saveCell(cl.id, month), 0); }}
+                            onChange={(e) => { setCell(cl.id, mNum, { statusId: e.target.value || null }); setTimeout(() => saveCell(cl.id, mNum), 0); }}
                             className="mt-0.5 w-full rounded border-0 bg-transparent text-center text-[10px] text-slate-600 focus:outline-none"
                             style={{ color: st?.color }}
                           >
@@ -235,11 +266,14 @@ export default function PaymentsBoard() {
                 <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
                   <td className="sticky right-0 z-10 bg-slate-50 px-3 py-2 text-slate-700">סה״כ חודשי</td>
                   {MONTHS.map((_, i) => (
-                    <td key={i} className="px-1 py-2 text-center font-mono text-[11px] text-slate-700">
+                    <td
+                      key={i}
+                      className={`px-1 py-2 text-center font-mono text-[11px] ${month === i + 1 ? "bg-[#3a5bd9]/10 text-[#3a5bd9]" : "text-slate-700"}`}
+                    >
                       {monthTotal(i + 1) ? formatCurrency(monthTotal(i + 1)) : "—"}
                     </td>
                   ))}
-                  <td className="px-2 py-2 text-center font-mono text-slate-900">{formatCurrency(stats.totalExpected)}</td>
+                  <td className="px-2 py-2 text-center font-mono text-slate-900">{formatCurrency(stats.yearExpected)}</td>
                 </tr>
               </tfoot>
             </table>
