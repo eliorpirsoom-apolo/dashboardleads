@@ -53,6 +53,11 @@ async function downloadAudio(
   if (head.startsWith("<!doctype") || head.startsWith("<html") || head.startsWith("<?xml")) {
     throw new Error("הקישור אינו קובץ שמע (התקבל דף)");
   }
+  // callindex מחזיר גוף טקסט זעיר כמו "error: no such file" כשההקלטה פגה/נמחקה —
+  // לא לשמור זאת כהקלטה (גודל תקין של שיחה תמיד גדול בהרבה).
+  if (buf.length < 1500) {
+    throw new Error(`הקלטה לא זמינה מהספק (${buf.length}B: ${buf.toString("utf8").slice(0, 50)})`);
+  }
   // mime נקי: מחלצים type/subtype תקין מה-header (עמיד ל-"Content-type: audio/mpeg").
   const rawCt = res.headers.get("content-type") || "";
   const m = rawCt.match(/(audio|application|video)\/[a-z0-9.+-]+/i);
@@ -148,6 +153,7 @@ async function summarizeCall(
 }
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // מגבלת Whisper
+const MIN_AUDIO_BYTES = 1500; // מתחת לזה = לא שמע אלא תשובת-שגיאה של הספק
 
 /** עיבוד ליד שיחה בודד: מקור השמע → תמלול → סיכום.
  *  מקור השמע: קודם העותק הקבוע ב-R2 (callRecordingKey) — קישור הספק (callindex)
@@ -174,24 +180,31 @@ async function processLead(lead: {
       console.error("[transcription:r2-read]", lead.id, e);
       bytes = null; // ניפול להורדה מהספק
     }
+    // עותק זעיר = לא שמע אלא תשובת-שגיאה של הספק ("error: no such file") שנשמרה
+    // בעבר כשההקלטה כבר פגה. ההקלטה אבודה — סטטוס סופי, בלי ניסיון חוזר.
+    if (bytes && bytes.length < MIN_AUDIO_BYTES) return "no_audio";
   }
 
-  // 2. נפילה: הורדה מקישור הספק (אם אין עותק תקין ב-R2).
-  if (!bytes || bytes.length === 0) {
+  // 2. נפילה: הורדה מקישור הספק (אם אין עותק ב-R2).
+  if (!bytes) {
     const url = lead.callRecordingUrl;
     if (!url || !/^https?:\/\//i.test(url)) return "no_audio";
-    const dl = await downloadAudio(url);
-    bytes = dl.bytes;
-    mime = dl.mime;
-    ext = dl.ext;
-    key = `agency/recordings/${lead.id}.${ext}`;
-    // שומרים עותק קבוע כדי שהתמלול הבא (וניגון בדשבורד) לא יתלה בספק.
-    await putObject(key, bytes, mime).catch((e) => {
-      console.error("[transcription:r2]", e);
-    });
+    try {
+      const dl = await downloadAudio(url);
+      bytes = dl.bytes;
+      mime = dl.mime;
+      ext = dl.ext;
+      key = `agency/recordings/${lead.id}.${ext}`;
+      // שומרים עותק קבוע כדי שהתמלול הבא (וניגון בדשבורד) לא יתלה בספק.
+      await putObject(key, bytes, mime).catch((e) => console.error("[transcription:r2]", e));
+    } catch (e) {
+      // ההקלטה אינה זמינה מהספק (פגה/נמחקה/קישור שגוי) — סופי, בלי ניסיון חוזר אינסופי.
+      console.error("[transcription:download]", lead.id, e);
+      return "no_audio";
+    }
   }
 
-  if (!bytes || bytes.length === 0) return "no_audio";
+  if (!bytes || bytes.length < MIN_AUDIO_BYTES) return "no_audio";
   if (bytes.length > MAX_AUDIO_BYTES) throw new Error("הקלטה גדולה מדי לתמלול");
 
   // זיהוי הפורמט האמיתי מהתוכן — גובר על הסיומת/mime שנגזרו מהקישור.
