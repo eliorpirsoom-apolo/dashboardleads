@@ -17,7 +17,22 @@ interface AdminUser {
   adminRole: string;
   lastLoginAt: string | null;
   googleId: string | null;
+  moduleAccess: string | null;
 }
+
+// מודולים הניתנים להגבלה לעובד (מקביל ל-ADMIN_MODULES בשרת). "סקירה" ו"החשבון שלי" תמיד פתוחים.
+const MODULE_OPTIONS: { key: string; label: string }[] = [
+  { key: "clients", label: "לקוחות" },
+  { key: "tasks", label: "משימות" },
+  { key: "calendar", label: "לוח שנה" },
+  { key: "documents", label: "מסמכים" },
+  { key: "quotes", label: "הצעות מחיר" },
+  { key: "studio", label: "סטודיו" },
+  { key: "messages", label: "הודעות" },
+  { key: "payments", label: "תשלומים" },
+  { key: "settings", label: "הגדרות" },
+];
+const DEFAULT_STAFF_MODULES = MODULE_OPTIONS.map((m) => m.key).filter((k) => k !== "payments");
 
 const GLOBAL_LABELS: Record<string, { label: string; hint: string }> = {
   email: { label: "אימייל (SMTP)", hint: "תזכורות והודעות במייל" },
@@ -475,15 +490,38 @@ function EditAdminModal({
   const [adminRole, setAdminRole] = useState(user.adminRole);
   const [active, setActive] = useState(user.active);
   const [password, setPassword] = useState("");
+  const [modules, setModules] = useState<Set<string>>(() => {
+    try {
+      const arr = user.moduleAccess ? JSON.parse(user.moduleAccess) : null;
+      return new Set<string>(Array.isArray(arr) ? arr : DEFAULT_STAFF_MODULES);
+    } catch {
+      return new Set<string>(DEFAULT_STAFF_MODULES);
+    }
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  function toggleModule(key: string) {
+    setModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const json: Record<string, unknown> = { name, adminRole, active };
+      const json: Record<string, unknown> = {
+        name,
+        adminRole,
+        active,
+        // מנהל רואה הכל (null); לעובד — הרשימה שנבחרה.
+        moduleAccess: adminRole === "staff" ? Array.from(modules) : null,
+      };
       if (password.trim()) json.password = password.trim();
       await api(`/api/users/${user.id}`, { method: "PATCH", json });
       onSaved();
@@ -537,6 +575,33 @@ function EditAdminModal({
         <Field label="איפוס סיסמה" hint="השאירו ריק כדי לא לשנות. שינוי מנתק את כל החיבורים הפעילים.">
           <Input dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="סיסמה חדשה (אופציונלי)" />
         </Field>
+
+        {/* הרשאות מודולים — רק לעובד; מנהל רואה הכל */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-1 text-sm font-bold text-slate-700">מודולים גלויים</p>
+          {adminRole === "manager" ? (
+            <p className="text-xs text-slate-500">מנהל משרד רואה את כל המודולים במערכת.</p>
+          ) : (
+            <>
+              <p className="mb-2 text-[11px] text-slate-500">
+                סמנו אילו מודולים העובד יראה. ״סקירה כללית״ ו״החשבון שלי״ תמיד פתוחים.
+              </p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {MODULE_OPTIONS.map((m) => (
+                  <label key={m.key} className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={modules.has(m.key)}
+                      onChange={() => toggleModule(m.key)}
+                    />
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="mt-2 flex items-center justify-between gap-2">
           <button

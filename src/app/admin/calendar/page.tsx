@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
+import { requireAdminModule } from "@/lib/adminModules";
 import CalendarView from "@/components/tasks/CalendarView";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCalendarPage() {
+  await requireAdminModule("calendar");
   const [clients, admins] = await Promise.all([
     prisma.client.findMany({
       where: { active: true },

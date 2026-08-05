@@ -16,6 +16,7 @@ const UpdateUser = z.object({
   phone: z.string().max(30).nullable().optional(),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   active: z.boolean().optional(),
+  moduleAccess: z.array(z.string().max(40)).max(50).nullable().optional(), // הרשאות מודולים לעובד
 });
 
 // PATCH /api/users/[id] — agency manager: edit / reset password / deactivate.
@@ -48,6 +49,9 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
         ? { birthday: body.birthday ? new Date(`${body.birthday}T12:00:00Z`) : null }
         : {}),
       active: body.active,
+      ...(body.moduleAccess !== undefined
+        ? { moduleAccess: body.moduleAccess ? JSON.stringify(body.moduleAccess) : null }
+        : {}),
       ...(body.password ? { passwordHash: hashPassword(body.password) } : {}),
       ...(revokeSessions ? { tokenVersion: { increment: 1 } } : {}),
     },

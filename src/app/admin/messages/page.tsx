@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
+import { requireAdminModule } from "@/lib/adminModules";
 import MessagesLog from "@/components/messages/MessagesLog";
 
 export const dynamic = "force-dynamic";
 
 // Agency-wide outgoing-messages log: reminders, automations, broadcasts.
 export default async function AdminMessagesPage() {
+  await requireAdminModule("messages");
   const clients = await prisma.client.findMany({
     where: { active: true },
     select: { id: true, name: true },

@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
+import { requireAdminModule } from "@/lib/adminModules";
 import ClientsGrid, { type ClientCard } from "@/components/clients/ClientsGrid";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
+  await requireAdminModule("clients");
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [clients, newLeads, openTasks] = await Promise.all([

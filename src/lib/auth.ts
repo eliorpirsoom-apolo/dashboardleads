@@ -23,6 +23,8 @@ export interface SessionUser {
   role: Role;
   // For ADMIN users: "manager" (everything) | "staff" (daily work only).
   adminRole: AdminRole;
+  // For "staff" admins: allowed module keys (null = default set). Managers ignore.
+  moduleAccess: string[] | null;
   // For CLIENT users: sales agents get a reduced permission set.
   isAgent: boolean;
   clientId: string | null;
@@ -78,6 +80,17 @@ export function verifySessionToken(
 
 // --- Session lookup ---------------------------------------------------------
 
+// מפענח את רשימת המודולים המורשים (JSON) — null אם לא הוגדר/לא תקין.
+function parseModuleAccess(raw: string | null | undefined): string[] | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.map(String) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSession(): Promise<SessionUser | null> {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -97,6 +110,7 @@ export async function getSession(): Promise<SessionUser | null> {
     name: user.name,
     role: user.role as Role,
     adminRole: (user.adminRole as AdminRole) || "manager",
+    moduleAccess: parseModuleAccess(user.moduleAccess),
     isAgent: user.isAgent,
     clientId: user.clientId,
     clientName: user.client?.name ?? null,

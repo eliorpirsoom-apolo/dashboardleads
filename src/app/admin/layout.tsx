@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { ADMIN_NAV } from "@/lib/nav";
+import { adminNavFor } from "@/lib/nav";
 import Sidebar from "@/components/Sidebar";
 import BirthdayBanner from "@/components/BirthdayBanner";
 import { FridayBanner } from "@/components/FestiveBanners";
@@ -22,7 +22,7 @@ export default async function AdminLayout({
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <Sidebar
-        items={ADMIN_NAV}
+        items={adminNavFor(user)}
         userName={user.name}
         roleLabel={user.adminRole === "staff" ? "צד משרד · עובד" : "צד משרד · מנהל"}
         homeHref="/admin"

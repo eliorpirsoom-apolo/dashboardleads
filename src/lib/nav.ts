@@ -1,4 +1,6 @@
 import { hasModule, type ModuleKey } from "./modules";
+import { effectiveAdminModules } from "./adminModules";
+import type { SessionUser } from "./auth";
 
 // ---------------------------------------------------------------------------
 // Navigation definitions for both sides. Client-side items are filtered by
@@ -9,21 +11,28 @@ export interface NavItem {
   href: string;
   label: string;
   icon: string;
-  module?: ModuleKey;
+  module?: ModuleKey; // client-side module gate
+  adminModule?: string; // agency-side module gate (per-staff permission)
 }
 
 export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "סקירה כללית", icon: "home" },
-  { href: "/admin/clients", label: "לקוחות", icon: "users" },
-  { href: "/admin/tasks", label: "משימות", icon: "tasks" },
-  { href: "/admin/calendar", label: "לוח שנה", icon: "calendar" },
-  { href: "/admin/documents", label: "מסמכים", icon: "folder" },
-  { href: "/admin/quotes", label: "הצעות מחיר", icon: "money" },
-  { href: "/admin/studio", label: "סטודיו", icon: "edit" },
-  { href: "/admin/messages", label: "הודעות", icon: "megaphone" },
-  { href: "/admin/settings", label: "הגדרות", icon: "settings" },
+  { href: "/admin/clients", label: "לקוחות", icon: "users", adminModule: "clients" },
+  { href: "/admin/tasks", label: "משימות", icon: "tasks", adminModule: "tasks" },
+  { href: "/admin/calendar", label: "לוח שנה", icon: "calendar", adminModule: "calendar" },
+  { href: "/admin/documents", label: "מסמכים", icon: "folder", adminModule: "documents" },
+  { href: "/admin/quotes", label: "הצעות מחיר", icon: "money", adminModule: "quotes" },
+  { href: "/admin/studio", label: "סטודיו", icon: "edit", adminModule: "studio" },
+  { href: "/admin/messages", label: "הודעות", icon: "megaphone", adminModule: "messages" },
+  { href: "/admin/settings", label: "הגדרות", icon: "settings", adminModule: "settings" },
   { href: "/admin/profile", label: "החשבון שלי", icon: "users" },
 ];
+
+// סינון ניווט המשרד לפי הרשאות המודולים של המשתמש (מנהל → הכל; עובד → מותרים בלבד).
+export function adminNavFor(user: SessionUser): NavItem[] {
+  const allowed = new Set(effectiveAdminModules(user));
+  return ADMIN_NAV.filter((item) => !item.adminModule || allowed.has(item.adminModule));
+}
 
 const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app", label: "סקירה כללית", icon: "home" },

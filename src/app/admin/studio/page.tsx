@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { requireAdminModule } from "@/lib/adminModules";
 import StudioBoard from "@/components/studio/StudioBoard";
 
 export const dynamic = "force-dynamic";
 
 // מודול סטודיו — צד משרד. מבריף ועד אישור סופי.
 export default async function StudioPage() {
+  await requireAdminModule("studio");
   const me = await getSession();
   const [clients, designers] = await Promise.all([
     prisma.client.findMany({

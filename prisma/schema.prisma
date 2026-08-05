@@ -36,6 +36,9 @@ model User {
   role         String    @default("CLIENT") // "ADMIN" | "CLIENT"
   // For ADMIN users: "manager" (everything) | "staff" (daily work only).
   adminRole    String    @default("manager")
+  // For "staff" admins: JSON array of allowed module keys (null = default set).
+  // Managers ignore this and always see every module.
+  moduleAccess String?
   isAgent      Boolean   @default(false)
   googleId     String?   @unique
   phone        String?
