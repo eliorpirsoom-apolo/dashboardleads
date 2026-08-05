@@ -155,6 +155,19 @@ export async function readLocalObject(key: string): Promise<Buffer> {
   return fs.readFile(path.join(localDir(), key));
 }
 
+/** Read an object's bytes server-side (R2 GetObject / local disk). */
+export async function getObject(key: string): Promise<Buffer> {
+  if (r2Configured()) {
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const res = await (await s3()).send(
+      new GetObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: key })
+    );
+    const arr = await (res.Body as any).transformToByteArray();
+    return Buffer.from(arr);
+  }
+  return readLocalObject(key);
+}
+
 // --- Download ----------------------------------------------------------------
 
 /**

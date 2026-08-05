@@ -1,5 +1,15 @@
 import { prisma } from "./prisma";
-import { putObject } from "./storage";
+import { putObject, getObject } from "./storage";
+
+// סיומת → mime, לקריאת עותק ההקלטה מ-R2 (כשלא מורידים מהספק).
+const EXT_TO_MIME: Record<string, string> = {
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  ogg: "audio/ogg",
+  webm: "audio/webm",
+  mp4: "audio/mp4",
+};
 
 // ---------------------------------------------------------------------------
 // תמלול + סיכום שיחות מההקלטה — עצמאי (לא דרך פייקול).
@@ -125,25 +135,50 @@ async function summarizeCall(
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // מגבלת Whisper
 
-/** עיבוד ליד שיחה בודד: הורדה → שמירה ב-R2 → תמלול → סיכום. */
+/** עיבוד ליד שיחה בודד: מקור השמע → תמלול → סיכום.
+ *  מקור השמע: קודם העותק הקבוע ב-R2 (callRecordingKey) — קישור הספק (callindex)
+ *  פג תוקף מהר, ולכן אסור להסתמך עליו בזמן התמלול. רק אם אין עותק — מורידים מהספק. */
 async function processLead(lead: {
   id: string;
   callRecordingUrl: string | null;
+  callRecordingKey: string | null;
   callTargetName: string | null;
   callDurationSec: number | null;
 }): Promise<"done" | "failed" | "no_audio"> {
-  const url = lead.callRecordingUrl;
-  if (!url || !/^https?:\/\//i.test(url)) return "no_audio";
+  let bytes: Buffer | null = null;
+  let mime = "audio/mpeg";
+  let ext = "mp3";
+  let key = lead.callRecordingKey || "";
 
-  const { bytes, mime, ext } = await downloadAudio(url);
-  if (bytes.length === 0) return "no_audio";
+  // 1. עדיפות: העותק הקבוע ב-R2.
+  if (lead.callRecordingKey) {
+    try {
+      bytes = await getObject(lead.callRecordingKey);
+      ext = lead.callRecordingKey.split(".").pop()?.toLowerCase() || "mp3";
+      mime = EXT_TO_MIME[ext] || "audio/mpeg";
+    } catch (e) {
+      console.error("[transcription:r2-read]", lead.id, e);
+      bytes = null; // ניפול להורדה מהספק
+    }
+  }
+
+  // 2. נפילה: הורדה מקישור הספק (אם אין עותק תקין ב-R2).
+  if (!bytes || bytes.length === 0) {
+    const url = lead.callRecordingUrl;
+    if (!url || !/^https?:\/\//i.test(url)) return "no_audio";
+    const dl = await downloadAudio(url);
+    bytes = dl.bytes;
+    mime = dl.mime;
+    ext = dl.ext;
+    key = `agency/recordings/${lead.id}.${ext}`;
+    // שומרים עותק קבוע כדי שהתמלול הבא (וניגון בדשבורד) לא יתלה בספק.
+    await putObject(key, bytes, mime).catch((e) => {
+      console.error("[transcription:r2]", e);
+    });
+  }
+
+  if (!bytes || bytes.length === 0) return "no_audio";
   if (bytes.length > MAX_AUDIO_BYTES) throw new Error("הקלטה גדולה מדי לתמלול");
-
-  // עותק קבוע ב-R2 (שלא יאבד אם קישור הספק יפוג).
-  const key = `agency/recordings/${lead.id}.${ext}`;
-  await putObject(key, bytes, mime).catch((e) => {
-    console.error("[transcription:r2]", e);
-  });
 
   const transcript = await transcribeAudio(bytes, ext, mime);
   if (!transcript.trim()) {
@@ -263,6 +298,7 @@ export async function processPendingCallTranscriptions(
     select: {
       id: true,
       callRecordingUrl: true,
+      callRecordingKey: true,
       callTargetName: true,
       callDurationSec: true,
     },
