@@ -174,6 +174,7 @@ model Client {
   clientAssignments ClientAssignment[]
   designTasks       DesignTask[]
   whatsappMessages  WhatsappMessage[]
+  payments          ClientPayment[]
 
   @@index([name])
   @@index([type])
@@ -478,6 +479,36 @@ model AiAgentConfig {
   lastEodSentOn     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// --- לוח תשלומי לקוחות (תזרים) ------------------------------------------------
+// סטטוס תשלום צבעוני וניתן להוספה. isPaid = נספר כ"נגבה" בסטטיסטיקות.
+model PaymentStatus {
+  id        String          @id @default(cuid())
+  name      String
+  color     String          @default("#94a3b8")
+  order     Int             @default(0)
+  isPaid    Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  payments  ClientPayment[]
+}
+
+// תא בטבלה: לקוח × חודש (שנה) → סכום + סטטוס. תא אחד לכל לקוח/חודש.
+model ClientPayment {
+  id        String         @id @default(cuid())
+  client    Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  year      Int
+  month     Int // 1-12
+  amount    Float?
+  status    PaymentStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  statusId  String?
+  note      String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([clientId, year, month])
+  @@index([year])
 }
 
 model Reminder {

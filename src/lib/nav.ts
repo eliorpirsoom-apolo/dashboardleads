@@ -22,6 +22,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/calendar", label: "לוח שנה", icon: "calendar", adminModule: "calendar" },
   { href: "/admin/documents", label: "מסמכים", icon: "folder", adminModule: "documents" },
   { href: "/admin/quotes", label: "הצעות מחיר", icon: "money", adminModule: "quotes" },
+  { href: "/admin/payments", label: "תשלומים", icon: "chart", adminModule: "payments" },
   { href: "/admin/studio", label: "סטודיו", icon: "edit", adminModule: "studio" },
   { href: "/admin/messages", label: "הודעות", icon: "megaphone", adminModule: "messages" },
   { href: "/admin/settings", label: "הגדרות", icon: "settings", adminModule: "settings" },
