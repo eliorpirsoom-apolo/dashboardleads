@@ -1,9 +1,13 @@
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
 import StudioApprovals from "@/components/studio/StudioApprovals";
 
 export const dynamic = "force-dynamic";
 
-// צד לקוח — אישור עיצובים ומתן פידבק.
-export default function ClientStudioPage() {
+// צד לקוח — אישור עיצובים ומתן פידבק. בעלים בלבד; משווק חסום.
+export default async function ClientStudioPage() {
+  const user = (await getSession())!;
+  if (user.isAgent) redirect("/app"); // משווק — גישה מוגבלת ללידים ולפרויקטים שלו
   return (
     <div className="theme-light -mx-4 -my-6 min-h-screen px-4 py-6 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="mb-6">

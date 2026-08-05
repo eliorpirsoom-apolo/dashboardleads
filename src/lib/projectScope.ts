@@ -4,12 +4,13 @@ import type { SessionUser } from "./auth";
 // ---------------------------------------------------------------------------
 // Project scoping — "לכל פרויקט המשתמש והלידים שלו".
 //
-// A sales agent that is assigned to projects sees ONLY those projects' leads
-// (and derived screens). An agent with no assignments keeps the legacy
-// behavior — the whole client. Owners and the agency are never restricted.
+// A marketer (CLIENT + isAgent) sees ONLY the leads/data of the projects they
+// are explicitly assigned to. **Default-deny**: a marketer with NO assignments
+// sees nothing until the client owner assigns them a project. Owners
+// (isAgent=false) and the agency (ADMIN) are never restricted.
 // ---------------------------------------------------------------------------
 
-/** Project ids the user is limited to, or null = unrestricted. */
+/** Project ids the user is limited to, or null = unrestricted (owner/agency). */
 export async function allowedProjectIds(
   user: SessionUser
 ): Promise<string[] | null> {
@@ -18,7 +19,7 @@ export async function allowedProjectIds(
     where: { userId: user.id },
     select: { projectId: true },
   });
-  if (rows.length === 0) return null;
+  // מפתח: משווק ללא שיוך → מערך ריק = אין גישה (לא "כל הלקוח").
   return rows.map((r) => r.projectId);
 }
 

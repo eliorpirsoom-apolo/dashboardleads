@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import DocumentsView from "@/components/documents/DocumentsView";
@@ -6,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AppDocumentsPage() {
   const user = (await getSession())!;
+  if (user.isAgent) redirect("/app"); // משווק — גישה מוגבלת ללידים ולפרויקטים שלו
   return (
     <>
       <PageHeader

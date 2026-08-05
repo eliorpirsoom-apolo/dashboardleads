@@ -52,12 +52,16 @@ const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app/profile", label: "החשבון שלי", icon: "users" },
 ];
 
-// Navigation reflects the permission model: sales agents don't see
-// configuration surfaces (settings, broadcasts) — "הבעלים מגדיר, הסוכן עובד".
+// נתיבים שמשווק (isAgent) רשאי לראות — לידים והפרויקטים שלו בלבד + סקירה וחשבון.
+// כל השאר חסום ("אין לו גישה לשום מודול אחר חוץ מהלידים ונתוני הפרויקט שלו").
+const MARKETER_PATHS = new Set(["/app", "/app/leads", "/app/projects", "/app/profile"]);
+
+// Navigation reflects the permission model. A marketer (isAgent) is scoped to
+// their leads + assigned projects only; the owner sees the full client.
 export function clientNavFor(clientType: string, isAgent = false): NavItem[] {
-  return CLIENT_NAV.filter(
-    (item) =>
-      (!item.module || hasModule(clientType, item.module)) &&
-      (!isAgent || !item.agentBlocked)
-  );
+  return CLIENT_NAV.filter((item) => {
+    if (item.module && !hasModule(clientType, item.module)) return false;
+    if (isAgent) return MARKETER_PATHS.has(item.href);
+    return true;
+  });
 }

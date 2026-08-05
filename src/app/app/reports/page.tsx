@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AppReportsPage() {
   const user = (await getSession())!;
+  if (user.isAgent) redirect("/app"); // משווק — גישה מוגבלת ללידים ולפרויקטים שלו
   const client = await prisma.client.findUnique({ where: { id: user.clientId! } });
   return (
     <>
