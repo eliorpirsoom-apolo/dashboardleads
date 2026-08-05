@@ -524,6 +524,21 @@ model PaymentKeyword {
   @@unique([keyword, kind])
 }
 
+// מעקב חשבוניות SUMIT שכבר הוחלו על לוח התשלומים — לאידמפוטנטיות:
+// כל חשבונית מעובדת פעם אחת (getdetails יקר), והתא מחושב מחדש מסכום הרשומות.
+// clientId ריק = חשבונית ללא לקוח תואם (לא מוחלת; נשמרת כדי לא לעבד שוב).
+model SumitInvoice {
+  documentID Int      @id // SUMIT DocumentID
+  clientId   String
+  year       Int
+  month      Int // 1-12
+  retainer   Float    @default(0)
+  oneoff     Float    @default(0)
+  appliedAt  DateTime @default(now())
+
+  @@index([clientId, year, month])
+}
+
 model Reminder {
   id        String    @id @default(cuid())
   task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)

@@ -190,14 +190,17 @@ function SumitCard() {
     try {
       const r = await api<{
         documentsSeen: number;
-        documentsLinked: number;
         quotesLinked: number;
         clientsMatched: number;
-        unmatchedCustomers: number;
+        clientsCreated: number;
+        invoicesSeen: number;
+        invoicesApplied: number;
+        invoicesUnmatched: number;
       }>("/api/integrations/sumit/sync", { method: "POST" });
       setResult(
-        `נמשכו ${r.documentsSeen} מסמכים · ${r.documentsLinked} שויכו ל-${r.clientsMatched} לקוחות · ` +
-          `${r.quotesLinked} הצעות · ${r.unmatchedCustomers} לקוחות ללא התאמה`
+        `נסרקו ${r.documentsSeen} מסמכים · ${r.quotesLinked} הצעות ל-${r.clientsMatched} לקוחות ` +
+          `(${r.clientsCreated} נפתחו) · חשבוניות: ${r.invoicesApplied} הוחלו על לוח התשלומים` +
+          (r.invoicesUnmatched ? ` · ${r.invoicesUnmatched} ללא לקוח תואם` : "")
       );
     } catch (e: any) {
       setResult("שגיאה: " + e.message);

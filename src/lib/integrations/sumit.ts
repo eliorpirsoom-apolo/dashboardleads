@@ -120,6 +120,28 @@ export async function sumitDocumentEmail(documentID: number): Promise<string | n
   return r.data?.Document?.Customer?.EmailAddress?.toLowerCase().trim() || null;
 }
 
+/** שורות הפריטים במסמך (תיאור + סכום) — לסיווג חשבונית לריטיינר/חד-פעמי.
+ *  שמות השדות ב-SUMIT משתנים; קוראים בהגנה מכמה מפתחות אפשריים. */
+export async function sumitDocumentItems(
+  documentID: number
+): Promise<{ description: string; amount: number }[]> {
+  const r = await sumitCall<{ Document?: { Items?: any[] } }>(
+    "/accounting/documents/getdetails/",
+    { DocumentID: documentID }
+  );
+  const items = r.data?.Document?.Items;
+  if (!Array.isArray(items)) return [];
+  return items.map((it) => {
+    const description = String(
+      it.Description || it.Name || it.Item?.Name || it.Item?.Description || it.ItemName || ""
+    ).trim();
+    const qty = Number(it.Quantity ?? it.Quantity_ ?? 1) || 1;
+    const unit = Number(it.UnitPrice ?? it.Price ?? it.UnitCost ?? 0) || 0;
+    const amount = Number(it.Total ?? it.TotalPrice ?? it.LineTotal ?? qty * unit) || 0;
+    return { description, amount };
+  });
+}
+
 /** פרטי הלקוח המלאים מהמסמך (שם/מייל/טלפון) — לפתיחת לקוח חדש מהצעת מחיר. */
 export async function sumitDocumentCustomer(
   documentID: number

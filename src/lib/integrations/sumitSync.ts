@@ -3,6 +3,7 @@ import {
   sumitConfigured,
   sumitListDocuments,
   sumitDocumentCustomer,
+  sumitDocumentItems,
   sumitDocType,
   type SumitDoc,
 } from "./sumit";
@@ -21,9 +22,14 @@ export interface SumitSyncResult {
   clientsMatched: number;
   clientsCreated: number;
   emailLookups: number;
+  invoicesSeen: number; // חשבוניות מס בחלון
+  invoicesApplied: number; // חשבוניות שהוחלו על לוח התשלומים בהרצה זו
+  invoicesUnmatched: number; // חשבוניות ללא לקוח תואם
 }
 
 const QUOTE_WINDOW_DAYS = 14; // מייבאים הצעות מחיר רק מהחלון האחרון
+const INVOICE_WINDOW_DAYS = 400; // חשבוניות מס למילוי לוח התשלומים (שנה נוכחית + קודמת חלקית)
+const INVOICE_MAX_PER_RUN = 40; // תקרת getdetails להרצה — השאר נאספים בהרצות הבאות
 
 function normName(s: string): string {
   return (s || "").trim().replace(/\s+/g, " ").toLowerCase();
@@ -53,6 +59,9 @@ export async function syncSumit(): Promise<SumitSyncResult> {
     clientsMatched: 0,
     clientsCreated: 0,
     emailLookups: 0,
+    invoicesSeen: 0,
+    invoicesApplied: 0,
+    invoicesUnmatched: 0,
   };
   if (docs.length === 0) return result;
 
@@ -100,7 +109,156 @@ export async function syncSumit(): Promise<SumitSyncResult> {
   }
 
   result.clientsMatched = matchedClients.size;
+
+  // מעבר חשבוניות מס → מילוי אוטומטי של לוח התשלומים.
+  await syncSumitInvoices(docs, { bySumitId, byEmail, byName }, result);
+
   return result;
+}
+
+type ClientMaps = {
+  bySumitId: Map<number, string>;
+  byEmail: Map<string, string>;
+  byName: Map<string, string>;
+};
+
+// התאמת לקוח קיים בלבד (ללא פתיחת לקוח חדש — פתיחה נעשית רק מהצעות מחיר).
+async function matchClientOnly(d: SumitDoc, maps: ClientMaps, result: SumitSyncResult): Promise<string | null> {
+  const byId = maps.bySumitId.get(d.CustomerID);
+  if (byId) return byId;
+  if (d.CustomerName) {
+    const byNm = maps.byName.get(normName(d.CustomerName));
+    if (byNm) {
+      await linkSumitId(byNm, d.CustomerID, maps);
+      return byNm;
+    }
+  }
+  result.emailLookups++;
+  const cust = await sumitDocumentCustomer(d.DocumentID);
+  if (cust?.email) {
+    const byMail = maps.byEmail.get(cust.email);
+    if (byMail) {
+      await linkSumitId(byMail, d.CustomerID, maps);
+      return byMail;
+    }
+  }
+  return null;
+}
+
+// סיווג שורות חשבונית לריטיינר/חד-פעמי לפי מילות המפתח (התאמת מחרוזת בתיאור).
+function classifyShares(
+  items: { description: string; amount: number }[],
+  kw: { retainer: string[]; oneoff: string[] }
+): { r: number; o: number } {
+  let r = 0;
+  let o = 0;
+  for (const it of items) {
+    const amt = it.amount || 0;
+    if (amt <= 0) continue;
+    const text = it.description.toLowerCase();
+    const isOne = kw.oneoff.some((k) => k && text.includes(k));
+    const isRet = kw.retainer.some((k) => k && text.includes(k));
+    if (isOne) o += amt; // חד-פעמי גובר (פריט ספציפי)
+    else if (isRet) r += amt;
+    else r += amt; // ללא התאמה → ברירת מחדל ריטיינר
+  }
+  return { r, o };
+}
+
+async function upsertSumitAmount(
+  clientId: string,
+  year: number,
+  month: number,
+  kind: "retainer" | "oneoff",
+  sum: number
+) {
+  const sumitAmount = sum > 0 ? Math.round(sum) : null;
+  await prisma.clientPayment
+    .upsert({
+      where: { clientId_year_month_kind: { clientId, year, month, kind } },
+      update: { sumitAmount },
+      create: { clientId, year, month, kind, sumitAmount },
+    })
+    .catch(() => {});
+}
+
+// מילוי לוח התשלומים מחשבוניות מס (Type 0/1). כל חשבונית מעובדת פעם אחת
+// (SumitInvoice), והתא מחושב מחדש כסכום כל החשבוניות שלו — כך 2 חשבוניות
+// באותו חודש מסתכמות לתא אחד, ואין ספירה כפולה בהרצות חוזרות.
+async function syncSumitInvoices(docs: SumitDoc[], maps: ClientMaps, result: SumitSyncResult): Promise<void> {
+  const cutoff = new Date(Date.now() - INVOICE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const invoices = docs.filter((d) => {
+    const cat = sumitDocType(d.Type).category;
+    return (cat === "tax_invoice" || cat === "tax_invoice_receipt") && d.Date && new Date(d.Date) >= cutoff;
+  });
+  result.invoicesSeen = invoices.length;
+  if (invoices.length === 0) return;
+
+  const appliedRows = await prisma.sumitInvoice.findMany({ select: { documentID: true } });
+  const applied = new Set(appliedRows.map((a) => a.documentID));
+  const todo = invoices.filter((d) => !applied.has(d.DocumentID)).slice(0, INVOICE_MAX_PER_RUN);
+  if (todo.length === 0) return;
+
+  const kwRows = await prisma.paymentKeyword.findMany({ select: { keyword: true, kind: true } });
+  const kw = {
+    retainer: kwRows.filter((k) => k.kind === "retainer").map((k) => k.keyword.toLowerCase().trim()).filter(Boolean),
+    oneoff: kwRows.filter((k) => k.kind === "oneoff").map((k) => k.keyword.toLowerCase().trim()).filter(Boolean),
+  };
+
+  const touched = new Set<string>(); // clientId:year:month
+
+  for (const d of todo) {
+    const dt = new Date(d.Date);
+    const year = dt.getFullYear();
+    const month = dt.getMonth() + 1;
+    const clientId = await matchClientOnly(d, maps, result);
+
+    if (!clientId) {
+      // מסמנים כמעובד (clientId ריק) כדי לא לקרוא getdetails שוב בכל הרצה
+      await prisma.sumitInvoice
+        .create({ data: { documentID: d.DocumentID, clientId: "", year, month } })
+        .catch(() => {});
+      result.invoicesUnmatched++;
+      continue;
+    }
+
+    const docValue = d.DocumentValue || 0;
+    let retainerAmt = 0;
+    let oneoffAmt = 0;
+    if (docValue > 0) {
+      const items = await sumitDocumentItems(d.DocumentID);
+      const { r, o } = classifyShares(items, kw);
+      const tot = r + o;
+      if (tot > 0) {
+        // מחילים את יחס הפריטים על סכום החשבונית (כדי לכלול מע"מ/עיגולים)
+        retainerAmt = (docValue * r) / tot;
+        oneoffAmt = (docValue * o) / tot;
+      } else {
+        retainerAmt = docValue; // ללא פריטים → הכל ריטיינר
+      }
+    }
+
+    await prisma.sumitInvoice
+      .create({ data: { documentID: d.DocumentID, clientId, year, month, retainer: retainerAmt, oneoff: oneoffAmt } })
+      .catch(() => {});
+    touched.add(`${clientId}:${year}:${month}`);
+    result.invoicesApplied++;
+  }
+
+  // חישוב מחדש של התאים שנגעו בהם — סכום כל החשבוניות של אותו לקוח/חודש.
+  for (const key of touched) {
+    const [clientId, yStr, mStr] = key.split(":");
+    const year = Number(yStr);
+    const month = Number(mStr);
+    const rows = await prisma.sumitInvoice.findMany({
+      where: { clientId, year, month },
+      select: { retainer: true, oneoff: true },
+    });
+    const rSum = rows.reduce((s, x) => s + x.retainer, 0);
+    const oSum = rows.reduce((s, x) => s + x.oneoff, 0);
+    await upsertSumitAmount(clientId, year, month, "retainer", rSum);
+    await upsertSumitAmount(clientId, year, month, "oneoff", oSum);
+  }
 }
 
 // התאמת לקוח: מזהה-SUMIT → שם → מייל; אחרת פתיחת לקוח חדש מפרטי ההצעה.
