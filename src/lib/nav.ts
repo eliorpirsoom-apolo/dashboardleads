@@ -45,6 +45,7 @@ const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app/tasks", label: "משימות", icon: "tasks", module: "tasks" },
   { href: "/app/calendar", label: "לוח שנה", icon: "calendar", module: "tasks" },
   { href: "/app/reports", label: "דוחות", icon: "chart", module: "budgets" },
+  { href: "/app/payments", label: "תשלומים", icon: "money" },
   { href: "/app/seo", label: "SEO", icon: "search", module: "seo" },
   { href: "/app/broadcasts", label: "הודעות תפוצה", icon: "megaphone", module: "broadcasts", agentBlocked: true },
   { href: "/app/documents", label: "מסמכים", icon: "folder", module: "documents" },
