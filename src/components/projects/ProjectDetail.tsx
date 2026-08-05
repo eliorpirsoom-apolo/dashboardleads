@@ -973,9 +973,9 @@ function AgentsCard({
   return (
     <Card>
       <div className="mb-3">
-        <h3 className="text-base font-bold text-slate-800">אנשי המכירות של הפרויקט</h3>
+        <h3 className="text-base font-bold text-slate-800">משווקי הפרויקט</h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          הראשי (★) מקבל אוטומטית את הלידים הנכנסים ממקורות הפרויקט. סוכן משויך רואה רק את
+          הראשי (★) מקבל אוטומטית את הלידים הנכנסים ממקורות הפרויקט. משווק משויך רואה רק את
           הפרויקטים שלו.
         </p>
       </div>
@@ -984,7 +984,7 @@ function AgentsCard({
 
       {project.assignments.length === 0 ? (
         <p className="py-3 text-center text-xs text-slate-600">
-          אין אנשי מכירות משויכים — לידים ממקורות הפרויקט ייכנסו ללא מטפל.
+          אין משווקים משויכים — לידים ממקורות הפרויקט ייכנסו ללא מטפל.
         </p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -1021,7 +1021,7 @@ function AgentsCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Select value={selected} onChange={(e) => setSelected(e.target.value)} className="w-56">
-          <option value="">בחירת סוכן מכירות…</option>
+          <option value="">בחירת משווק…</option>
           {options.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -1034,7 +1034,7 @@ function AgentsCard({
         </Button>
         {options.length === 0 && agents.length === 0 ? (
           <span className="text-[11px] text-slate-600">
-            אין סוכני מכירות ללקוח — מוסיפים משתמש עם סימון &quot;סוכן מכירות&quot; בהגדרות.
+            אין משווקים ללקוח — פותחים משווק במודול &quot;משווקים&quot;.
           </span>
         ) : null}
       </div>
