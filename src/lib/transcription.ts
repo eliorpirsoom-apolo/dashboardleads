@@ -24,6 +24,20 @@ export function transcriptionConfigured(): boolean {
 
 const OPENAI_BASE = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
+// זיהוי פורמט השמע האמיתי מ-magic bytes — קישורי callindex מגיעים בלי סיומת
+// ועם content-type משובש, אז אסור לסמוך על אלה מול ה-STT של OpenAI.
+function sniffAudio(b: Buffer): { ext: string; mime: string } | null {
+  const at = (i: number, s: string) => b.subarray(i, i + s.length).toString("latin1") === s;
+  if (b.length < 12) return null;
+  if (at(0, "RIFF") && at(8, "WAVE")) return { ext: "wav", mime: "audio/wav" };
+  if (at(0, "OggS")) return { ext: "ogg", mime: "audio/ogg" };
+  if (at(0, "fLaC")) return { ext: "flac", mime: "audio/flac" };
+  if (at(0, "ID3") || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return { ext: "mp3", mime: "audio/mpeg" };
+  if (at(4, "ftyp")) return { ext: "m4a", mime: "audio/mp4" };
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return { ext: "webm", mime: "audio/webm" };
+  return null;
+}
+
 /** מוריד את קובץ ההקלטה מהספק. מחזיר bytes + mime + סיומת. */
 async function downloadAudio(
   url: string
@@ -180,7 +194,20 @@ async function processLead(lead: {
   if (!bytes || bytes.length === 0) return "no_audio";
   if (bytes.length > MAX_AUDIO_BYTES) throw new Error("הקלטה גדולה מדי לתמלול");
 
-  const transcript = await transcribeAudio(bytes, ext, mime);
+  // זיהוי הפורמט האמיתי מהתוכן — גובר על הסיומת/mime שנגזרו מהקישור.
+  const sniff = sniffAudio(bytes);
+  if (sniff) {
+    ext = sniff.ext;
+    mime = sniff.mime;
+  }
+  const headHex = bytes.subarray(0, 12).toString("hex");
+
+  let transcript: string;
+  try {
+    transcript = await transcribeAudio(bytes, ext, mime);
+  } catch (e: any) {
+    throw new Error(`[fmt=${ext} head=${headHex} size=${bytes.length}] ${e?.message || e}`);
+  }
   if (!transcript.trim()) {
     // התמלול הצליח אך אין דיבור (שיחה קצרה/שקטה) — סטטוס סופי, בלי ניסיון חוזר.
     await prisma.lead.update({
