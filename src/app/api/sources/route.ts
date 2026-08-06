@@ -34,7 +34,9 @@ const CreateSource = z.object({
   kind: z.enum(["form", "call", "whatsapp"]).default("form"),
   // חיבורים חיים ברמת הפרויקט: כל מקור חדש חייב פרויקט (קיימים ללא פרויקט
   // ממשיכים לעבוד ומחכים לשיוך במבט-העל של הגדרות הלקוח).
-  projectId: z.string().min(1, "חובה לשייך את החיבור לפרויקט"),
+  projectId: z
+    .string({ required_error: "חובה לשייך את החיבור לפרויקט" })
+    .min(1, "חובה לשייך את החיבור לפרויקט"),
 });
 
 // POST /api/sources — creates an intake endpoint with a fresh token.
