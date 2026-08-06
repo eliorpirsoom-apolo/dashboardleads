@@ -33,6 +33,18 @@ export async function recordActivity(
     // ציר הפעילות לא מפיל את הפעולה עצמה.
     console.error("[leadActivity]", err);
   }
+  // Speed-to-Lead: שינוי סטטוס = הליד טופל (נגיעה מכירתית ראשונה).
+  if (kind === "status") await markLeadHandled(leadId);
+}
+
+/** Speed-to-Lead: מסמן שהליד קיבל טיפול ראשון (סטטוס/הערה). אידמפוטנטי. */
+export async function markLeadHandled(leadId: string): Promise<void> {
+  await prisma.lead
+    .updateMany({
+      where: { id: leadId, firstHandledAt: null },
+      data: { firstHandledAt: new Date() },
+    })
+    .catch(() => {});
 }
 
 /**

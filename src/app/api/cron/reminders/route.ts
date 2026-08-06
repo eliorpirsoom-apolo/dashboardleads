@@ -12,6 +12,7 @@ import {
 import { sendDueBirthdayGreetings } from "@/lib/birthday";
 import { sendDueDesignApprovalReminders, markOverdueDesignTasks } from "@/lib/studioReminders";
 import { runWhatsappBroadcast } from "@/lib/whatsappBroadcast";
+import { runLeadSlaChecks } from "@/lib/leadSla";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -194,6 +195,14 @@ export async function GET(req: Request) {
     console.error("[studio]", err);
   }
 
+  // ⏰ Speed-to-Lead: תזכורות אי-טיפול בלידים + הסלמה למנהלים.
+  let leadSla: unknown = null;
+  try {
+    leadSla = await runLeadSlaChecks();
+  } catch (err) {
+    console.error("[lead-sla]", err);
+  }
+
   // 📣 בוט קבוצות וואטסאפ — הודעת בוקר/סוף-יום לקבוצות (כבוי כברירת מחדל).
   // מתוזמן לפי שעון ישראל עם dedup יומי; ?broadcast=force לשליחה מיידית לבדיקה.
   let broadcast: unknown = null;
@@ -216,6 +225,7 @@ export async function GET(req: Request) {
     recordings,
     transcriptions,
     studio,
+    leadSla,
     broadcast,
   });
 }

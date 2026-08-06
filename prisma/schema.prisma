@@ -309,6 +309,11 @@ model Lead {
   receivedAt DateTime @default(now())
   archived   Boolean  @default(false)
 
+  // Speed-to-Lead: מתי הליד טופל לראשונה (סטטוס/הערה) + חותמות תזכורות SLA.
+  firstHandledAt        DateTime?
+  slaMarketerRemindedAt DateTime?
+  slaEscalatedAt        DateTime?
+
   // Custom field values, keyed by CustomFieldDef.key (JSON object as string)
   data String?
 
@@ -479,6 +484,13 @@ model AiAgentConfig {
   eodText           String  @default("היי כולם, אנחנו תכף מסיימים את היום — יש בקשות / הערות?")
   broadcastDays     String  @default("0,1,2,3,4") // ימי שבוע (0=ראשון .. 6=שבת)
   broadcastExcludeGroups String? // JSON: chatIds של קבוצות שהוחרגו מהבוט (ריק = כל הקבוצות)
+
+  // Speed-to-Lead (SLA לידים): תזכורת למשווק + הסלמה למנהלים על ליד שלא טופל.
+  slaEnabled         Boolean @default(false)
+  slaMarketerMinutes Int     @default(15) // דקות עד תזכורת למשווק
+  slaEscalateMinutes Int     @default(60) // דקות עד הסלמה למנהלי המשרד
+  slaWorkStart       String  @default("08:00") // שליחת תזכורות רק בשעות הפעילות (שעון ישראל)
+  slaWorkEnd         String  @default("20:00")
   lastMorningSentOn String? // YYYY-MM-DD (ישראל) — מניעת כפילות
   lastEodSentOn     String?
   createdAt      DateTime @default(now())

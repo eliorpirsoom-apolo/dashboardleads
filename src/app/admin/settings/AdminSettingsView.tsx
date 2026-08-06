@@ -148,6 +148,8 @@ export default function AdminSettingsView() {
 
       <WhatsappBroadcastCard />
 
+      <LeadSlaCard />
+
       <AuditLogCard />
 
       {showCreate ? (
@@ -528,6 +530,132 @@ function WhatsappBroadcastCard() {
               </Button>
               <Button disabled={busy} onClick={save}>{busy ? "שומר…" : "שמירה"}</Button>
             </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Speed-to-Lead — תזכורות אי-טיפול בלידים + מדד זמן תגובה.
+interface SlaCfg {
+  slaEnabled: boolean;
+  slaMarketerMinutes: number;
+  slaEscalateMinutes: number;
+  slaWorkStart: string;
+  slaWorkEnd: string;
+}
+function LeadSlaCard() {
+  const [cfg, setCfg] = useState<SlaCfg | null>(null);
+  const [stats, setStats] = useState<{ name: string; leads: number; avgMinutes: number }[]>([]);
+  const [days, setDays] = useState(7);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api<{ config: SlaCfg; stats: typeof stats }>(`/api/admin-ops/sla?days=${days}`);
+      setCfg(d.config);
+      setStats(d.stats);
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  }, [days]);
+  useEffect(() => { load(); }, [load]);
+
+  async function save() {
+    if (!cfg) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await api("/api/admin-ops/sla", { method: "PATCH", json: cfg });
+      setMsg("נשמר ✓");
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  function fmtAvg(min: number): string {
+    if (min < 60) return `${min} דק׳`;
+    return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")} שע׳`;
+  }
+
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-bold text-slate-800">⏰ מהירות תגובה ללידים (Speed-to-Lead)</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            ליד שלא טופל (סטטוס/הערה) בזמן → תזכורת וואטסאפ למשווק, ואם עדיין לא — הסלמה למנהלי המשרד.
+            נשלח רק בשעות הפעילות. שיחה שנענתה נחשבת מטופלת.
+          </p>
+        </div>
+        <Chip color={cfg?.slaEnabled ? "#34d399" : "#94a3b8"}>{cfg?.slaEnabled ? "פעיל" : "כבוי"}</Chip>
+      </div>
+
+      {err ? <p className="mb-2 text-sm text-red-600">{err}</p> : null}
+      {msg ? <p className="mb-2 text-sm text-emerald-600">{msg}</p> : null}
+
+      {!cfg ? (
+        <p className="py-3 text-center text-sm text-slate-500">טוען…</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={cfg.slaEnabled}
+              onChange={(e) => setCfg({ ...cfg, slaEnabled: e.target.checked })}
+              className="h-4 w-4"
+            />
+            הפעלת תזכורות אי-טיפול
+          </label>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Field label="תזכורת למשווק (דק׳)">
+              <Input dir="ltr" type="number" min={1} value={cfg.slaMarketerMinutes}
+                onChange={(e) => setCfg({ ...cfg, slaMarketerMinutes: Number(e.target.value) || 15 })} />
+            </Field>
+            <Field label="הסלמה למנהל (דק׳)">
+              <Input dir="ltr" type="number" min={1} value={cfg.slaEscalateMinutes}
+                onChange={(e) => setCfg({ ...cfg, slaEscalateMinutes: Number(e.target.value) || 60 })} />
+            </Field>
+            <Field label="תחילת פעילות">
+              <Input dir="ltr" value={cfg.slaWorkStart} onChange={(e) => setCfg({ ...cfg, slaWorkStart: e.target.value })} placeholder="08:00" />
+            </Field>
+            <Field label="סוף פעילות">
+              <Input dir="ltr" value={cfg.slaWorkEnd} onChange={(e) => setCfg({ ...cfg, slaWorkEnd: e.target.value })} placeholder="20:00" />
+            </Field>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" disabled={busy} onClick={save}>{busy ? "שומר…" : "שמירה"}</Button>
+          </div>
+
+          {/* מדד זמן תגובה פר משווק */}
+          <div className="border-t border-slate-100 pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-700">זמן תגובה ממוצע פר משווק</p>
+              <select
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+              >
+                <option value={7}>7 ימים</option>
+                <option value={30}>30 ימים</option>
+                <option value={90}>90 ימים</option>
+              </select>
+            </div>
+            {stats.length === 0 ? (
+              <p className="text-xs text-slate-500">אין עדיין נתונים (נמדד מרגע שלידים מטופלים).</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {stats.map((s) => (
+                  <div key={s.name} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
+                    <span className="font-medium text-slate-700">{s.name}</span>
+                    <span className="text-xs text-slate-500">{s.leads} לידים</span>
+                    <span className={`mr-auto font-mono text-xs font-bold ${s.avgMinutes <= 15 ? "text-emerald-600" : s.avgMinutes <= 60 ? "text-amber-600" : "text-red-600"}`}>
+                      {fmtAvg(s.avgMinutes)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

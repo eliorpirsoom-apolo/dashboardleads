@@ -21,7 +21,7 @@ const SOCIALS: { key: string; label: string; url: string | null; icon: JSX.Eleme
   {
     key: "instagram",
     label: "אינסטגרם",
-    url: null, // TODO: כתובת אינסטגרם
+    url: "https://www.instagram.com/apollo_adv/",
     icon: (
       <>
         <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
@@ -33,7 +33,7 @@ const SOCIALS: { key: string; label: string; url: string | null; icon: JSX.Eleme
   {
     key: "tiktok",
     label: "טיקטוק",
-    url: null, // TODO: כתובת טיקטוק
+    url: "https://www.tiktok.com/@apollo__adv",
     icon: (
       <path d="M15 3c.3 2.3 1.8 4 4 4.3V10c-1.5 0-2.9-.4-4-1.2v6.3A5.3 5.3 0 118.7 10v2.8A2.6 2.6 0 1012 15V3h3z" />
     ),

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { markLeadHandled } from "@/lib/leadActivity";
 
 export const dynamic = "force-dynamic";
 
@@ -25,5 +26,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
       body: body.body,
     },
   });
+  // Speed-to-Lead: הערה = הליד טופל.
+  await markLeadHandled(lead.id);
   return NextResponse.json({ note }, { status: 201 });
 });
