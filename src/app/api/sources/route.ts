@@ -8,14 +8,15 @@ export const dynamic = "force-dynamic";
 
 // Lead sources (intake tokens) are agency-managed — tokens are secrets.
 
-// GET /api/sources?clientId=...
+// GET /api/sources?clientId=...&projectId=... — projectId מסנן לחיבורי פרויקט ספציפי.
 export const GET = handle(async (req) => {
   await requireAdmin();
   const url = new URL(req.url);
   const clientId = url.searchParams.get("clientId");
+  const projectId = url.searchParams.get("projectId");
   if (!clientId) throw new ApiError(400, "חסר מזהה לקוח");
   const sources = await prisma.leadSource.findMany({
-    where: { clientId },
+    where: { clientId, ...(projectId ? { projectId } : {}) },
     orderBy: { createdAt: "asc" },
     include: {
       _count: { select: { leads: true } },
