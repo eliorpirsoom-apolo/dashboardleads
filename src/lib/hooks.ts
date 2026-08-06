@@ -66,23 +66,23 @@ export async function sendLeadToMarketer(leadId: string): Promise<void> {
     minute: "2-digit",
   }).format(lead.receivedAt);
 
-  // תבנית מסודרת — רק שורות שיש להן ערך.
-  const lines: (string | null)[] = [
-    `🎯 ליד חדש עבורך!`,
-    lead.fullName ? `👤 ${lead.fullName}` : null,
-    lead.phone ? `📞 ${lead.phone}` : null,
-    lead.email ? `✉️ ${lead.email}` : null,
-    lead.city ? `🏙️ ${lead.city}` : null,
-    lead.project?.name ? `📁 פרויקט: ${lead.project.name}` : null,
-    lead.source?.name ? `🏷️ מקור: ${lead.source.name}` : null,
-    lead.campaignLabel ? `📣 קמפיין: ${lead.campaignLabel}` : null,
-    lead.kind === "call" && lead.callStatus ? `☎️ שיחה: ${lead.callStatus}` : null,
-    `🕐 ${when}`,
+  // הנוסח שקבע המשרד — שורות בלי ערך מושמטות.
+  const details: (string | null)[] = [
+    lead.fullName ? `שם: ${lead.fullName}` : null,
+    lead.phone ? `טלפון: ${lead.phone}` : null,
+    lead.project?.name ? `פרויקט: ${lead.project.name}` : null,
+    lead.source?.name ? `מקור: ${lead.source.name}` : null,
   ];
+  const body =
+    `היי, איזה כיף! קיבלת ליד חדש 😉\n\n` +
+    `בתאריך: ${when}\n` +
+    `פרטי הליד\n` +
+    details.filter(Boolean).join("\n") +
+    `\n\n☎️ זה הזמן לחייג ולסגור את הליד לפני שיתקרר, כמובן לא לשכוח לעדכן את הסטטוס בטבלה.`;
   await sendMessage({
     channel: "whatsapp",
     to: lead.assignee.whatsappPhone,
-    body: lines.filter(Boolean).join("\n"),
+    body,
     kind: "automation",
     clientId: lead.clientId,
     leadId: lead.id,
