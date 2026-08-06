@@ -15,6 +15,7 @@ export interface ClientUser {
   isAgent: boolean;
   active: boolean;
   phone: string | null;
+  whatsappPhone: string | null;
   lastLoginAt: string | Date | null;
   googleId: string | null;
 }
@@ -30,6 +31,7 @@ export default function UsersManager({
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [resetUser, setResetUser] = useState<ClientUser | null>(null);
+  const [waUser, setWaUser] = useState<ClientUser | null>(null);
   const [welcoming, setWelcoming] = useState<string | null>(null);
 
   async function toggleActive(u: ClientUser) {
@@ -91,7 +93,8 @@ export default function UsersManager({
             <Icon name="users" className="h-4 w-4 text-slate-500" />
             <span className="text-sm font-medium text-slate-700">{u.name}</span>
             <span dir="ltr" className="text-xs text-slate-500">{u.email}</span>
-            {u.isAgent ? <Chip color="#fbbf24">סוכן מכירות</Chip> : null}
+            {u.isAgent ? <Chip color="#fbbf24">משווק</Chip> : null}
+            {u.isAgent && u.whatsappPhone ? <Chip color="#25d366">התראות וואטסאפ</Chip> : null}
             {u.googleId ? <Chip color="#38bdf8">Google</Chip> : null}
             {!u.active ? <Chip color="#f87171">מושבת</Chip> : null}
             <span className="text-[11px] text-slate-600">
@@ -110,6 +113,12 @@ export default function UsersManager({
               <Button variant="ghost" size="sm" onClick={() => setResetUser(u)}>
                 איפוס סיסמה
               </Button>
+              {u.isAgent ? (
+                <Button variant="ghost" size="sm" onClick={() => setWaUser(u)} title="וואטסאפ להתראות לידים">
+                  <Icon name="whatsapp" className="h-3.5 w-3.5" />
+                  וואטסאפ
+                </Button>
+              ) : null}
               <button
                 onClick={() => toggleActive(u)}
                 className="rounded p-1.5 text-slate-500 hover:text-amber-700"
@@ -153,7 +162,69 @@ export default function UsersManager({
           }}
         />
       ) : null}
+
+      {waUser ? (
+        <WhatsappAlertModal
+          user={waUser}
+          onClose={() => setWaUser(null)}
+          onDone={() => {
+            setWaUser(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </Card>
+  );
+}
+
+// וואטסאפ להתראות לידים של משווק — נפרד מהטלפון (מספרי מענה וירטואליים
+// לא מקבלים וואטסאפ). ריק = ללא התראות.
+function WhatsappAlertModal({
+  user,
+  onClose,
+  onDone,
+}: {
+  user: ClientUser;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [value, setValue] = useState(user.whatsappPhone ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/users/${user.id}`, {
+        method: "PATCH",
+        json: { whatsappPhone: value.trim() || null },
+      });
+      onDone();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`וואטסאפ להתראות לידים — ${user.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <Field
+          label="מספר וואטסאפ 📲"
+          hint="כל ליד חדש שישויך למשווק יישלח לוואטסאפ הזה. השאירו ריק לביטול ההתראות."
+        >
+          <Input dir="ltr" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0501234567" />
+        </Field>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
+          <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -171,6 +242,7 @@ function CreateUserModal({
     email: "",
     password: "",
     phone: "",
+    whatsappPhone: "",
     isAgent: false,
   });
   const [busy, setBusy] = useState(false);
@@ -215,11 +287,24 @@ function CreateUserModal({
             onChange={(e) => setForm({ ...form, isAgent: e.target.checked })}
             className="h-4 w-4 rounded border-slate-600 bg-white"
           />
-          סוכן מכירות (מקבל הודעות אוטומטיות לסוכנים)
+          משווק (רואה רק את הפרויקטים המשויכים אליו)
         </label>
+        {form.isAgent ? (
+          <Field
+            label="וואטסאפ להתראות לידים 📲"
+            hint="כל ליד חדש שישויך למשווק יישלח לוואטסאפ הזה. ריק = ללא התראות."
+          >
+            <Input
+              dir="ltr"
+              value={form.whatsappPhone}
+              onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })}
+              placeholder="0501234567"
+            />
+          </Field>
+        ) : null}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
-          <Button type="submit" disabled={busy}>{busy ? "יוצר…" : "יצירה"}</Button>
+          <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>
         </div>
       </form>
     </Modal>

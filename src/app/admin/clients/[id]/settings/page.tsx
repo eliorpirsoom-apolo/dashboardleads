@@ -25,7 +25,7 @@ export default async function ClientSettingsPage({
       users: {
         select: {
           id: true, email: true, name: true, isAgent: true,
-          active: true, phone: true, lastLoginAt: true, googleId: true,
+          active: true, phone: true, whatsappPhone: true, lastLoginAt: true, googleId: true,
         },
         orderBy: { createdAt: "asc" },
       },

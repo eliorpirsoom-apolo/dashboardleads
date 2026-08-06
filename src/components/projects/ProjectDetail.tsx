@@ -240,6 +240,38 @@ export default function ProjectDetail({
         </div>
       </Card>
 
+      {/* Purchase requests */}
+      <Card>
+        <h3 className="mb-3 text-base font-bold text-slate-800">בקשות רכישה</h3>
+        {project.purchaseRequests.length === 0 ? (
+          <p className="py-4 text-center text-xs text-slate-600">
+            אין בקשות רכישה. נפתחות מכרטיס ליד או מעמוד &quot;בקשות רכישה&quot;.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {project.purchaseRequests.map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+                <span className="text-sm text-slate-700">
+                  {r.lead ? `${r.lead.fullName ?? ""} (#${r.lead.number})` : "—"}
+                </span>
+                {r.unitType ? <Chip color="#22d3ee">{r.unitType.name}</Chip> : null}
+                {r.amount ? <span className="text-xs text-amber-700">{formatCurrency(r.amount)}</span> : null}
+                <Chip color={REQ_STATUS[r.status]?.color ?? "#64748b"}>
+                  {REQ_STATUS[r.status]?.label ?? r.status}
+                </Chip>
+                <span className="mr-auto text-[11px] text-slate-600">{formatDate(r.createdAt)}</span>
+                {r.status === "approved" ? (
+                  <Button size="sm" variant="ghost" onClick={() => setConvertRequest(r)}>
+                    <Icon name="doc" className="h-3.5 w-3.5" />
+                    המר לחוזה
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {/* Contracts */}
       <Card>
         <div className="mb-3 flex items-center justify-between">
@@ -306,38 +338,6 @@ export default function ProjectDetail({
                     <Icon name="trash" className="h-4 w-4" />
                   </button>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Purchase requests */}
-      <Card>
-        <h3 className="mb-3 text-base font-bold text-slate-800">בקשות רכישה</h3>
-        {project.purchaseRequests.length === 0 ? (
-          <p className="py-4 text-center text-xs text-slate-600">
-            אין בקשות רכישה. נפתחות מכרטיס ליד או מעמוד &quot;בקשות רכישה&quot;.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {project.purchaseRequests.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                <span className="text-sm text-slate-700">
-                  {r.lead ? `${r.lead.fullName ?? ""} (#${r.lead.number})` : "—"}
-                </span>
-                {r.unitType ? <Chip color="#22d3ee">{r.unitType.name}</Chip> : null}
-                {r.amount ? <span className="text-xs text-amber-700">{formatCurrency(r.amount)}</span> : null}
-                <Chip color={REQ_STATUS[r.status]?.color ?? "#64748b"}>
-                  {REQ_STATUS[r.status]?.label ?? r.status}
-                </Chip>
-                <span className="mr-auto text-[11px] text-slate-600">{formatDate(r.createdAt)}</span>
-                {r.status === "approved" ? (
-                  <Button size="sm" variant="ghost" onClick={() => setConvertRequest(r)}>
-                    <Icon name="doc" className="h-3.5 w-3.5" />
-                    המר לחוזה
-                  </Button>
-                ) : null}
               </div>
             ))}
           </div>
@@ -917,6 +917,12 @@ function AgentsCard({
   const [selected, setSelected] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // טופס "משווק חדש" — יצירה ושיוך לפרויקט בפעולה אחת.
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newWhatsapp, setNewWhatsapp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
     api<{ users: { id: string; name: string; isAgent: boolean }[] }>(
@@ -941,6 +947,37 @@ function AgentsCard({
         json: { userId: selected, isPrimary },
       });
       setSelected("");
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // יצירת משווק חדש + שיוך לפרויקט (הראשי — אם הוא הראשון).
+  async function createAndAssign(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/projects/${project.id}/agents`, {
+        method: "POST",
+        json: {
+          create: {
+            name: newName,
+            email: newEmail,
+            whatsappPhone: newWhatsapp || null,
+            password: newPassword || undefined,
+          },
+          isPrimary: project.assignments.length === 0,
+        },
+      });
+      setShowNew(false);
+      setNewName("");
+      setNewEmail("");
+      setNewWhatsapp("");
+      setNewPassword("");
       onChanged();
     } catch (e: any) {
       setError(e.message);
@@ -1032,12 +1069,37 @@ function AgentsCard({
           <Icon name="plus" className="h-3.5 w-3.5" />
           שיוך לפרויקט
         </Button>
-        {options.length === 0 && agents.length === 0 ? (
-          <span className="text-[11px] text-slate-600">
-            אין משווקים ללקוח — פותחים משווק במודול &quot;משווקים&quot;.
-          </span>
-        ) : null}
+        <Button size="sm" variant="ghost" onClick={() => setShowNew((s) => !s)}>
+          <Icon name="users" className="h-3.5 w-3.5" />
+          משווק חדש
+        </Button>
       </div>
+
+      {showNew ? (
+        <form onSubmit={createAndAssign} className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-sm font-bold text-slate-700">משווק חדש — ייפתח וישויך לפרויקט</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="שם מלא">
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)} required />
+            </Field>
+            <Field label="אימייל">
+              <Input dir="ltr" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
+            </Field>
+            <Field label="וואטסאפ להתראות לידים 📲" hint="כל ליד חדש בפרויקט יישלח לוואטסאפ הזה">
+              <Input dir="ltr" value={newWhatsapp} onChange={(e) => setNewWhatsapp(e.target.value)} placeholder="0501234567" />
+            </Field>
+            <Field label="סיסמה" hint="ריק = כניסה עם Google בלבד">
+              <Input dir="ltr" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            </Field>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setShowNew(false)}>ביטול</Button>
+            <Button type="submit" size="sm" disabled={busy || !newName.trim() || !newEmail.trim()}>
+              {busy ? "שומר…" : "שמירה"}
+            </Button>
+          </div>
+        </form>
+      ) : null}
     </Card>
   );
 }

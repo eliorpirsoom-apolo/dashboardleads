@@ -14,6 +14,7 @@ const UpdateUser = z.object({
   isAgent: z.boolean().optional(),
   adminRole: z.enum(["manager", "staff"]).optional(),
   phone: z.string().max(30).nullable().optional(),
+  whatsappPhone: z.string().max(30).nullable().optional(), // וואטסאפ להתראות לידים (משווקים)
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   active: z.boolean().optional(),
   moduleAccess: z.array(z.string().max(40)).max(50).nullable().optional(), // הרשאות מודולים לעובד
@@ -45,6 +46,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
         ? { adminRole: body.adminRole }
         : {}),
       phone: body.phone,
+      ...(body.whatsappPhone !== undefined ? { whatsappPhone: body.whatsappPhone } : {}),
       ...(body.birthday !== undefined
         ? { birthday: body.birthday ? new Date(`${body.birthday}T12:00:00Z`) : null }
         : {}),

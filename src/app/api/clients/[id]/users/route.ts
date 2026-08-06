@@ -15,6 +15,7 @@ const CreateUser = z.object({
   password: z.string().min(6, "סיסמה קצרה מדי (מינימום 6)").optional().or(z.literal("")),
   isAgent: z.boolean().default(false),
   phone: z.string().max(30).optional().nullable(),
+  whatsappPhone: z.string().max(30).optional().nullable(), // וואטסאפ להתראות לידים (משווק)
 });
 
 // POST /api/clients/[id]/users — provision a client user (or sales agent).
@@ -38,6 +39,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
       role: "CLIENT",
       isAgent: body.isAgent,
       phone: body.phone || null,
+      whatsappPhone: body.whatsappPhone || null,
       clientId: params.id,
     },
     select: { id: true, email: true, name: true, isAgent: true, active: true },
