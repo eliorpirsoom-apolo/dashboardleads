@@ -32,7 +32,9 @@ const CreateSource = z.object({
   channel: z.string().max(40).optional().nullable(),
   platform: z.string().max(40).optional().nullable(),
   kind: z.enum(["form", "call", "whatsapp"]).default("form"),
-  projectId: z.string().optional().nullable(),
+  // חיבורים חיים ברמת הפרויקט: כל מקור חדש חייב פרויקט (קיימים ללא פרויקט
+  // ממשיכים לעבוד ומחכים לשיוך במבט-העל של הגדרות הלקוח).
+  projectId: z.string().min(1, "חובה לשייך את החיבור לפרויקט"),
 });
 
 // POST /api/sources — creates an intake endpoint with a fresh token.
@@ -42,11 +44,9 @@ export const POST = handle(async (req) => {
 
   const client = await prisma.client.findUnique({ where: { id: body.clientId } });
   if (!client) throw new ApiError(404, "לקוח לא נמצא");
-  if (body.projectId) {
-    const project = await prisma.project.findUnique({ where: { id: body.projectId } });
-    if (!project || project.clientId !== body.clientId) {
-      throw new ApiError(400, "פרויקט לא תקין");
-    }
+  const project = await prisma.project.findUnique({ where: { id: body.projectId } });
+  if (!project || project.clientId !== body.clientId) {
+    throw new ApiError(400, "פרויקט לא תקין");
   }
 
   const source = await prisma.leadSource.create({
@@ -56,7 +56,7 @@ export const POST = handle(async (req) => {
       channel: body.channel || null,
       platform: body.platform || null,
       kind: body.kind,
-      projectId: body.projectId || null,
+      projectId: body.projectId,
       token: `src_${crypto.randomBytes(18).toString("hex")}`,
     },
   });
