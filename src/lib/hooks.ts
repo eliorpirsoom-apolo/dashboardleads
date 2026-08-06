@@ -42,6 +42,53 @@ async function sendNewLeadAlert(leadId: string): Promise<void> {
   }
 }
 
+// התראת ליד חדש לוואטסאפ הייעודי של המשווק המשויך (User.whatsappPhone).
+// התראה תפעולית פנימית לצוות — לא כפופה להרשאות הדיוור של הלקוח.
+// אין מספר מוגדר → לא נשלח (הגדרת המספר = ההפעלה).
+// נקראת גם משיוך ידני של ליד למטפל (PATCH /api/leads/[id]).
+export async function sendLeadToMarketer(leadId: string): Promise<void> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    include: {
+      assignee: { select: { name: true, whatsappPhone: true, active: true } },
+      source: { select: { name: true } },
+      project: { select: { name: true } },
+      client: { select: { name: true } },
+    },
+  });
+  if (!lead?.assignee?.whatsappPhone || !lead.assignee.active) return;
+
+  const when = new Intl.DateTimeFormat("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(lead.receivedAt);
+
+  // תבנית מסודרת — רק שורות שיש להן ערך.
+  const lines: (string | null)[] = [
+    `🎯 ליד חדש עבורך!`,
+    lead.fullName ? `👤 ${lead.fullName}` : null,
+    lead.phone ? `📞 ${lead.phone}` : null,
+    lead.email ? `✉️ ${lead.email}` : null,
+    lead.city ? `🏙️ ${lead.city}` : null,
+    lead.project?.name ? `📁 פרויקט: ${lead.project.name}` : null,
+    lead.source?.name ? `🏷️ מקור: ${lead.source.name}` : null,
+    lead.campaignLabel ? `📣 קמפיין: ${lead.campaignLabel}` : null,
+    lead.kind === "call" && lead.callStatus ? `☎️ שיחה: ${lead.callStatus}` : null,
+    `🕐 ${when}`,
+  ];
+  await sendMessage({
+    channel: "whatsapp",
+    to: lead.assignee.whatsappPhone,
+    body: lines.filter(Boolean).join("\n"),
+    kind: "automation",
+    clientId: lead.clientId,
+    leadId: lead.id,
+  }).catch(() => {});
+}
+
 // ---------------------------------------------------------------------------
 // Domain hooks — fired on lead lifecycle events.
 //
@@ -148,6 +195,7 @@ export async function onLeadCreated(leadId: string): Promise<void> {
   if (!lead) return;
   await fireAutomations(lead.clientId, "lead_created", leadId, null);
   await sendNewLeadAlert(leadId).catch((e) => console.error("[lead-alert]", e));
+  await sendLeadToMarketer(leadId).catch((e) => console.error("[lead-marketer-wa]", e));
 }
 
 async function fireAutomations(

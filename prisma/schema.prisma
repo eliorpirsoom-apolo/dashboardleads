@@ -42,6 +42,9 @@ model User {
   isAgent      Boolean   @default(false)
   googleId     String?   @unique
   phone        String?
+  // וואטסאפ להתראות לידים (משווקים): נפרד מהטלפון — מספר המענה לרוב וירטואלי
+  // ולא מקבל וואטסאפ. נוכחות המספר = הפעלת ההתראה.
+  whatsappPhone String?
   birthday     DateTime? // יום הולדת — לבאנר "מזל טוב" בצד המשרד
   client       Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId     String?

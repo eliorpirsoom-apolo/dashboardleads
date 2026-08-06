@@ -13,6 +13,7 @@ interface Marketer {
   name: string;
   email: string;
   phone: string | null;
+  whatsappPhone: string | null;
   active: boolean;
   lastLoginAt: string | null;
   projectIds: string[];
@@ -73,6 +74,7 @@ export default function MarketersManager() {
                 <span className="text-sm font-medium text-slate-700">{m.name}</span>
                 <span dir="ltr" className="text-xs text-slate-500">{m.email}</span>
                 {m.phone ? <span dir="ltr" className="text-xs text-slate-400">{m.phone}</span> : null}
+                {m.whatsappPhone ? <Chip color="#25d366">התראות וואטסאפ</Chip> : null}
                 {!m.active ? <Chip color="#f87171">מושבת</Chip> : null}
                 <div className="flex flex-wrap items-center gap-1">
                   {m.projectIds.length === 0 ? (
@@ -135,6 +137,7 @@ function MarketerModal({
   const [name, setName] = useState(marketer?.name ?? "");
   const [email, setEmail] = useState(marketer?.email ?? "");
   const [phone, setPhone] = useState(marketer?.phone ?? "");
+  const [whatsappPhone, setWhatsappPhone] = useState(marketer?.whatsappPhone ?? "");
   const [password, setPassword] = useState("");
   const [active, setActive] = useState(marketer?.active ?? true);
   const [projectIds, setProjectIds] = useState<Set<string>>(new Set(marketer?.projectIds ?? []));
@@ -157,7 +160,13 @@ function MarketerModal({
       if (mode === "create") {
         await api("/api/marketers", {
           method: "POST",
-          json: { name, email, phone: phone || null, password: password || undefined, projectIds: [...projectIds] },
+          json: {
+            name, email,
+            phone: phone || null,
+            whatsappPhone: whatsappPhone || null,
+            password: password || undefined,
+            projectIds: [...projectIds],
+          },
         });
       } else {
         await api(`/api/marketers/${marketer!.id}`, {
@@ -165,6 +174,7 @@ function MarketerModal({
           json: {
             name,
             phone: phone || null,
+            whatsappPhone: whatsappPhone || null,
             active,
             ...(password ? { password } : {}),
             projectIds: [...projectIds],
@@ -215,6 +225,13 @@ function MarketerModal({
             <Input dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={mode === "edit" ? "חדשה (אופציונלי)" : ""} />
           </Field>
         </div>
+
+        <Field
+          label="וואטסאפ להתראות לידים 📲"
+          hint="כל ליד חדש שישויך למשווק יישלח לוואטסאפ הזה. ריק = ללא התראות. נפרד מהטלפון — מספרי מענה וירטואליים לא מקבלים וואטסאפ."
+        >
+          <Input dir="ltr" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="0501234567" />
+        </Field>
 
         {mode === "edit" ? (
           <label className="flex items-center gap-2 text-sm text-slate-700">

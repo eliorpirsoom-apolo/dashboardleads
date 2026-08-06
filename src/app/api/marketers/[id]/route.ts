@@ -19,6 +19,7 @@ async function ownedMarketer(id: string, clientId: string) {
 const UpdateMarketer = z.object({
   name: z.string().min(1).max(120).optional(),
   phone: z.string().max(30).nullable().optional(),
+  whatsappPhone: z.string().max(30).nullable().optional(),
   password: z.string().min(6, "סיסמה קצרה מדי").optional().or(z.literal("")),
   active: z.boolean().optional(),
   projectIds: z.array(z.string()).max(200).optional(),
@@ -36,6 +37,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     data: {
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.phone !== undefined ? { phone: body.phone } : {}),
+      ...(body.whatsappPhone !== undefined ? { whatsappPhone: body.whatsappPhone } : {}),
       ...(body.active !== undefined ? { active: body.active } : {}),
       ...(body.password ? { passwordHash: hashPassword(body.password) } : {}),
       ...(revoke ? { tokenVersion: { increment: 1 } } : {}),

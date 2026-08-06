@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { normalizeEmail, normalizePhone } from "@/lib/leads";
-import { onLeadStatusChanged } from "@/lib/hooks";
+import { onLeadStatusChanged, sendLeadToMarketer } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
 import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
 import { assertNotAgent } from "@/lib/permissions";
@@ -195,6 +195,10 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
       fromValue: prev?.name ?? null,
       toValue: next?.name ?? "ללא מטפל",
     });
+    // שיוך למטפל חדש → התראת וואטסאפ למשווק (אם הוגדר לו מספר ייעודי).
+    if (body.assigneeId) {
+      await sendLeadToMarketer(lead.id).catch((e) => console.error("[lead-marketer-wa]", e));
+    }
   }
   if (body.projectId !== undefined && body.projectId !== lead.projectId) {
     const [prevProj, nextProj] = await Promise.all([

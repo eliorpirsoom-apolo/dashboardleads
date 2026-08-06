@@ -15,7 +15,7 @@ export const GET = handle(async () => {
     prisma.user.findMany({
       where: { clientId: owner.clientId, role: "CLIENT", isAgent: true },
       select: {
-        id: true, name: true, email: true, phone: true, active: true, lastLoginAt: true,
+        id: true, name: true, email: true, phone: true, whatsappPhone: true, active: true, lastLoginAt: true,
         projectAssignments: { select: { projectId: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -28,7 +28,7 @@ export const GET = handle(async () => {
   ]);
   return NextResponse.json({
     marketers: marketers.map((m) => ({
-      id: m.id, name: m.name, email: m.email, phone: m.phone,
+      id: m.id, name: m.name, email: m.email, phone: m.phone, whatsappPhone: m.whatsappPhone,
       active: m.active, lastLoginAt: m.lastLoginAt,
       projectIds: m.projectAssignments.map((a) => a.projectId),
     })),
@@ -40,6 +40,7 @@ const CreateMarketer = z.object({
   name: z.string().min(1, "חסר שם").max(120),
   email: z.string().email("אימייל לא תקין"),
   phone: z.string().max(30).optional().nullable(),
+  whatsappPhone: z.string().max(30).optional().nullable(),
   password: z.string().min(6, "סיסמה קצרה מדי (מינימום 6)").optional().or(z.literal("")),
   projectIds: z.array(z.string()).max(200).optional().default([]),
 });
@@ -63,6 +64,7 @@ export const POST = handle(async (req) => {
         data: {
           name: body.name,
           phone: body.phone ?? existing.phone,
+          whatsappPhone: body.whatsappPhone ?? existing.whatsappPhone,
           active: true,
           ...(body.password ? { passwordHash: hashPassword(body.password) } : {}),
         },
@@ -81,6 +83,7 @@ export const POST = handle(async (req) => {
         role: "CLIENT",
         isAgent: true,
         phone: body.phone || null,
+        whatsappPhone: body.whatsappPhone || null,
         clientId: owner.clientId,
       },
       select: { id: true },
