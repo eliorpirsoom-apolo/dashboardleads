@@ -890,17 +890,19 @@ function LeadWhatsappChat({ leadId, hasPhone }: { leadId: string; hasPhone: bool
     { id: string; direction: string; body: string; authorName: string | null; mediaUrl: string | null; mediaName: string | null; createdAt: string }[]
   >([]);
   const [configured, setConfigured] = useState(true);
+  const [enabled, setEnabled] = useState(false); // מתג ראשי בהגדרות המשרד (ברירת מחדל: כבוי)
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ messages: typeof messages; configured: boolean }>(
+      const d = await api<{ messages: typeof messages; configured: boolean; enabled?: boolean }>(
         `/api/leads/${leadId}/whatsapp`
       );
       setMessages(d.messages);
       setConfigured(d.configured);
+      setEnabled(Boolean(d.enabled));
     } catch {
       /* שקט — רענון הבא */
     }
@@ -931,7 +933,8 @@ function LeadWhatsappChat({ leadId, hasPhone }: { leadId: string; hasPhone: bool
     }
   }
 
-  if (!hasPhone) return null;
+  // מוסתר כשאין טלפון או כשהפיצ'ר כבוי בהגדרות המשרד.
+  if (!hasPhone || !enabled) return null;
 
   return (
     <div className="mt-6">

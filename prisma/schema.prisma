@@ -486,6 +486,9 @@ model AiAgentConfig {
   broadcastDays     String  @default("0,1,2,3,4") // ימי שבוע (0=ראשון .. 6=שבת)
   broadcastExcludeGroups String? // JSON: chatIds של קבוצות שהוחרגו מהבוט (ריק = כל הקבוצות)
 
+  // שיחות וואטסאפ עם לידים (צ'אט מכרטיס הליד) — מתג ראשי ברמת המשרד.
+  leadChatEnabled Boolean @default(false)
+
   // Speed-to-Lead (SLA לידים): תזכורת למשווק + הסלמה למנהלים על ליד שלא טופל.
   slaEnabled         Boolean @default(false)
   slaMarketerMinutes Int     @default(15) // דקות עד תזכורת למשווק

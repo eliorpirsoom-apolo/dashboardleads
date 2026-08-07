@@ -3,8 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
-import { sendWhatsappRaw, whatsappConfigured } from "@/lib/whatsapp";
+import { sendWhatsappRaw, whatsappConfigured, clientWaCreds } from "@/lib/whatsapp";
 import { markLeadHandled } from "@/lib/leadActivity";
+import { getTaskAgentConfig } from "@/lib/taskAgent";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,13 @@ async function scopedLead(id: string) {
 }
 
 // GET /api/leads/[id]/whatsapp — שרשור השיחה (עד 200 הודעות, מהישן לחדש).
+// enabled=false → הפיצ'ר כבוי בהגדרות המשרד והפאנל לא מוצג.
 export const GET = handle(async (_req, { params }: { params: { id: string } }) => {
   const { lead } = await scopedLead(params.id);
+  const cfg = await getTaskAgentConfig();
+  if (!cfg.leadChatEnabled) {
+    return NextResponse.json({ enabled: false, messages: [], configured: false, phone: lead.phone });
+  }
   const messages = await prisma.whatsappMessage.findMany({
     where: { leadId: lead.id },
     orderBy: { createdAt: "asc" },
@@ -33,7 +39,13 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       mediaUrl: true, mediaName: true, createdAt: true,
     },
   });
-  return NextResponse.json({ messages, configured: whatsappConfigured(), phone: lead.phone });
+  const hasClientInstance = Boolean(await clientWaCreds(lead.clientId));
+  return NextResponse.json({
+    enabled: true,
+    messages,
+    configured: hasClientInstance || whatsappConfigured(),
+    phone: lead.phone,
+  });
 });
 
 const SendBody = z.object({ body: z.string().min(1, "הודעה ריקה").max(4000) });
@@ -41,11 +53,16 @@ const SendBody = z.object({ body: z.string().min(1, "הודעה ריקה").max(4
 // POST /api/leads/[id]/whatsapp — שליחת הודעה לליד (נחשב טיפול בליד).
 export const POST = handle(async (req, { params }: { params: { id: string } }) => {
   const { user, lead } = await scopedLead(params.id);
-  if (!whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
+  const cfg = await getTaskAgentConfig();
+  if (!cfg.leadChatEnabled) throw new ApiError(400, "שיחות וואטסאפ עם לידים כבויות בהגדרות המערכת");
   if (!lead.phone) throw new ApiError(400, "לליד אין מספר טלפון");
   const b = SendBody.parse(await readJson(req));
 
-  const r = await sendWhatsappRaw(lead.phone, b.body);
+  // מספר ייעודי של הלקוח אם חובר; אחרת המספר של הסוכנות.
+  const creds = await clientWaCreds(lead.clientId);
+  if (!creds && !whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
+
+  const r = await sendWhatsappRaw(lead.phone, b.body, creds);
   if (!r.ok) throw new ApiError(502, r.error || "השליחה נכשלה");
 
   const message = await prisma.whatsappMessage.create({

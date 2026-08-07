@@ -25,6 +25,7 @@ export default function IntegrationsCard({
 }) {
   const [rows, setRows] = useState<IntegrationRow[]>([]);
   const [meta, setMeta] = useState({ adAccountId: "", accessToken: "" });
+  const [wa, setWa] = useState({ idInstance: "", apiToken: "" });
   const [gscSite, setGscSite] = useState("");
   const [gaProperty, setGaProperty] = useState("");
   const [msg, setMsg] = useState("");
@@ -98,7 +99,27 @@ export default function IntegrationsCard({
     }
   }
 
+  async function saveWa(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg("");
+    try {
+      await api("/api/integrations", {
+        method: "POST",
+        json: { clientId, kind: "whatsapp", config: wa },
+      });
+      setMsg("מספר הוואטסאפ הייעודי חובר ✓ — הלידים של הלקוח ישוחחו דרכו");
+      setWa({ idInstance: "", apiToken: "" });
+      load();
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const metaRow = get("meta");
+  const waRow = get("whatsapp");
 
   return (
     <Card>
@@ -145,6 +166,37 @@ export default function IntegrationsCard({
             </div>
             <Button type="submit" size="sm" variant="ghost" disabled={busy || !meta.adAccountId || !meta.accessToken}>
               שמירה
+            </Button>
+          </form>
+        </div>
+
+        {/* מספר וואטסאפ ייעודי ללקוח (Green API) — שיחות עם הלידים */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Icon name="whatsapp" className="h-4 w-4 text-emerald-500" />
+            <span className="text-sm font-bold text-slate-700">וואטסאפ ייעודי — שיחות עם לידים</span>
+            <Chip color={waRow?.status === "connected" ? "#34d399" : "#64748b"}>
+              {waRow?.status === "connected" ? "מחובר" : "לא מחובר"}
+            </Chip>
+          </div>
+          <p className="mb-2 text-[11px] text-slate-500">
+            מופע Green API נפרד עם מספר של הלקוח — הלידים שלו ישוחחו עם המספר הזה במקום מספר
+            הסוכנות. דורש רכישת מופע Green API וסריקת QR עם מספר הלקוח. בשמירה המערכת מאמתת את
+            הפרטים ומכוונת את קליטת התשובות אוטומטית.
+          </p>
+          <form onSubmit={saveWa} className="flex flex-wrap items-end gap-2">
+            <div className="w-44">
+              <Field label="ID Instance">
+                <Input dir="ltr" value={wa.idInstance} onChange={(e) => setWa({ ...wa, idInstance: e.target.value })} placeholder="1101234567" />
+              </Field>
+            </div>
+            <div className="min-w-[200px] flex-1">
+              <Field label="API Token">
+                <Input dir="ltr" type="password" value={wa.apiToken} onChange={(e) => setWa({ ...wa, apiToken: e.target.value })} />
+              </Field>
+            </div>
+            <Button type="submit" size="sm" variant="ghost" disabled={busy || !wa.idInstance || !wa.apiToken}>
+              שמירה וחיבור
             </Button>
           </form>
         </div>

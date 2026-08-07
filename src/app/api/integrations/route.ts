@@ -41,7 +41,7 @@ export const GET = handle(async (req) => {
 
 const SaveIntegration = z.object({
   clientId: z.string().min(1),
-  kind: z.enum(["meta", "paycall", "search_console", "ga4"]),
+  kind: z.enum(["meta", "paycall", "search_console", "ga4", "whatsapp"]),
   config: z.record(z.string()).optional(),
   accessToken: z.string().optional(),
   refreshToken: z.string().optional(),
@@ -54,6 +54,37 @@ export const POST = handle(async (req) => {
 
   const client = await prisma.client.findUnique({ where: { id: body.clientId } });
   if (!client) throw new ApiError(404, "לקוח לא נמצא");
+
+  // מופע וואטסאפ ייעודי ללקוח (Green API): מאמתים את הפרטים מול Green API
+  // ומכוונים את ה-webhook הנכנס אל המערכת — כדי שתשובות הלידים ייקלטו.
+  if (body.kind === "whatsapp") {
+    const idInstance = (body.config?.idInstance || "").trim();
+    const apiToken = (body.config?.apiToken || "").trim();
+    if (!idInstance || !apiToken) throw new ApiError(400, "חסרים idInstance או apiToken");
+    const base = (process.env.GREENAPI_API_URL || "https://api.green-api.com").replace(/\/$/, "");
+    const check = await fetch(`${base}/waInstance${idInstance}/getSettings/${apiToken}`);
+    if (!check.ok) {
+      throw new ApiError(400, `פרטי החיבור לא תקינים (Green API ${check.status}) — בדקו idInstance/apiToken`);
+    }
+    const secret = process.env.GREENAPI_WEBHOOK_TOKEN;
+    if (secret) {
+      const appUrl = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
+      await fetch(`${base}/waInstance${idInstance}/setSettings/${apiToken}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          webhookUrl: `${appUrl}/api/webhooks/greenapi`,
+          webhookUrlToken: secret,
+          incomingWebhook: "yes",
+          stateWebhook: "no",
+          outgoingWebhook: "no",
+          outgoingAPIMessageWebhook: "no",
+          outgoingMessageWebhook: "no",
+          pollMessageWebhook: "no",
+        }),
+      }).catch(() => {});
+    }
+  }
 
   const integration = await prisma.integration.upsert({
     where: { clientId_kind: { clientId: body.clientId, kind: body.kind } },

@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { sendMessage } from "./messaging";
-import { maybeHandleTaskAgent, maybeHandleGroupAgent } from "./taskAgent";
+import { maybeHandleTaskAgent, maybeHandleGroupAgent, getTaskAgentConfig } from "./taskAgent";
 
 const APP_URL = process.env.APP_BASE_URL || "https://dashboard-leads-apollo13.vercel.app";
 
@@ -20,14 +20,39 @@ export function whatsappConfigured(): boolean {
   return Boolean(process.env.GREENAPI_ID_INSTANCE && process.env.GREENAPI_API_TOKEN);
 }
 
+// פרטי חיבור Green API — מופע ייעודי (למשל של לקוח) או ברירת המחדל של הסוכנות.
+export interface WaCreds {
+  id: string;
+  token: string;
+}
+
+// מופע וואטסאפ ייעודי של לקוח (Integration kind="whatsapp"), אם הוגדר וחובר.
+// הלידים של הלקוח משוחחים דרך המספר שלו; אחרת — המספר של הסוכנות.
+export async function clientWaCreds(clientId: string): Promise<WaCreds | null> {
+  const row = await prisma.integration.findUnique({
+    where: { clientId_kind: { clientId, kind: "whatsapp" } },
+    select: { status: true, config: true },
+  });
+  if (!row || row.status !== "connected" || !row.config) return null;
+  try {
+    const cfg = JSON.parse(row.config);
+    if (cfg.idInstance && cfg.apiToken) return { id: String(cfg.idInstance), token: String(cfg.apiToken) };
+  } catch {
+    /* config פגום — נופלים לברירת המחדל */
+  }
+  return null;
+}
+
 // שליחת הודעת וואטסאפ דרך Green API. מחזיר את idMessage לשמירה/דדופ.
+// creds אופציונלי — מופע ייעודי (פר לקוח); ברירת מחדל: משתני הסביבה.
 export async function sendWhatsappRaw(
   to: string,
-  body: string
+  body: string,
+  creds?: WaCreds | null
 ): Promise<{ ok: boolean; idMessage?: string; error?: string }> {
-  if (!whatsappConfigured()) return { ok: false, error: "וואטסאפ אינו מוגדר" };
-  const id = process.env.GREENAPI_ID_INSTANCE!;
-  const token = process.env.GREENAPI_API_TOKEN!;
+  if (!creds && !whatsappConfigured()) return { ok: false, error: "וואטסאפ אינו מוגדר" };
+  const id = creds?.id || process.env.GREENAPI_ID_INSTANCE!;
+  const token = creds?.token || process.env.GREENAPI_API_TOKEN!;
   const base = (process.env.GREENAPI_API_URL || "https://api.green-api.com").replace(/\/$/, "");
   const intl = waIntl(to);
   if (!intl) return { ok: false, error: "מספר לא תקין" };
@@ -293,6 +318,9 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
   const clientId = await resolveClientIdByPhone(phone);
   if (!clientId) {
     // לא איש קשר של לקוח — אולי ליד? משרשרים לשיחת הליד בכרטיס שלו.
+    // רק כשהפיצ'ר "וואטסאפ עם לידים" מופעל בהגדרות המשרד.
+    const agentCfg = await getTaskAgentConfig();
+    if (!agentCfg.leadChatEnabled) return { stored: false, reason: "lead-chat-off" };
     const lead = await resolveLeadByPhone(phone);
     if (!lead) return { stored: false, reason: "no-client" };
     await prisma.whatsappMessage.create({
