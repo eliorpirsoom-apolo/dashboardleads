@@ -139,10 +139,10 @@ export default function AdminSettingsView() {
         <div className="mb-3 flex items-start gap-2.5">
           <Icon name="whatsapp" className="mt-0.5 h-6 w-6 text-emerald-500" />
           <div>
-            <h2 className="text-lg font-bold text-slate-800">וואטסאפ</h2>
+            <h2 className="text-lg font-bold text-slate-800">וואטסאפ והודעות</h2>
             <p className="text-xs text-slate-500">
-              כל הגדרות הוואטסאפ במקום אחד: קודם החיבור, ואז מה עושים איתו — שיחות עם לידים,
-              בוט הקבוצות וסוכן המשימות.
+              כל ערוצי ההודעות במקום אחד: קודם החיבור, ואז השימושים — שיחות עם לידים,
+              בוט הקבוצות, סוכן המשימות ובדיקת SMS.
             </p>
           </div>
         </div>
@@ -151,12 +151,11 @@ export default function AdminSettingsView() {
           <LeadChatCard />
           <WhatsappBroadcastCard />
           <TaskAgentCard />
+          <SmsCard />
         </div>
       </section>
 
       <LeadSlaCard />
-
-      <SmsCard />
 
       <SumitCard />
 
@@ -286,7 +285,7 @@ function SmsCard() {
     <Card>
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-800">SMS — MultiSend (פייקול)</h3>
+          <h3 className="text-base font-bold text-slate-800">5 · בדיקת SMS (MultiSend — פייקול)</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             תזכורות והתראות ב-SMS. הגדרה במשתני סביבה: MULTISEND_USER, MULTISEND_PASSWORD, SMS_FROM.
           </p>
@@ -743,6 +742,17 @@ function AuditLogCard() {
     { id: string; actorName: string; action: string; details: string | null; createdAt: string }[]
   >([]);
   const [visible, setVisible] = useState(true);
+  // מיזעור הכרטיס — נשמר בדפדפן כדי שיישאר כפי שהשארת אותו.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("settings-collapse-audit") === "1");
+  }, []);
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      localStorage.setItem("settings-collapse-audit", c ? "0" : "1");
+      return !c;
+    });
+  }
 
   useEffect(() => {
     api<{ entries: typeof entries }>("/api/audit")
@@ -754,11 +764,24 @@ function AuditLogCard() {
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-800">יומן פעולות רגישות</h3>
-      <p className="mb-3 text-xs text-slate-500">
-        מי יצר/השבית משתמשים ולקוחות, שינויי הרשאות וחיבורים — 30 האחרונות.
-      </p>
-      {entries.length === 0 ? (
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="mb-1 text-base font-bold text-slate-800">יומן פעולות רגישות</h3>
+          {!collapsed ? (
+            <p className="mb-3 text-xs text-slate-500">
+              מי יצר/השבית משתמשים ולקוחות, שינויי הרשאות וחיבורים — 30 האחרונות.
+            </p>
+          ) : null}
+        </div>
+        <button
+          onClick={toggleCollapsed}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          title={collapsed ? "פתיחה" : "מיזעור"}
+        >
+          <span className={`text-xs transition-transform ${collapsed ? "" : "rotate-180"}`}>▲</span>
+        </button>
+      </div>
+      {collapsed ? null : entries.length === 0 ? (
         <p className="py-3 text-center text-xs text-slate-600">אין רשומות עדיין.</p>
       ) : (
         <div className="flex flex-col divide-y divide-slate-200">
