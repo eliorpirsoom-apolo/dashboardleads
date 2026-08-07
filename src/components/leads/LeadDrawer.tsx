@@ -819,6 +819,9 @@ export default function LeadDrawer({
               </>
             ) : null}
 
+            {/* שיחת וואטסאפ מול הליד */}
+            <LeadWhatsappChat leadId={lead.id} hasPhone={Boolean(lead.phone)} />
+
             {/* Unified timeline: notes + activity trail */}
             <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">
               ציר פעילות והערות
@@ -876,6 +879,113 @@ export default function LeadDrawer({
           </>
         )}
       </aside>
+    </div>
+  );
+}
+
+// שיחת וואטסאפ דו-כיוונית מול הליד — שליחה מכאן, תשובות הליד נכנסות אוטומטית
+// (webhook של Green API מזהה את מספר הטלפון). מתרענן כל 12 שניות כשהכרטיס פתוח.
+function LeadWhatsappChat({ leadId, hasPhone }: { leadId: string; hasPhone: boolean }) {
+  const [messages, setMessages] = useState<
+    { id: string; direction: string; body: string; authorName: string | null; mediaUrl: string | null; mediaName: string | null; createdAt: string }[]
+  >([]);
+  const [configured, setConfigured] = useState(true);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api<{ messages: typeof messages; configured: boolean }>(
+        `/api/leads/${leadId}/whatsapp`
+      );
+      setMessages(d.messages);
+      setConfigured(d.configured);
+    } catch {
+      /* שקט — רענון הבא */
+    }
+  }, [leadId]);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 12000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await api<{ message: (typeof messages)[number] }>(
+        `/api/leads/${leadId}/whatsapp`,
+        { method: "POST", json: { body: text.trim() } }
+      );
+      setMessages((m) => [...m, r.message]);
+      setText("");
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!hasPhone) return null;
+
+  return (
+    <div className="mt-6">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-600">
+        <Icon name="whatsapp" className="h-4 w-4 text-emerald-500" />
+        וואטסאפ עם הליד
+      </h3>
+      {!configured ? (
+        <p className="text-xs text-slate-500">וואטסאפ (Green API) אינו מוגדר.</p>
+      ) : (
+        <div className="rounded-xl border border-slate-200">
+          {messages.length > 0 ? (
+            <div className="thin-scroll flex max-h-64 flex-col gap-1.5 overflow-y-auto p-3">
+              {messages.map((m) => (
+                <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-sm ${
+                      m.direction === "out"
+                        ? "rounded-bl-sm bg-emerald-100 text-slate-800"
+                        : "rounded-br-sm border border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                    {m.mediaUrl ? (
+                      <a href={m.mediaUrl} target="_blank" className="text-xs text-cyan-600 hover:underline">
+                        📎 {m.mediaName || "קובץ מצורף"}
+                      </a>
+                    ) : null}
+                    <p className="mt-0.5 text-[10px] text-slate-400">
+                      {m.direction === "out" ? (m.authorName ?? "המשרד") + " · " : ""}
+                      {formatDateTime(m.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="p-3 text-center text-xs text-slate-400">
+              אין הודעות עדיין — שלחו את הראשונה 👇 (תשובות הליד יופיעו כאן אוטומטית)
+            </p>
+          )}
+          <form onSubmit={send} className="flex gap-2 border-t border-slate-100 p-2">
+            <Input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="כתבו הודעה לליד…"
+            />
+            <Button type="submit" size="sm" disabled={busy || !text.trim()}>
+              {busy ? "שולח…" : "שליחה"}
+            </Button>
+          </form>
+          {err ? <p className="px-3 pb-2 text-xs text-red-600">{err}</p> : null}
+        </div>
+      )}
     </div>
   );
 }

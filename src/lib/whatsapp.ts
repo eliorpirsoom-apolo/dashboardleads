@@ -200,6 +200,29 @@ export async function resolveClientIdByPhone(phone: string): Promise<string | nu
   return null;
 }
 
+// זיהוי ליד לפי מספר טלפון (פורמטים נפוצים: 05X, 9725X, +9725X). הליד העדכני ביותר.
+export async function resolveLeadByPhone(phone: string): Promise<{
+  id: string;
+  clientId: string;
+  fullName: string | null;
+  assignee: { name: string; whatsappPhone: string | null; active: boolean } | null;
+} | null> {
+  const intl = waIntl(phone);
+  if (!intl) return null;
+  const local = intl.startsWith("972") ? "0" + intl.slice(3) : null;
+  const candidates = [intl, `+${intl}`, ...(local ? [local] : [])];
+  return prisma.lead.findFirst({
+    where: { archived: false, phone: { in: candidates } },
+    orderBy: { receivedAt: "desc" },
+    select: {
+      id: true,
+      clientId: true,
+      fullName: true,
+      assignee: { select: { name: true, whatsappPhone: true, active: true } },
+    },
+  });
+}
+
 // עיבוד הודעת וואטסאפ נכנסת (מ-Green API): חילוץ, זיהוי לקוח, דדופ ושמירה.
 export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boolean; reason?: string }> {
   if (payload?.typeWebhook !== "incomingMessageReceived") return { stored: false, reason: "type" };
@@ -268,7 +291,45 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
     if (exists) return { stored: false, reason: "dedup" };
   }
   const clientId = await resolveClientIdByPhone(phone);
-  if (!clientId) return { stored: false, reason: "no-client" };
+  if (!clientId) {
+    // לא איש קשר של לקוח — אולי ליד? משרשרים לשיחת הליד בכרטיס שלו.
+    const lead = await resolveLeadByPhone(phone);
+    if (!lead) return { stored: false, reason: "no-client" };
+    await prisma.whatsappMessage.create({
+      data: {
+        clientId: lead.clientId,
+        leadId: lead.id,
+        direction: "in",
+        body: (body || "").trim() || (mediaName ?? "[מדיה]"),
+        fromPhone: phone,
+        authorName: payload?.senderData?.senderName || null,
+        waMessageId: idMessage,
+        mediaUrl,
+        mediaName,
+        mediaMime,
+      },
+    });
+    // עדכון המשווק שהליד הגיב — עם צינון 15 דק' לשיחה ערה.
+    if (lead.assignee?.whatsappPhone && lead.assignee.active) {
+      const recentIn = await prisma.whatsappMessage.findFirst({
+        where: {
+          leadId: lead.id,
+          direction: "in",
+          createdAt: { gt: new Date(Date.now() - 15 * 60 * 1000) },
+          ...(idMessage ? { waMessageId: { not: idMessage } } : {}),
+        },
+        select: { id: true },
+      });
+      if (!recentIn) {
+        const preview = (body || mediaName || "[מדיה]").slice(0, 120);
+        await sendWhatsappRaw(
+          lead.assignee.whatsappPhone,
+          `💬 ${lead.fullName || phone} הגיב לך בוואטסאפ:\n"${preview}"\n\nהשב מכרטיס הליד במערכת.`
+        ).catch(() => {});
+      }
+    }
+    return { stored: true, reason: "lead-chat" };
+  }
 
   // השהיית התראה: אם התקבלה הודעה נכנסת ב-15 הדק' האחרונות — לא שולחים שוב (שלא יציף בשיחה ערה).
   const recent = await prisma.whatsappMessage.findFirst({

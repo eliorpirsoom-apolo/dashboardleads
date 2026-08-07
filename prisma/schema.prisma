@@ -327,6 +327,7 @@ model Lead {
   inventoryEvents  InventoryEvent[]
   tasks            Task[]
   messages         Message[]
+  waMessages       WhatsappMessage[]
 
   @@unique([clientId, number])
   @@index([clientId, receivedAt])
@@ -1217,6 +1218,9 @@ model WhatsappMessage {
   id          String   @id @default(cuid())
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId    String
+  // שיחה מול ליד (צ'אט מכרטיס הליד). null = שיחת המשרד מול הלקוח עצמו.
+  lead        Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId      String?
   direction   String // "in" (לקוח→משרד) | "out" (משרד→לקוח)
   body        String
   fromPhone   String? // מספר השולח (בהודעה נכנסת)
@@ -1229,6 +1233,7 @@ model WhatsappMessage {
   createdAt   DateTime @default(now())
 
   @@index([clientId, createdAt])
+  @@index([leadId, createdAt])
 }
 
 // שרשור התכתבות משרד↔לקוח על משימת עיצוב (צ'אט בפורטל).
