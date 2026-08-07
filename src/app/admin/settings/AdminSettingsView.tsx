@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import MaterialTemplatesManager from "@/components/settings/MaterialTemplatesManager";
 import TaskAgentCard from "@/components/settings/TaskAgentCard";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 interface AdminUser {
   id: string;
@@ -49,6 +50,9 @@ export default function AdminSettingsView() {
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [error, setError] = useState("");
+  const [cGlobals, tGlobals] = useCollapse("globals");
+  const [cUsers, tUsers] = useCollapse("users");
+  const [cWa, tWa] = useCollapse("whatsapp-frame");
 
   const load = useCallback(async () => {
     try {
@@ -73,7 +77,12 @@ export default function AdminSettingsView() {
 
       {/* Global connections status */}
       <Card>
-        <h3 className="mb-1 text-base font-bold text-slate-800">חיבורים גלובליים</h3>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="mb-1 text-base font-bold text-slate-800">חיבורים גלובליים</h3>
+          <CollapseBtn collapsed={cGlobals} onClick={tGlobals} />
+        </div>
+        {cGlobals ? null : (
+        <>
         <p className="mb-4 text-xs text-slate-500">
           מוגדרים במשתני הסביבה של Vercel — הוראות מלאות בקובץ CONNECTIONS.md.
           חיבורים ללקוח ספציפי (Meta, פייקול, Search Console) — בהגדרות הלקוח.
@@ -94,6 +103,8 @@ export default function AdminSettingsView() {
             </div>
           ))}
         </div>
+        </>
+        )}
       </Card>
 
       {/* Agency users */}
@@ -101,13 +112,21 @@ export default function AdminSettingsView() {
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-slate-800">משתמשי המשרד</h3>
-            <p className="mt-0.5 text-xs text-slate-500">חשבונות ADMIN — רואים ומנהלים את כל הלקוחות.</p>
+            {cUsers ? null : (
+              <p className="mt-0.5 text-xs text-slate-500">חשבונות ADMIN — רואים ומנהלים את כל הלקוחות.</p>
+            )}
           </div>
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Icon name="plus" className="h-4 w-4" />
-            משתמש משרד
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {cUsers ? null : (
+              <Button size="sm" onClick={() => setShowCreate(true)}>
+                <Icon name="plus" className="h-4 w-4" />
+                משתמש משרד
+              </Button>
+            )}
+            <CollapseBtn collapsed={cUsers} onClick={tUsers} />
+          </div>
         </div>
+        {cUsers ? null : (
         <div className="flex flex-col gap-2">
           {users.map((u) => (
             <div key={u.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 ${u.active ? "" : "opacity-50"}`}>
@@ -132,27 +151,33 @@ export default function AdminSettingsView() {
             </div>
           ))}
         </div>
+        )}
       </Card>
 
       {/* ===== וואטסאפ — כל ההגדרות במסגרת אחת, מהחיבור אל השימושים ===== */}
       <section className="rounded-2xl border-2 border-emerald-300/60 bg-emerald-50/30 p-4">
-        <div className="mb-3 flex items-start gap-2.5">
+        <div className={`flex items-start gap-2.5 ${cWa ? "" : "mb-3"}`}>
           <Icon name="whatsapp" className="mt-0.5 h-6 w-6 text-emerald-500" />
-          <div>
+          <div className="flex-1">
             <h2 className="text-lg font-bold text-slate-800">וואטסאפ והודעות</h2>
-            <p className="text-xs text-slate-500">
-              כל ערוצי ההודעות במקום אחד: קודם החיבור, ואז השימושים — שיחות עם לידים,
-              בוט הקבוצות, סוכן המשימות ובדיקת SMS.
-            </p>
+            {cWa ? null : (
+              <p className="text-xs text-slate-500">
+                כל ערוצי ההודעות במקום אחד: קודם החיבור, ואז השימושים — שיחות עם לידים,
+                בוט הקבוצות, סוכן המשימות ובדיקת SMS.
+              </p>
+            )}
           </div>
+          <CollapseBtn collapsed={cWa} onClick={tWa} />
         </div>
-        <div className="flex flex-col gap-3">
-          <WhatsAppCard />
-          <LeadChatCard />
-          <WhatsappBroadcastCard />
-          <TaskAgentCard />
-          <SmsCard />
-        </div>
+        {cWa ? null : (
+          <div className="flex flex-col gap-3">
+            <WhatsAppCard />
+            <LeadChatCard />
+            <WhatsappBroadcastCard />
+            <TaskAgentCard />
+            <SmsCard />
+          </div>
+        )}
       </section>
 
       <LeadSlaCard />
@@ -192,6 +217,7 @@ function SumitCard() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>("");
+  const [collapsed, toggle] = useCollapse("sumit");
 
   useEffect(() => {
     api<{ configured: boolean }>("/api/integrations/sumit/sync")
@@ -226,24 +252,29 @@ function SumitCard() {
 
   return (
     <Card>
-      <div className="mb-2 flex items-center justify-between">
+      <div className={`flex items-center justify-between ${collapsed ? "" : "mb-2"}`}>
         <div>
           <h3 className="text-base font-bold text-slate-800">SUMIT — הנהלת חשבונות</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            משיכת חשבוניות, קבלות והצעות מחיר. משויכות ללקוח לפי מייל ומופיעות בדשבורד שלו.
-          </p>
+          {collapsed ? null : (
+            <p className="mt-0.5 text-xs text-slate-500">
+              משיכת חשבוניות, קבלות והצעות מחיר. משויכות ללקוח לפי מייל ומופיעות בדשבורד שלו.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Chip color={configured ? "#34d399" : "#64748b"}>
             {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
           </Chip>
-          <Button size="sm" disabled={busy || !configured} onClick={sync}>
-            <Icon name="chart" className="h-4 w-4" />
-            {busy ? "מסנכרן…" : "סנכרון עכשיו"}
-          </Button>
+          {collapsed ? null : (
+            <Button size="sm" disabled={busy || !configured} onClick={sync}>
+              <Icon name="chart" className="h-4 w-4" />
+              {busy ? "מסנכרן…" : "סנכרון עכשיו"}
+            </Button>
+          )}
+          <CollapseBtn collapsed={collapsed} onClick={toggle} />
         </div>
       </div>
-      {result ? <p className="text-xs text-slate-400">{result}</p> : null}
+      {!collapsed && result ? <p className="text-xs text-slate-400">{result}</p> : null}
     </Card>
   );
 }
@@ -254,6 +285,7 @@ function SmsCard() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>("");
+  const [collapsed, toggle] = useCollapse("sms");
 
   useEffect(() => {
     api<{ configured: boolean }>("/api/integrations/sms/test")
@@ -283,17 +315,24 @@ function SmsCard() {
 
   return (
     <Card>
-      <div className="mb-2 flex items-center justify-between">
+      <div className={`flex items-center justify-between ${collapsed ? "" : "mb-2"}`}>
         <div>
           <h3 className="text-base font-bold text-slate-800">5 · בדיקת SMS (MultiSend — פייקול)</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            תזכורות והתראות ב-SMS. הגדרה במשתני סביבה: MULTISEND_USER, MULTISEND_PASSWORD, SMS_FROM.
-          </p>
+          {collapsed ? null : (
+            <p className="mt-0.5 text-xs text-slate-500">
+              תזכורות והתראות ב-SMS. הגדרה במשתני סביבה: MULTISEND_USER, MULTISEND_PASSWORD, SMS_FROM.
+            </p>
+          )}
         </div>
-        <Chip color={configured ? "#34d399" : "#64748b"}>
-          {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
-        </Chip>
+        <div className="flex items-center gap-2">
+          <Chip color={configured ? "#34d399" : "#64748b"}>
+            {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
+          </Chip>
+          <CollapseBtn collapsed={collapsed} onClick={toggle} />
+        </div>
       </div>
+      {collapsed ? null : (
+      <>
       <div className="flex flex-wrap items-end gap-2">
         <div className="w-48">
           <Field label="מספר לבדיקה">
@@ -315,6 +354,8 @@ function SmsCard() {
         </Button>
       </div>
       {result ? <p className="mt-2 text-xs text-slate-400">{result}</p> : null}
+      </>
+      )}
     </Card>
   );
 }
@@ -325,6 +366,7 @@ function WhatsAppCard() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>("");
+  const [collapsed, toggle] = useCollapse("wa-main");
 
   useEffect(() => {
     api<{ configured: boolean }>("/api/integrations/whatsapp/test")
@@ -350,18 +392,25 @@ function WhatsAppCard() {
 
   return (
     <Card>
-      <div className="mb-2 flex items-center justify-between">
+      <div className={`flex items-center justify-between ${collapsed ? "" : "mb-2"}`}>
         <div>
           <h3 className="text-base font-bold text-slate-800">1 · חיבור המספר הראשי (Green API)</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            המספר של הסוכנות — דרכו נשלח כל מה שאין לו מספר ייעודי. מוגדר במשתני סביבה
-            (GREENAPI_ID_INSTANCE, GREENAPI_API_TOKEN). מספר ייעודי ללקוח מגדירים בהגדרות הלקוח.
-          </p>
+          {collapsed ? null : (
+            <p className="mt-0.5 text-xs text-slate-500">
+              המספר של הסוכנות — דרכו נשלח כל מה שאין לו מספר ייעודי. מוגדר במשתני סביבה
+              (GREENAPI_ID_INSTANCE, GREENAPI_API_TOKEN). מספר ייעודי ללקוח מגדירים בהגדרות הלקוח.
+            </p>
+          )}
         </div>
-        <Chip color={configured ? "#34d399" : "#64748b"}>
-          {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
-        </Chip>
+        <div className="flex items-center gap-2">
+          <Chip color={configured ? "#34d399" : "#64748b"}>
+            {configured === null ? "…" : configured ? "מחובר" : "לא מוגדר"}
+          </Chip>
+          <CollapseBtn collapsed={collapsed} onClick={toggle} />
+        </div>
       </div>
+      {collapsed ? null : (
+      <>
       <div className="flex flex-wrap items-end gap-2">
         <div className="w-48">
           <Field label="מספר לבדיקה">
@@ -374,6 +423,8 @@ function WhatsAppCard() {
         </Button>
       </div>
       {result ? <p className="mt-2 text-xs text-slate-400">{result}</p> : null}
+      </>
+      )}
     </Card>
   );
 }
@@ -388,6 +439,7 @@ interface BroadcastCfg {
   lastMorningSentOn: string | null; lastEodSentOn: string | null;
 }
 function WhatsappBroadcastCard() {
+  const [collapsed, toggleCollapse] = useCollapse("broadcast");
   const [waReady, setWaReady] = useState<boolean | null>(null);
   const [cfg, setCfg] = useState<BroadcastCfg | null>(null);
   const [groups, setGroups] = useState<{ id: string; name: string; included: boolean }[]>([]);
@@ -449,18 +501,25 @@ function WhatsappBroadcastCard() {
 
   return (
     <Card>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${collapsed ? "" : "mb-2"}`}>
         <div>
           <h3 className="text-base font-bold text-slate-800">3 · בוט הקבוצות 📣</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            הודעת בוקר וסוף-יום אוטומטיות לקבוצות שהמספר הראשי חבר בהן, בימים ובשעות שתגדיר.
-          </p>
+          {collapsed ? null : (
+            <p className="mt-0.5 text-xs text-slate-500">
+              הודעת בוקר וסוף-יום אוטומטיות לקבוצות שהמספר הראשי חבר בהן, בימים ובשעות שתגדיר.
+            </p>
+          )}
         </div>
-        <Chip color={cfg?.broadcastEnabled ? "#34d399" : "#94a3b8"}>
-          {cfg?.broadcastEnabled ? "פעיל" : "כבוי"}
-        </Chip>
+        <div className="flex items-center gap-2">
+          <Chip color={cfg?.broadcastEnabled ? "#34d399" : "#94a3b8"}>
+            {cfg?.broadcastEnabled ? "פעיל" : "כבוי"}
+          </Chip>
+          <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+        </div>
       </div>
 
+      {collapsed ? null : (
+      <>
       {err ? <p className="mb-2 text-sm text-red-600">{err}</p> : null}
       {msg ? <p className="mb-2 text-sm text-emerald-600">{msg}</p> : null}
       {waReady === false ? (
@@ -545,6 +604,8 @@ function WhatsappBroadcastCard() {
           </div>
         </div>
       )}
+      </>
+      )}
     </Card>
   );
 }
@@ -606,6 +667,7 @@ interface SlaCfg {
   slaWorkEnd: string;
 }
 function LeadSlaCard() {
+  const [collapsed, toggleCollapse] = useCollapse("sla");
   const [cfg, setCfg] = useState<SlaCfg | null>(null);
   const [stats, setStats] = useState<{ name: string; leads: number; avgMinutes: number }[]>([]);
   const [days, setDays] = useState(7);
@@ -640,17 +702,24 @@ function LeadSlaCard() {
 
   return (
     <Card>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${collapsed ? "" : "mb-2"}`}>
         <div>
           <h3 className="text-base font-bold text-slate-800">⏰ מהירות תגובה ללידים (Speed-to-Lead)</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            ליד שלא טופל (סטטוס/הערה) בזמן → תזכורת וואטסאפ למשווק, ואם עדיין לא — הסלמה למנהלי המשרד.
-            נשלח רק בשעות הפעילות. שיחה שנענתה נחשבת מטופלת.
-          </p>
+          {collapsed ? null : (
+            <p className="mt-0.5 text-xs text-slate-500">
+              ליד שלא טופל (סטטוס/הערה) בזמן → תזכורת וואטסאפ למשווק, ואם עדיין לא — הסלמה למנהלי המשרד.
+              נשלח רק בשעות הפעילות. שיחה שנענתה נחשבת מטופלת.
+            </p>
+          )}
         </div>
-        <Chip color={cfg?.slaEnabled ? "#34d399" : "#94a3b8"}>{cfg?.slaEnabled ? "פעיל" : "כבוי"}</Chip>
+        <div className="flex items-center gap-2">
+          <Chip color={cfg?.slaEnabled ? "#34d399" : "#94a3b8"}>{cfg?.slaEnabled ? "פעיל" : "כבוי"}</Chip>
+          <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+        </div>
       </div>
 
+      {collapsed ? null : (
+      <>
       {err ? <p className="mb-2 text-sm text-red-600">{err}</p> : null}
       {msg ? <p className="mb-2 text-sm text-emerald-600">{msg}</p> : null}
 
@@ -718,6 +787,8 @@ function LeadSlaCard() {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </Card>
   );

@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { Button, Card, Field, Input } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 interface Template {
   id: string;
@@ -14,6 +15,7 @@ interface Template {
 
 // ניהול תבניות "מכולת" — רשימות חומרים לפי סוג פרויקט.
 export default function MaterialTemplatesManager() {
+  const [collapsed, toggleCollapse] = useCollapse("materials");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [edit, setEdit] = useState<Template | null>(null);
   const [creating, setCreating] = useState(false);
@@ -34,19 +36,27 @@ export default function MaterialTemplatesManager() {
 
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between">
+      <div className={`flex items-center justify-between ${collapsed ? "" : "mb-3"}`}>
         <div>
           <h3 className="text-base font-bold text-slate-800">רשימות חומרים (מכולת)</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            מה צריך מהלקוח לכל סוג פרויקט. בפתיחת פרויקט בוחרים תבנית — והרשימה נשלחת ללקוח.
-          </p>
+          {collapsed ? null : (
+            <p className="mt-0.5 text-xs text-slate-500">
+              מה צריך מהלקוח לכל סוג פרויקט. בפתיחת פרויקט בוחרים תבנית — והרשימה נשלחת ללקוח.
+            </p>
+          )}
         </div>
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Icon name="plus" className="h-4 w-4" />
-          תבנית חדשה
-        </Button>
+        <div className="flex items-center gap-1.5">
+          {collapsed ? null : (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Icon name="plus" className="h-4 w-4" />
+              תבנית חדשה
+            </Button>
+          )}
+          <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+        </div>
       </div>
 
+      {collapsed ? null : (
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {templates.map((t) => (
           <button
@@ -68,6 +78,7 @@ export default function MaterialTemplatesManager() {
           <p className="text-xs text-slate-600">אין תבניות עדיין.</p>
         ) : null}
       </div>
+      )}
 
       {edit ? (
         <TemplateModal

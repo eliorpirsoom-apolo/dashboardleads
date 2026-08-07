@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { Button, Card, Field, Input, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 interface AgentConfig {
   name: string;
@@ -34,6 +35,7 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 }
 
 export default function TaskAgentCard() {
+  const [collapsed, toggleCollapse] = useCollapse("task-agent");
   const [cfg, setCfg] = useState<AgentConfig | null>(null);
   const [aiReady, setAiReady] = useState(true);
   const [waReady, setWaReady] = useState(true);
@@ -109,8 +111,11 @@ export default function TaskAgentCard() {
     <Card>
       <div className="mb-1 flex items-center gap-2">
         <span className="text-lg">🤖</span>
-        <h3 className="text-base font-bold text-slate-800">4 · סוכן המשימות 🤖 (וואטסאפ ← מאגר)</h3>
+        <h3 className="flex-1 text-base font-bold text-slate-800">4 · סוכן המשימות (וואטסאפ ← מאגר)</h3>
+        <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
       </div>
+      {collapsed ? null : (
+      <>
       <p className="mb-4 text-xs text-slate-500">
         הסוכן מזהה משימות מהודעות וואטסאפ ומוסיף אותן אוטומטית ל<b>מאגר המהיר</b> — בקבוצות (בקריאה בשמו) או מצ׳אט פרטי ממספר מורשה. שום דבר לא הופך למשימה אמיתית בלי אישור אנושי.
       </p>
@@ -203,6 +208,8 @@ export default function TaskAgentCard() {
           ) : null}
         </div>
       </div>
+      </>
+      )}
     </Card>
   );
 }

@@ -22,7 +22,7 @@ export async function FridayBanner() {
   if (admins === 0) return null;
 
   return (
-    <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl border border-sky-400/30 bg-gradient-to-l from-sky-500/15 via-violet-500/10 to-amber-500/15 px-4 py-2.5 text-sm font-semibold text-sky-200">
+    <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl border border-sky-400/30 bg-gradient-to-l from-sky-500/15 via-violet-500/10 to-amber-500/15 px-4 py-2.5 text-sm font-semibold text-sky-900">
       <span aria-hidden>🌇</span>
       שישי שמח! שבת שלום וסוף שבוע נעים לצוות אפולו
       <span aria-hidden>🕯️</span>
