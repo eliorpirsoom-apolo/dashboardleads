@@ -109,7 +109,7 @@ export default function TaskAgentCard() {
     <Card>
       <div className="mb-1 flex items-center gap-2">
         <span className="text-lg">🤖</span>
-        <h3 className="text-base font-bold text-slate-800">סוכן משימות (וואטסאפ ← מאגר)</h3>
+        <h3 className="text-base font-bold text-slate-800">4 · סוכן המשימות 🤖 (וואטסאפ ← מאגר)</h3>
       </div>
       <p className="mb-4 text-xs text-slate-500">
         הסוכן מזהה משימות מהודעות וואטסאפ ומוסיף אותן אוטומטית ל<b>מאגר המהיר</b> — בקבוצות (בקריאה בשמו) או מצ׳אט פרטי ממספר מורשה. שום דבר לא הופך למשימה אמיתית בלי אישור אנושי.

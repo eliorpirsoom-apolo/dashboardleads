@@ -134,23 +134,33 @@ export default function AdminSettingsView() {
         </div>
       </Card>
 
-      <MaterialTemplatesManager />
+      {/* ===== וואטסאפ — כל ההגדרות במסגרת אחת, מהחיבור אל השימושים ===== */}
+      <section className="rounded-2xl border-2 border-emerald-300/60 bg-emerald-50/30 p-4">
+        <div className="mb-3 flex items-start gap-2.5">
+          <Icon name="whatsapp" className="mt-0.5 h-6 w-6 text-emerald-500" />
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">וואטסאפ</h2>
+            <p className="text-xs text-slate-500">
+              כל הגדרות הוואטסאפ במקום אחד: קודם החיבור, ואז מה עושים איתו — שיחות עם לידים,
+              בוט הקבוצות וסוכן המשימות.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          <WhatsAppCard />
+          <LeadChatCard />
+          <WhatsappBroadcastCard />
+          <TaskAgentCard />
+        </div>
+      </section>
+
+      <LeadSlaCard />
+
+      <SmsCard />
 
       <SumitCard />
 
-      {/* בדיקות SMS + וואטסאפ — 2 עמודות כדי לחסוך מקום (נערמות במובייל) */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SmsCard />
-        <WhatsAppCard />
-      </div>
-
-      <TaskAgentCard />
-
-      <WhatsappBroadcastCard />
-
-      <LeadChatCard />
-
-      <LeadSlaCard />
+      <MaterialTemplatesManager />
 
       <AuditLogCard />
 
@@ -343,9 +353,10 @@ function WhatsAppCard() {
     <Card>
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-800">וואטסאפ — Green API</h3>
+          <h3 className="text-base font-bold text-slate-800">1 · חיבור המספר הראשי (Green API)</h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            הגדרה במשתני סביבה: GREENAPI_ID_INSTANCE, GREENAPI_API_TOKEN (ואופציונלי GREENAPI_API_URL).
+            המספר של הסוכנות — דרכו נשלח כל מה שאין לו מספר ייעודי. מוגדר במשתני סביבה
+            (GREENAPI_ID_INSTANCE, GREENAPI_API_TOKEN). מספר ייעודי ללקוח מגדירים בהגדרות הלקוח.
           </p>
         </div>
         <Chip color={configured ? "#34d399" : "#64748b"}>
@@ -441,9 +452,9 @@ function WhatsappBroadcastCard() {
     <Card>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-bold text-slate-800">בוט קבוצות וואטסאפ</h3>
+          <h3 className="text-base font-bold text-slate-800">3 · בוט הקבוצות 📣</h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            הודעת בוקר וסוף-יום אוטומטיות לקבוצות שהמספר חבר בהן, בימים ובשעות שתגדיר.
+            הודעת בוקר וסוף-יום אוטומטיות לקבוצות שהמספר הראשי חבר בהן, בימים ובשעות שתגדיר.
           </p>
         </div>
         <Chip color={cfg?.broadcastEnabled ? "#34d399" : "#94a3b8"}>
@@ -568,7 +579,7 @@ function LeadChatCard() {
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-bold text-slate-800">💬 שיחות וואטסאפ עם לידים</h3>
+          <h3 className="text-base font-bold text-slate-800">2 · שיחות עם לידים 💬</h3>
           <p className="mt-0.5 text-xs text-slate-500">
             צ׳אט דו-כיווני מכרטיס הליד: שליחה לליד + קליטת התשובות שלו למערכת, כולל עדכון למשווק.
             לקוח עם מספר וואטסאפ ייעודי (מוגדר בהגדרות הלקוח) — הלידים שלו ישוחחו דרך המספר שלו;
