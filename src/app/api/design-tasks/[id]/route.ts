@@ -146,6 +146,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
 
 const UpdateDesignTask = z.object({
   title: z.string().min(1).max(200).optional(),
+  clientId: z.string().min(1).optional(), // שינוי שיוך לקוח (אם נבחר לקוח שגוי)
   briefType: z.enum(["landing", "logo", "post", "banner", "print", "branding"]).optional(),
   brief: z.string().max(5000).nullable().optional(),
   specs: z.string().max(1000).nullable().optional(),
@@ -176,6 +177,13 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   }
 
   const data: Record<string, unknown> = {};
+  // שינוי שיוך לקוח: מאמתים שהלקוח קיים ומאפסים את הפרויקט (שייך ללקוח הישן).
+  if (b.clientId !== undefined && b.clientId !== cur.clientId) {
+    const newClient = await prisma.client.findUnique({ where: { id: b.clientId }, select: { id: true } });
+    if (!newClient) throw new ApiError(400, "לקוח לא נמצא");
+    data.clientId = b.clientId;
+    data.projectId = null;
+  }
   if (b.title !== undefined) data.title = b.title;
   if (b.briefType !== undefined) data.briefType = b.briefType;
   if (b.brief !== undefined) data.brief = b.brief ? sanitizeRich(b.brief) : null;

@@ -19,6 +19,7 @@ interface AdminUser {
   lastLoginAt: string | null;
   googleId: string | null;
   moduleAccess: string | null;
+  isDesigner: boolean;
 }
 
 // מודולים הניתנים להגבלה לעובד (מקביל ל-ADMIN_MODULES בשרת). "סקירה" ו"החשבון שלי" תמיד פתוחים.
@@ -136,6 +137,7 @@ export default function AdminSettingsView() {
               <Chip color={u.adminRole === "staff" ? "#94a3b8" : "#818cf8"}>
                 {u.adminRole === "staff" ? "עובד משרד" : "מנהל משרד"}
               </Chip>
+              {u.isDesigner ? <Chip color="#ec4899">מעצב/ת 🎨</Chip> : null}
               {u.googleId ? <Chip color="#38bdf8">Google</Chip> : null}
               {!u.active ? <Chip color="#f87171">מושבת</Chip> : null}
               <span className="mr-auto text-[11px] text-slate-600">
@@ -1006,6 +1008,7 @@ function EditAdminModal({
   const [name, setName] = useState(user.name);
   const [adminRole, setAdminRole] = useState(user.adminRole);
   const [active, setActive] = useState(user.active);
+  const [isDesigner, setIsDesigner] = useState(user.isDesigner);
   const [password, setPassword] = useState("");
   const [modules, setModules] = useState<Set<string>>(() => {
     try {
@@ -1036,6 +1039,7 @@ function EditAdminModal({
         name,
         adminRole,
         active,
+        isDesigner,
         // מנהל רואה הכל (null); לעובד — הרשימה שנבחרה.
         moduleAccess: adminRole === "staff" ? Array.from(modules) : null,
       };
@@ -1087,6 +1091,11 @@ function EditAdminModal({
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4" />
           חשבון פעיל <span className="text-xs text-slate-400">(ביטול הסימון ישבית את החשבון וינתק את כל החיבורים)</span>
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={isDesigner} onChange={(e) => setIsDesigner(e.target.checked)} className="h-4 w-4" />
+          מעצב/ת בסטודיו 🎨 <span className="text-xs text-slate-400">(רק מסומנים מופיעים כמעצבים בלוח הסטודיו)</span>
         </label>
 
         <Field label="איפוס סיסמה" hint="השאירו ריק כדי לא לשנות. שינוי מנתק את כל החיבורים הפעילים.">

@@ -15,7 +15,7 @@ export const GET = handle(async () => {
     where: { role: "ADMIN" },
     select: {
       id: true, email: true, name: true, active: true, adminRole: true,
-      lastLoginAt: true, googleId: true, phone: true, moduleAccess: true,
+      lastLoginAt: true, googleId: true, phone: true, moduleAccess: true, isDesigner: true,
     },
     orderBy: { createdAt: "asc" },
   });

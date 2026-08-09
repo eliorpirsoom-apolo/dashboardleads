@@ -119,6 +119,7 @@ export function ClientFormModal({
     name: string;
     type: string;
     company: string | null;
+    companyId?: string | null;
     contactName: string | null;
     contactEmail: string | null;
     contactPhone: string | null;
@@ -133,6 +134,7 @@ export function ClientFormModal({
     name: existing?.name ?? "",
     type: existing?.type ?? "general",
     company: existing?.company ?? "",
+    companyId: existing?.companyId ?? "",
     contactName: existing?.contactName ?? "",
     contactEmail: existing?.contactEmail ?? "",
     contactPhone: existing?.contactPhone ?? "",
@@ -181,9 +183,14 @@ export function ClientFormModal({
             </Select>
           </Field>
         </div>
-        <Field label="חברה (אופציונלי)">
-          <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="חברה (אופציונלי)">
+            <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
+          </Field>
+          <Field label="ח.פ / ע.מ">
+            <Input dir="ltr" value={form.companyId} onChange={(e) => setForm({ ...form, companyId: e.target.value })} placeholder="516000000" />
+          </Field>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="איש קשר">
             <Input value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />

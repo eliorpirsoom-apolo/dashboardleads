@@ -40,6 +40,7 @@ const UpdateClient = z.object({
   name: z.string().min(1).max(120).optional(),
   type: z.enum(["general", "realestate", "seo"]).optional(),
   company: z.string().max(200).nullable().optional(),
+  companyId: z.string().max(20).nullable().optional(), // ח.פ / ע.מ
   contactName: z.string().max(120).nullable().optional(),
   contactEmail: z.string().email().nullable().optional().or(z.literal("")),
   contactPhone: z.string().max(30).nullable().optional(),

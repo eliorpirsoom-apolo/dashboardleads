@@ -41,6 +41,7 @@ export default async function ClientSettingsPage({
           name: client.name,
           type: client.type,
           company: client.company,
+          companyId: client.companyId,
           contactName: client.contactName,
           contactEmail: client.contactEmail,
           contactPhone: client.contactPhone,

@@ -53,6 +53,7 @@ const CreateClient = z.object({
   name: z.string().min(1, "חסר שם לקוח").max(120),
   type: z.enum(["general", "realestate", "seo"]).default("general"),
   company: z.string().max(200).optional().nullable(),
+  companyId: z.string().max(20).optional().nullable(), // ח.פ / ע.מ
   contactName: z.string().max(120).optional().nullable(),
   contactEmail: z.string().email("אימייל לא תקין").optional().nullable().or(z.literal("")),
   contactPhone: z.string().max(30).optional().nullable(),

@@ -2,12 +2,29 @@
 
 import { useEffect, useRef } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Icon } from "@/components/Icon";
 
-// עורך טקסט עשיר (Tiptap) — טקסט מעוצב + תמונות מוטבעות (העלאה/הדבקה) + קישורים.
+// נגן וידאו מוטבע — <video controls> שנשמר ומוצג גם בתצוגת ההודעות.
+const Video = Node.create({
+  name: "video",
+  group: "block",
+  atom: true,
+  addAttributes() {
+    return { src: { default: null } };
+  },
+  parseHTML() {
+    return [{ tag: "video" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["video", { ...HTMLAttributes, controls: "true", class: "rounded-lg max-w-full", preload: "metadata" }];
+  },
+});
+
+// עורך טקסט עשיר (Tiptap) — טקסט מעוצב + תמונות/סרטונים מוטבעים (העלאה/הדבקה/גרירה) + קישורים.
 export default function RichEditor({
   value = "",
   onChange,
@@ -27,14 +44,24 @@ export default function RichEditor({
   uploadRef.current = uploadImage;
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function insertImage(ed: Editor, file: File) {
+  // העלאת מדיה והטבעה: תמונה → <img>, וידאו → <video>, קובץ אחר → קישור להורדה.
+  async function insertMedia(ed: Editor, file: File) {
     const up = uploadRef.current;
     if (!up) return;
     try {
       const url = await up(file);
-      if (url) ed.chain().focus().setImage({ src: url }).run();
-    } catch {
-      /* ignore */
+      if (!url) return;
+      if (file.type.startsWith("video/")) {
+        ed.chain().focus().insertContent({ type: "video", attrs: { src: url } }).run();
+      } else if (file.type.startsWith("image/")) {
+        ed.chain().focus().setImage({ src: url }).run();
+      } else {
+        ed.chain().focus().insertContent(
+          `<a href="${url}" target="_blank" rel="noopener">📎 ${file.name}</a> `
+        ).run();
+      }
+    } catch (e: any) {
+      alert(e?.message || "העלאת הקובץ נכשלה");
     }
   }
 
@@ -43,6 +70,7 @@ export default function RichEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: { openOnClick: false, autolink: true } }),
       Image.configure({ HTMLAttributes: { class: "rounded-lg" } }),
+      Video,
       Placeholder.configure({ placeholder }),
     ],
     content: value,
@@ -53,11 +81,11 @@ export default function RichEditor({
         const items = event.clipboardData?.items;
         if (!items || !editor) return false;
         for (const it of Array.from(items)) {
-          if (it.type.startsWith("image/")) {
+          if (it.type.startsWith("image/") || it.type.startsWith("video/")) {
             const file = it.getAsFile();
             if (file) {
               event.preventDefault();
-              insertImage(editor, file);
+              insertMedia(editor, file);
               return true;
             }
           }
@@ -66,9 +94,12 @@ export default function RichEditor({
       },
       handleDrop: (_view, event) => {
         const files = (event as DragEvent).dataTransfer?.files;
-        if (files && files.length && files[0].type.startsWith("image/") && editor) {
+        if (
+          files && files.length && editor &&
+          (files[0].type.startsWith("image/") || files[0].type.startsWith("video/"))
+        ) {
           event.preventDefault();
-          insertImage(editor, files[0]);
+          insertMedia(editor, files[0]);
           return true;
         }
         return false;
@@ -109,10 +140,10 @@ export default function RichEditor({
         <span className="mx-1 h-4 w-px bg-slate-200" />
         <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={addLink} className={btn(editor.isActive("link"))} title="קישור"><Icon name="link" className="h-4 w-4" /></button>
         {uploadImage ? (
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => fileRef.current?.click()} className={btn(false)} title="הוספת תמונה"><Icon name="upload" className="h-4 w-4" /></button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => fileRef.current?.click()} className={btn(false)} title="הוספת תמונה / סרטון"><Icon name="upload" className="h-4 w-4" /></button>
         ) : null}
       </div>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) insertImage(editor, f); e.target.value = ""; }} />
+      <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) insertMedia(editor, f); e.target.value = ""; }} />
       <EditorContent editor={editor} />
     </div>
   );

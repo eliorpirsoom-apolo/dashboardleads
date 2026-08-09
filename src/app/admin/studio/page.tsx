@@ -17,12 +17,15 @@ export default async function StudioPage() {
     }),
     prisma.user.findMany({
       where: { role: "ADMIN", active: true },
-      select: { id: true, name: true, calendarConnection: { select: { active: true } } },
+      select: { id: true, name: true, isDesigner: true, calendarConnection: { select: { active: true } } },
       orderBy: { name: "asc" },
     }),
   ]);
 
-  const designerOpts = designers.map((d) => ({
+  // רק מי שסומן כ"מעצב/ת" (הגדרות ← ניהול משתמש). אם אף אחד לא סומן עדיין —
+  // מציגים את כולם (fallback), כדי שהלוח לא יישאר בלי מעצבים.
+  const flagged = designers.filter((d) => d.isDesigner);
+  const designerOpts = (flagged.length > 0 ? flagged : designers).map((d) => ({
     id: d.id,
     name: d.name,
     calendarConnected: !!d.calendarConnection?.active,

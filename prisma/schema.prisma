@@ -40,6 +40,8 @@ model User {
   // Managers ignore this and always see every module.
   moduleAccess String?
   isAgent      Boolean   @default(false)
+  // מעצב/ת בסטודיו — רק משתמשים מסומנים מופיעים כמעצבים בלוח הסטודיו.
+  isDesigner   Boolean   @default(false)
   googleId     String?   @unique
   phone        String?
   // וואטסאפ להתראות לידים (משווקים): נפרד מהטלפון — מספר המענה לרוב וירטואלי
@@ -130,6 +132,7 @@ model Client {
   name         String   @unique
   type         String   @default("general") // "general" | "realestate" | "seo"
   company      String?
+  companyId    String? // ח.פ / ע.מ — מספר הרישום של החברה
   contactName  String?
   contactEmail String?
   contactPhone String?

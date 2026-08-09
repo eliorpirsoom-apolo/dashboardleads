@@ -171,6 +171,9 @@ export default function StudioTaskDrawer({
   const [briefDraft, setBriefDraft] = useState<string | null>(null);
   const [briefSaving, setBriefSaving] = useState(false);
   const [editingBrief, setEditingBrief] = useState(false);
+  // החלפת לקוח (שיוך שגוי) — נטען את רשימת הלקוחות רק בלחיצה.
+  const [changingClient, setChangingClient] = useState(false);
+  const [clientOpts, setClientOpts] = useState<{ id: string; name: string }[]>([]);
   const [chatBusy, setChatBusy] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [assetCommentText, setAssetCommentText] = useState("");
@@ -338,8 +341,28 @@ export default function StudioTaskDrawer({
   }
 
   // העלאת תמונה מוטבעת (בריף/עדכונים) → R2 → קישור להגשה מאובטחת.
-  async function uploadStudioImage(file: File): Promise<string | null> {
+  // העלאת מדיה לעורך (תמונה/וידאו): קבצים קטנים דרך ה-API, גדולים (וידאו)
+  // ישירות ל-R2 עם presign — עוקף את מגבלת ה-4MB של Vercel. עד 25MB.
+  async function uploadStudioMedia(file: File): Promise<string | null> {
     if (!clientId) return null;
+    if (file.size > 3_500_000) {
+      const pres = await api<{ target: { url: string; method: string; headers: Record<string, string> }; key: string }>(
+        "/api/uploads/presign",
+        {
+          method: "POST",
+          json: {
+            clientId,
+            category: "design",
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+          },
+        }
+      );
+      const put = await fetch(pres.target.url, { method: "PUT", headers: pres.target.headers, body: file });
+      if (!put.ok) throw new Error("העלאת הקובץ נכשלה");
+      return `/api/studio/media?key=${encodeURIComponent(pres.key)}`;
+    }
     const fd = new FormData();
     fd.append("file", file);
     fd.append("category", "design");
@@ -350,7 +373,8 @@ export default function StudioTaskDrawer({
     return `/api/studio/media?key=${encodeURIComponent(uj.key)}`;
   }
 
-  const isHtmlEmpty = (html: string) => !/<img\b/i.test(html) && html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "") === "";
+  const isHtmlEmpty = (html: string) =>
+    !/<img\b|<video\b/i.test(html) && html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "") === "";
 
   async function sendInternal() {
     if (isHtmlEmpty(internalHtml)) return;
@@ -546,10 +570,54 @@ export default function StudioTaskDrawer({
       <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-lg font-bold text-slate-800">{t.title}</h2>
-          <p className="mt-0.5 truncate text-xs text-slate-500">
-            {t.client?.name} · {briefTypeLabel(t.briefType)} · {DESIGN_STATUS_LABELS[t.status]}
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1 truncate text-xs text-slate-500">
+            {changingClient ? (
+              <select
+                autoFocus
+                className="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-700"
+                value={t.client?.id ?? ""}
+                onChange={async (e) => {
+                  const newId = e.target.value;
+                  setChangingClient(false);
+                  if (!newId || newId === t.client?.id) return;
+                  if (!confirm("להעביר את הבריף ללקוח אחר? שיוך הפרויקט יאופס.")) return;
+                  try {
+                    await api(`/api/design-tasks/${taskId}`, { method: "PATCH", json: { clientId: newId } });
+                    await load();
+                    onChanged();
+                  } catch (err: any) {
+                    setError(err.message);
+                  }
+                }}
+                onBlur={() => setChangingClient(false)}
+              >
+                {clientOpts.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            ) : (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (clientOpts.length === 0) {
+                    try {
+                      const d = await api<{ clients: { id: string; name: string }[] }>("/api/clients");
+                      setClientOpts(d.clients.map((c) => ({ id: c.id, name: c.name })));
+                    } catch {
+                      return;
+                    }
+                  }
+                  setChangingClient(true);
+                }}
+                className="rounded px-1 text-slate-600 underline decoration-dotted underline-offset-2 hover:text-[#3a5bd9]"
+                title="החלפת לקוח (אם נבחר לקוח שגוי)"
+              >
+                {t.client?.name}
+              </button>
+            )}
+            <span>· {briefTypeLabel(t.briefType)} · {DESIGN_STATUS_LABELS[t.status]}
             {t.designer ? ` · ${t.designer.name}` : ""}
-            {t.round > 1 ? ` · סבב ${t.round}` : ""}
+            {t.round > 1 ? ` · סבב ${t.round}` : ""}</span>
           </p>
         </div>
         <button
@@ -593,7 +661,7 @@ export default function StudioTaskDrawer({
                 key={`brief-${t.id}`}
                 value={briefInitial}
                 onChange={setBriefDraft}
-                uploadImage={uploadStudioImage}
+                uploadImage={uploadStudioMedia}
                 placeholder="כתבו בריף — טקסט, תמונות, צילומי מסך, קישורים…"
                 minHeight={140}
               />
@@ -913,7 +981,7 @@ export default function StudioTaskDrawer({
                                 key={`edit-${m.id}`}
                                 value={m.body}
                                 onChange={setEditHtml}
-                                uploadImage={uploadStudioImage}
+                                uploadImage={uploadStudioMedia}
                                 placeholder="עריכת עדכון…"
                                 minHeight={80}
                               />
@@ -971,7 +1039,7 @@ export default function StudioTaskDrawer({
                   value=""
                   onChange={setInternalHtml}
                   resetSignal={internalSignal}
-                  uploadImage={uploadStudioImage}
+                  uploadImage={uploadStudioMedia}
                   placeholder="כתבו עדכון — טקסט, תמונות, צילומי מסך, קישורים…"
                   minHeight={80}
                 />

@@ -23,6 +23,7 @@ const filter = new FilterXSS({
     span: [],
     a: ["href", "target", "rel"],
     img: ["src", "alt"],
+    video: ["src", "controls", "preload", "class"],
   },
   stripIgnoreTag: true,
   stripIgnoreTagBody: ["script", "style"],
@@ -31,7 +32,7 @@ const filter = new FilterXSS({
       if (/^(https?:|mailto:)/i.test(value)) return `href="${value}"`;
       return "";
     }
-    if (tag === "img" && name === "src") {
+    if ((tag === "img" || tag === "video") && name === "src") {
       // מאפשר נתיב יחסי (/api/studio/media...) או https בלבד
       if (/^\//.test(value) || /^https:/i.test(value)) return `src="${value}"`;
       return "";
@@ -51,7 +52,7 @@ export function sanitizeRich(html: string): string {
 // בדיקה אם התוכן ריק (אחרי הסרת תגיות ורווחים) — כדי לא לשמור עדכון/בריף ריק.
 export function isRichEmpty(html: string): boolean {
   if (!html) return true;
-  const hasImg = /<img\b/i.test(html);
+  const hasMedia = /<img\b|<video\b/i.test(html);
   const text = html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "");
-  return text.length === 0 && !hasImg;
+  return text.length === 0 && !hasMedia;
 }

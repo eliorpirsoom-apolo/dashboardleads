@@ -17,6 +17,7 @@ export default function ClientEditCard({
     name: string;
     type: string;
     company: string | null;
+    companyId?: string | null;
     contactName: string | null;
     contactEmail: string | null;
     contactPhone: string | null;
@@ -84,6 +85,7 @@ export default function ClientEditCard({
             <h3 className="text-base font-bold text-slate-800">פרטי הלקוח</h3>
             <p className="mt-0.5 text-xs text-slate-500">
               {client.company ?? client.name}
+              {client.companyId ? ` · ח.פ ${client.companyId}` : ""}
               {client.contactEmail ? ` · ${client.contactEmail}` : ""}
             </p>
           </div>
