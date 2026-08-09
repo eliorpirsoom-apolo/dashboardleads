@@ -6,7 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import RichEditor from "@/components/RichEditor";
-import { DESIGN_STATUS_LABELS, briefTypeLabel } from "@/lib/studio";
+import { DESIGN_STATUS_LABELS, DESIGN_STATUS_COLORS, briefTypeLabel } from "@/lib/studio";
 
 interface Asset {
   id: string;
@@ -615,7 +615,14 @@ export default function StudioTaskDrawer({
                 {t.client?.name}
               </button>
             )}
-            <span>· {briefTypeLabel(t.briefType)} · {DESIGN_STATUS_LABELS[t.status]}
+            <span>· {briefTypeLabel(t.briefType)} · </span>
+            <span
+              className="rounded-full px-2 py-px text-[11px] font-medium"
+              style={{ color: DESIGN_STATUS_COLORS[t.status], backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}1a` }}
+            >
+              {DESIGN_STATUS_LABELS[t.status]}
+            </span>
+            <span>
             {t.designer ? ` · ${t.designer.name}` : ""}
             {t.round > 1 ? ` · סבב ${t.round}` : ""}</span>
           </p>

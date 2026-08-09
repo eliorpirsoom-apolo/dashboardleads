@@ -232,8 +232,17 @@ export default function StudioBoard({
       </td>
       <td className="px-3 py-2 text-xs text-slate-400">{t.dueAt ? formatDateTime(t.dueAt) : "—"}</td>
       <td className="px-3 py-2 w-44">
-        <select value={t.status} onChange={(e) => patch(t.id, { status: e.target.value })} className={selCls} style={{ borderColor: DESIGN_STATUS_COLORS[t.status] }}>
-          {DESIGN_STATUSES.map((s) => (<option key={s} value={s}>{DESIGN_STATUS_LABELS[s]}</option>))}
+        <select
+          value={t.status}
+          onChange={(e) => patch(t.id, { status: e.target.value })}
+          className={`${selCls} font-medium`}
+          style={{
+            borderColor: DESIGN_STATUS_COLORS[t.status],
+            color: DESIGN_STATUS_COLORS[t.status],
+            backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}14`,
+          }}
+        >
+          {DESIGN_STATUSES.map((s) => (<option key={s} value={s} style={{ color: "#0f172a" }}>{DESIGN_STATUS_LABELS[s]}</option>))}
         </select>
       </td>
       <td className="px-3 py-2 text-left">
@@ -458,7 +467,13 @@ function CapacityView({
                 >
                   <div className="truncate font-medium text-slate-700">{t.title}</div>
                   <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
-                    <span>{fmt(t.scheduledAt)}</span>·<span>{DESIGN_STATUS_LABELS[t.status]}</span>
+                    <span>{fmt(t.scheduledAt)}</span>·
+                    <span
+                      className="rounded-full px-1.5 py-px font-medium"
+                      style={{ color: DESIGN_STATUS_COLORS[t.status], backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}1a` }}
+                    >
+                      {DESIGN_STATUS_LABELS[t.status]}
+                    </span>
                     {t.overdue ? <span className="text-rose-400">· באיחור</span> : null}
                   </div>
                 </button>
