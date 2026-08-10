@@ -31,6 +31,7 @@
     "@tremor/react": "^3.18.0",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
+    "jszip": "^3.10.1",
     "next": "14.2.5",
     "nodemailer": "^6.9.14",
     "react": "^18.3.1",

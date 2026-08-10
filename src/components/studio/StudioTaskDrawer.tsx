@@ -403,19 +403,35 @@ export default function StudioTaskDrawer({
     }
   }
 
-  // הורדה מרובה — כל קובץ מסומן יורד כקובץ (בהפרש קטן שהדפדפן לא יחסום).
-  function bulkDownloadAssets() {
-    let delay = 0;
-    for (const id of selAssets) {
-      setTimeout(() => {
-        const a = document.createElement("a");
-        a.href = `/api/design-assets/${id}?download=1`;
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }, delay);
-      delay += 500;
+  // הורדה מרובה — השרת אורז את כל המסומנים ל-ZIP אחד ומחזיר קובץ להורדה.
+  async function bulkDownloadAssets() {
+    if (selAssets.size === 0) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/design-assets/zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selAssets] }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "יצירת קובץ ה-ZIP נכשלה");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeTitle = (t?.title || "designs").replace(/[\\/:*?"<>|]+/g, "-").slice(0, 60);
+      a.download = `תוצרים - ${safeTitle}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
