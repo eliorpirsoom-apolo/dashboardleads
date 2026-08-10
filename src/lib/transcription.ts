@@ -286,14 +286,22 @@ export async function downloadPendingRecordings(limit = 3): Promise<RecordingRun
     },
     orderBy: { createdAt: "asc" },
     take: limit,
-    select: { id: true, callRecordingUrl: true },
+    select: { id: true, callRecordingUrl: true, callTranscriptStatus: true },
   });
   for (const lead of pending) {
     result.processed++;
     try {
       const key = await saveRecordingToR2(lead);
       if (key) {
-        await prisma.lead.update({ where: { id: lead.id }, data: { callRecordingKey: key } });
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            callRecordingKey: key,
+            // ההקלטה הופיעה באיחור אצל הספק? מחזירים את הליד לתור התמלול —
+            // "אין הקלטה" היה זמני (callindex משהה זמינות אחרי השיחה לפעמים).
+            ...(lead.callTranscriptStatus === "no_audio" ? { callTranscriptStatus: null } : {}),
+          },
+        });
         result.saved++;
       } else {
         result.failed++;

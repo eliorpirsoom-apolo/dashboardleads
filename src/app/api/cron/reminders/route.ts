@@ -157,19 +157,9 @@ export async function GET(req: Request) {
     console.error("[birthday]", err);
   }
 
-  // 📄 סנכרון SUMIT אוטומטי — פעם בשעה (חד-כיווני: מסמכים מ-SUMIT → דשבורד).
-  // רץ אחרון כדי שלא יחסום את שאר המשימות. ?sumit=force לבדיקה מיידית.
-  let sumitSync: unknown = null;
-  try {
-    sumitSync = await maybeAutoSyncSumit(
-      new URL(req.url).searchParams.get("sumit") === "force"
-    );
-  } catch (err) {
-    console.error("[sumit-sync]", err);
-  }
-
   // 🎙️ הקלטות: קודם שומרים כל הקלטה חדשה ל-R2 (ללא תלות במפתח תמלול),
-  // ואז — אם מוגדר OpenAI — מתמללים ומסכמים.
+  // ואז — אם מוגדר OpenAI — מתמללים ומסכמים. רץ לפני SUMIT כדי שסנכרון
+  // ארוך לא יאכל את תקציב ה-60 שניות של ההקלטות.
   let recordings: unknown = null;
   try {
     recordings = await downloadPendingRecordings();
@@ -181,6 +171,17 @@ export async function GET(req: Request) {
     transcriptions = await processPendingCallTranscriptions();
   } catch (err) {
     console.error("[transcription]", err);
+  }
+
+  // 📄 סנכרון SUMIT אוטומטי — כל רבע שעה (חד-כיווני: מסמכים מ-SUMIT → דשבורד).
+  // רץ אחרי ההקלטות כדי שלא יחסום אותן. ?sumit=force לבדיקה מיידית.
+  let sumitSync: unknown = null;
+  try {
+    sumitSync = await maybeAutoSyncSumit(
+      new URL(req.url).searchParams.get("sumit") === "force"
+    );
+  } catch (err) {
+    console.error("[sumit-sync]", err);
   }
 
   // 🎨 סטודיו: תזכורות אישור ללקוח (כל יומיים×3) + סימון משימות באיחור.
