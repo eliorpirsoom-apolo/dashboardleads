@@ -2,14 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
-import { debugTranscribeNext } from "@/lib/transcription";
+import { debugTranscribeNext, recoverLeadRecording } from "@/lib/transcription";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST /api/admin-ops/diagnostics — מריץ תמלול על השיחה הבאה בתור ומחזיר תוצאה/שגיאה.
-export const POST = handle(async () => {
+// POST /api/admin-ops/diagnostics — אבחון תמלול:
+// בלי גוף — מתמלל את השיחה הבאה בתור; עם {leadId} — מנסה לשחזר הקלטה לליד ספציפי.
+export const POST = handle(async (req) => {
   await requireManager();
+  const body = await req.json().catch(() => ({}));
+  if (body?.leadId) {
+    const result = await recoverLeadRecording(String(body.leadId));
+    return NextResponse.json(result);
+  }
   const result = await debugTranscribeNext();
   return NextResponse.json(result);
 });

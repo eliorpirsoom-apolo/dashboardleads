@@ -39,7 +39,7 @@ function sniffAudio(b: Buffer): { ext: string; mime: string } | null {
 }
 
 /** מוריד את קובץ ההקלטה מהספק. מחזיר bytes + mime + סיומת. */
-async function downloadAudio(
+export async function downloadAudio(
   url: string
 ): Promise<{ bytes: Buffer; mime: string; ext: string }> {
   // חלק מהספקים (callindex) חוסמים בקשות בלי User-Agent ומחזירים דף במקום שמע.
@@ -310,6 +310,38 @@ export interface TranscriptionRunResult {
   processed: number;
   done: number;
   failed: number;
+}
+
+/** אבחון+שחזור לליד ספציפי: מנסה להוריד את ההקלטה עכשיו ומחזיר בדיוק מה
+ *  הספק החזיר. אם ההורדה מצליחה — שומר ל-R2 ומחזיר את הליד לתור התמלול. */
+export async function recoverLeadRecording(leadId: string): Promise<{
+  ok: boolean;
+  detail: string;
+  size?: number;
+  headText?: string;
+}> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { id: true, callRecordingUrl: true },
+  });
+  if (!lead?.callRecordingUrl) return { ok: false, detail: "אין קישור הקלטה על הליד" };
+  try {
+    const { bytes, mime, ext } = await downloadAudio(lead.callRecordingUrl);
+    const key = `agency/recordings/${lead.id}.${ext}`;
+    await putObject(key, bytes, mime);
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { callRecordingKey: key, callTranscriptStatus: null }, // חזרה לתור התמלול
+    });
+    return {
+      ok: true,
+      detail: `ההקלטה ירדה ונשמרה (${mime}); הליד חזר לתור התמלול`,
+      size: bytes.length,
+      headText: bytes.subarray(0, 24).toString("utf8"),
+    };
+  } catch (e: any) {
+    return { ok: false, detail: String(e?.message || e).slice(0, 300) };
+  }
 }
 
 /** אבחון: מתמלל את השיחה הבאה בתור ומחזיר את התוצאה + טקסט השגיאה (אם יש)
