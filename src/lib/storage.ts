@@ -177,7 +177,8 @@ export async function getObject(key: string): Promise<Buffer> {
 export async function presignDownload(
   key: string,
   fileName: string,
-  expiresIn = 600
+  expiresIn = 600,
+  disposition: "inline" | "attachment" = "inline"
 ): Promise<string | null> {
   if (!r2Configured()) return null;
   const { GetObjectCommand } = await import("@aws-sdk/client-s3");
@@ -187,7 +188,7 @@ export async function presignDownload(
     new GetObjectCommand({
       Bucket: process.env.R2_BUCKET!,
       Key: key,
-      ResponseContentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      ResponseContentDisposition: `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     }),
     { expiresIn }
   );

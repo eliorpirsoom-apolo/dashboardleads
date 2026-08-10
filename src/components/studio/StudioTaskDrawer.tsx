@@ -81,6 +81,8 @@ function MediaGrid({
   onComment,
   onWhatsapp,
   activeId,
+  selected,
+  onToggle,
 }: {
   assets: Asset[];
   onDelete?: (id: string) => void;
@@ -88,6 +90,8 @@ function MediaGrid({
   onComment?: (id: string) => void;
   onWhatsapp?: (id: string) => void;
   activeId?: string | null;
+  selected?: Set<string>;
+  onToggle?: (id: string) => void;
 }) {
   if (assets.length === 0) return <p className="text-xs text-slate-600">אין קבצים.</p>;
   return (
@@ -95,7 +99,16 @@ function MediaGrid({
       {assets.map((a) => {
         const n = commentCount?.(a.id) ?? 0;
         return (
-          <div key={a.id} className={`group relative overflow-hidden rounded-xl border bg-slate-50 ${activeId === a.id ? "border-cyan-500/60" : "border-slate-200"}`}>
+          <div key={a.id} className={`group relative overflow-hidden rounded-xl border bg-slate-50 ${selected?.has(a.id) ? "border-[#3a5bd9] ring-2 ring-[#3a5bd9]/30" : activeId === a.id ? "border-cyan-500/60" : "border-slate-200"}`}>
+            {onToggle ? (
+              <input
+                type="checkbox"
+                checked={selected?.has(a.id) ?? false}
+                onChange={() => onToggle(a.id)}
+                title="סימון לפעולה מרובה"
+                className="absolute right-1 top-1 z-10 h-4 w-4 cursor-pointer rounded border-slate-300 bg-white/90 shadow"
+              />
+            ) : null}
             <a href={`/api/design-assets/${a.id}`} target="_blank" rel="noopener noreferrer" className="block">
               {isImage(a) ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -174,6 +187,8 @@ export default function StudioTaskDrawer({
   // החלפת לקוח (שיוך שגוי) — נטען את רשימת הלקוחות רק בלחיצה.
   const [changingClient, setChangingClient] = useState(false);
   const [clientOpts, setClientOpts] = useState<{ id: string; name: string }[]>([]);
+  // סימון תוצרים לפעולה מרובה (מחיקה / הורדה).
+  const [selAssets, setSelAssets] = useState<Set<string>>(new Set());
   const [chatBusy, setChatBusy] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [assetCommentText, setAssetCommentText] = useState("");
@@ -355,7 +370,53 @@ export default function StudioTaskDrawer({
 
   async function delAsset(id: string) {
     await api(`/api/design-assets/${id}`, { method: "DELETE" });
+    setSelAssets((s) => {
+      const n = new Set(s);
+      n.delete(id);
+      return n;
+    });
     load();
+  }
+
+  function toggleAssetSel(id: string) {
+    setSelAssets((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
+  // מחיקה מרובה של תוצרים מסומנים — אישור אחד לכולם.
+  async function bulkDeleteAssets() {
+    if (selAssets.size === 0) return;
+    if (!confirm(`למחוק ${selAssets.size} תוצרים מסומנים? הפעולה אינה הפיכה.`)) return;
+    setBusy(true);
+    try {
+      for (const id of selAssets) {
+        await api(`/api/design-assets/${id}`, { method: "DELETE" }).catch(() => {});
+      }
+      setSelAssets(new Set());
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // הורדה מרובה — כל קובץ מסומן יורד כקובץ (בהפרש קטן שהדפדפן לא יחסום).
+  function bulkDownloadAssets() {
+    let delay = 0;
+    for (const id of selAssets) {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = `/api/design-assets/${id}?download=1`;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }, delay);
+      delay += 500;
+    }
   }
 
   async function sendChat() {
@@ -732,13 +793,29 @@ export default function StudioTaskDrawer({
 
           {/* Deliverables */}
           <section className="mb-5">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-bold text-slate-600">תוצרים ({deliverables.length})</p>
-              <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
-                <Icon name="upload" className="h-4 w-4" />
-                העלאת תוצר
-              </Button>
+              <div className="flex items-center gap-1.5">
+                {selAssets.size > 0 ? (
+                  <>
+                    <span className="text-xs text-slate-500">{selAssets.size} מסומנים</span>
+                    <Button size="sm" variant="ghost" onClick={bulkDownloadAssets}>
+                      <Icon name="download" className="h-4 w-4" />
+                      הורדה
+                    </Button>
+                    <Button size="sm" variant="danger" disabled={busy} onClick={bulkDeleteAssets}>
+                      <Icon name="trash" className="h-4 w-4" />
+                      מחיקה
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setSelAssets(new Set())}>ביטול</Button>
+                  </>
+                ) : null}
+                <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
+                  <Icon name="upload" className="h-4 w-4" />
+                  העלאת תוצר
+                </Button>
+              </div>
             </div>
             <MediaGrid
               assets={deliverables}
@@ -747,6 +824,8 @@ export default function StudioTaskDrawer({
               onComment={(id) => setOpenAsset(openAsset === id ? null : id)}
               onWhatsapp={clientId ? (id) => sendWaMedia({ assetId: id }) : undefined}
               activeId={openAsset}
+              selected={selAssets}
+              onToggle={toggleAssetSel}
             />
             {openAsset ? (
               <div className="mt-2 rounded-xl border border-cyan-200 bg-slate-50 p-3">

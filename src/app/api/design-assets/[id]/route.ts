@@ -6,9 +6,11 @@ import { presignDownload, readLocalObject } from "@/lib/storage";
 export const dynamic = "force-dynamic";
 
 // GET /api/design-assets/[id] — הגשת תוצר עיצוב (משרד, או הלקוח של המשימה).
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+// ?download=1 — הורדה כקובץ (attachment) במקום תצוגה בדפדפן.
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
+    const asDownload = new URL(req.url).searchParams.get("download") === "1";
     const asset = await prisma.designAsset.findUnique({
       where: { id: params.id },
       include: { designTask: { select: { clientId: true } } },
@@ -17,13 +19,21 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (user.role !== "ADMIN" && user.clientId !== asset.designTask.clientId) {
       throw new ApiError(403, "אין הרשאה");
     }
-    const signed = await presignDownload(asset.fileKey, asset.fileName || "asset");
+    const signed = await presignDownload(
+      asset.fileKey,
+      asset.fileName || "asset",
+      600,
+      asDownload ? "attachment" : "inline"
+    );
     if (signed) return NextResponse.redirect(signed);
     const buf = await readLocalObject(asset.fileKey);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": asset.mimeType || "application/octet-stream",
         "Cache-Control": "private, max-age=120",
+        ...(asDownload
+          ? { "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(asset.fileName || "asset")}` }
+          : {}),
       },
     });
   } catch (err) {
