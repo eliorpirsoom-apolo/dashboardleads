@@ -73,6 +73,11 @@ function isImage(a: Asset): boolean {
   return /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(a.fileName || "");
 }
 
+function isVideo(a: Asset): boolean {
+  if (a.mimeType?.startsWith("video/")) return true;
+  return /\.(mp4|mov|webm|m4v|avi|mkv)$/i.test(a.fileName || "");
+}
+
 // גלריית מדיה — תמונות כתמונות ממוזערות, שאר הקבצים ככרטיסים.
 function MediaGrid({
   assets,
@@ -116,6 +121,13 @@ function MediaGrid({
                   src={`/api/design-assets/${a.id}`}
                   alt={a.fileName || "asset"}
                   className="h-20 w-full bg-slate-100 object-contain transition group-hover:opacity-90"
+                />
+              ) : isVideo(a) ? (
+                <video
+                  src={`/api/design-assets/${a.id}`}
+                  preload="metadata"
+                  muted
+                  className="h-20 w-full bg-slate-900 object-contain"
                 />
               ) : (
                 <div className="flex h-20 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-700">
@@ -299,7 +311,7 @@ export default function StudioTaskDrawer({
     chatEndRef.current?.scrollIntoView({ block: "end" });
   }, [tab, t?.messages.length, waMsgs.length]);
 
-  // העלאת קובץ בודד (בלי רענון): קטן דרך ה-API, גדול (עד 25MB) ישירות ל-R2.
+  // העלאת קובץ בודד (בלי רענון): קטן דרך ה-API, גדול (עד 100MB) ישירות ל-R2.
   async function uploadOne(file: File, kind: "deliverable" | "reference") {
     if (!t?.client) return;
     let key: string;
@@ -452,7 +464,7 @@ export default function StudioTaskDrawer({
 
   // העלאת תמונה מוטבעת (בריף/עדכונים) → R2 → קישור להגשה מאובטחת.
   // העלאת מדיה לעורך (תמונה/וידאו): קבצים קטנים דרך ה-API, גדולים (וידאו)
-  // ישירות ל-R2 עם presign — עוקף את מגבלת ה-4MB של Vercel. עד 25MB.
+  // ישירות ל-R2 עם presign — עוקף את מגבלת ה-4MB של Vercel. עד 100MB.
   async function uploadStudioMedia(file: File): Promise<string | null> {
     if (!clientId) return null;
     if (file.size > 3_500_000) {

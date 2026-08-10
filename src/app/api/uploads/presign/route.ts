@@ -5,7 +5,7 @@ import { makeFileKey, presignUpload } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
-const MAX_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_SIZE = 100 * 1024 * 1024; // 100MB — ההעלאה ישירות ל-R2, לא דרך השרת
 
 const Presign = z.object({
   clientId: z.string().optional(),
@@ -21,7 +21,7 @@ export const POST = handle(async (req) => {
   const body = Presign.parse(await readJson(req));
 
   if (body.size > MAX_SIZE) {
-    throw new ApiError(413, "קובץ גדול מדי (מקסימום 25MB)");
+    throw new ApiError(413, "קובץ גדול מדי (מקסימום 100MB)");
   }
 
   // הצעות מחיר: קבצים של המשרד עצמו (בלי לקוח) — namespace נפרד.
