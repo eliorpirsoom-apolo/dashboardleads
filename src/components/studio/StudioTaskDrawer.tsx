@@ -91,7 +91,7 @@ function MediaGrid({
 }) {
   if (assets.length === 0) return <p className="text-xs text-slate-600">אין קבצים.</p>;
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-5">
       {assets.map((a) => {
         const n = commentCount?.(a.id) ?? 0;
         return (
@@ -102,15 +102,15 @@ function MediaGrid({
                 <img
                   src={`/api/design-assets/${a.id}`}
                   alt={a.fileName || "asset"}
-                  className="h-28 w-full bg-slate-100 object-cover transition group-hover:opacity-90"
+                  className="h-20 w-full bg-slate-100 object-contain transition group-hover:opacity-90"
                 />
               ) : (
-                <div className="flex h-28 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-700">
-                  <Icon name="doc" className="h-8 w-8" />
+                <div className="flex h-20 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-700">
+                  <Icon name="doc" className="h-6 w-6" />
                   <span className="px-2 text-center text-[10px]">קובץ</span>
                 </div>
               )}
-              <div className="truncate px-2 py-1.5 text-[11px] text-slate-600">{a.fileName}</div>
+              <div className="truncate px-2 py-1 text-[10px] text-slate-600">{a.fileName}</div>
             </a>
             {onComment ? (
               <button
@@ -284,27 +284,60 @@ export default function StudioTaskDrawer({
     chatEndRef.current?.scrollIntoView({ block: "end" });
   }, [tab, t?.messages.length, waMsgs.length]);
 
-  async function upload(file: File, kind: "deliverable" | "reference" = "deliverable") {
+  // העלאת קובץ בודד (בלי רענון): קטן דרך ה-API, גדול (עד 25MB) ישירות ל-R2.
+  async function uploadOne(file: File, kind: "deliverable" | "reference") {
     if (!t?.client) return;
-    setBusy(true);
-    setError("");
-    try {
+    let key: string;
+    let fileName: string = file.name;
+    let mimeType: string | null = file.type || null;
+    if (file.size > 3_500_000) {
+      const pres = await api<{ target: { url: string; headers: Record<string, string> }; key: string }>(
+        "/api/uploads/presign",
+        {
+          method: "POST",
+          json: {
+            clientId: t.client.id,
+            category: "design",
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+          },
+        }
+      );
+      const put = await fetch(pres.target.url, { method: "PUT", headers: pres.target.headers, body: file });
+      if (!put.ok) throw new Error(`העלאת "${file.name}" נכשלה`);
+      key = pres.key;
+    } else {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("category", "design");
       fd.append("clientId", t.client.id);
       const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
       const uj = await up.json();
-      if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
-      await api(`/api/design-tasks/${taskId}/assets`, {
-        method: "POST",
-        json: { fileKey: uj.key, fileName: uj.fileName, mimeType: uj.mimeType, kind },
-      });
-      await load();
+      if (!up.ok) throw new Error(uj.error || `העלאת "${file.name}" נכשלה`);
+      key = uj.key;
+      fileName = uj.fileName;
+      mimeType = uj.mimeType;
+    }
+    await api(`/api/design-tasks/${taskId}/assets`, {
+      method: "POST",
+      json: { fileKey: key, fileName, mimeType, kind },
+    });
+  }
+
+  // העלאה מרובה — בוחרים כמה קבצים ביחד; מועלים אחד-אחד ומרעננים בסוף.
+  async function upload(files: FileList | File[] | null, kind: "deliverable" | "reference" = "deliverable") {
+    const list = files ? Array.from(files) : [];
+    if (list.length === 0) return;
+    setBusy(true);
+    setError("");
+    try {
+      for (const f of list) await uploadOne(f, kind);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setBusy(false);
+      await load();
     }
   }
 
@@ -688,7 +721,7 @@ export default function StudioTaskDrawer({
           <section className="mb-5">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-bold text-slate-600">רפרנסים / דוגמאות למעצב/ת ({references.length})</p>
-              <input ref={refFileRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], "reference")} />
+              <input ref={refFileRef} type="file" multiple className="hidden" onChange={(e) => { upload(e.target.files, "reference"); e.target.value = ""; }} />
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => refFileRef.current?.click()}>
                 <Icon name="upload" className="h-4 w-4" />
                 הוספת רפרנס
@@ -701,7 +734,7 @@ export default function StudioTaskDrawer({
           <section className="mb-5">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-bold text-slate-600">תוצרים ({deliverables.length})</p>
-              <input ref={fileRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+              <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
                 <Icon name="upload" className="h-4 w-4" />
                 העלאת תוצר
