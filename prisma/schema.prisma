@@ -492,6 +492,9 @@ model AiAgentConfig {
   // שיחות וואטסאפ עם לידים (צ'אט מכרטיס הליד) — מתג ראשי ברמת המשרד.
   leadChatEnabled Boolean @default(false)
 
+  // ☕ תקציר בוקר יומי במייל לצוות (08:00) — כובה לבקשת המשרד 2026-08-07.
+  morningDigestEnabled Boolean @default(false)
+
   // Speed-to-Lead (SLA לידים): תזכורת למשווק + הסלמה למנהלים על ליד שלא טופל.
   slaEnabled         Boolean @default(false)
   slaMarketerMinutes Int     @default(15) // דקות עד תזכורת למשווק

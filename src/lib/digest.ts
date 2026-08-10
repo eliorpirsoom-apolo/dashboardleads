@@ -3,6 +3,7 @@ import { sendMessage } from "./messaging";
 import { ilDayStart, ilDayEnd, ilDateKey } from "./time";
 import { formatTime } from "./format";
 import { wonDeals } from "./wins";
+import { getTaskAgentConfig } from "./taskAgent";
 
 // ---------------------------------------------------------------------------
 // ☕ תקציר בוקר — מייל יומי לצוות המשרד ב-08:00 (שעון ישראל).
@@ -12,6 +13,10 @@ import { wonDeals } from "./wins";
 // ---------------------------------------------------------------------------
 
 export async function maybeSendMorningDigest(force = false): Promise<boolean> {
+  // מתג בהגדרות המערכת (כבוי כברירת מחדל) — force עוקף לבדיקה ידנית.
+  const cfg = await getTaskAgentConfig();
+  if (!cfg.morningDigestEnabled && !force) return false;
+
   const now = new Date();
   const hourIL = Number(
     new Intl.DateTimeFormat("en-GB", {

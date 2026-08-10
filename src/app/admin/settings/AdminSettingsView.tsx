@@ -184,6 +184,8 @@ export default function AdminSettingsView() {
 
       <LeadSlaCard />
 
+      <MorningDigestCard />
+
       <SumitCard />
 
       <MaterialTemplatesManager />
@@ -646,6 +648,52 @@ function LeadChatCard() {
             צ׳אט דו-כיווני מכרטיס הליד: שליחה לליד + קליטת התשובות שלו למערכת, כולל עדכון למשווק.
             לקוח עם מספר וואטסאפ ייעודי (מוגדר בהגדרות הלקוח) — הלידים שלו ישוחחו דרך המספר שלו;
             אחרת דרך מספר הסוכנות.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Chip color={enabled ? "#34d399" : "#94a3b8"}>{enabled === null ? "…" : enabled ? "פעיל" : "כבוי"}</Chip>
+          <Button size="sm" variant={enabled ? "ghost" : undefined} disabled={busy || enabled === null} onClick={() => toggle(!enabled)}>
+            {busy ? "…" : enabled ? "כיבוי" : "הפעלה"}
+          </Button>
+        </div>
+      </div>
+      {err ? <p className="mt-2 text-sm text-red-600">{err}</p> : null}
+    </Card>
+  );
+}
+
+// ☕ תקציר בוקר יומי במייל לצוות המשרד (08:00) — הפעלה/כיבוי.
+function MorningDigestCard() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    api<{ enabled: boolean }>("/api/admin-ops/digest")
+      .then((d) => setEnabled(d.enabled))
+      .catch((e) => setErr(e.message));
+  }, []);
+
+  async function toggle(next: boolean) {
+    setBusy(true);
+    setErr("");
+    try {
+      await api("/api/admin-ops/digest", { method: "PATCH", json: { enabled: next } });
+      setEnabled(next);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-bold text-slate-800">☕ תקציר בוקר יומי במייל</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            מייל לצוות המשרד כל בוקר ב-08:00 — הלידים של אתמול, עסקאות שנסגרו והפגישות של היום.
           </p>
         </div>
         <div className="flex items-center gap-2">
