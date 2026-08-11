@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { Button } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -14,6 +14,7 @@ const CATEGORIES: { value: string; label: string }[] = [
 ];
 
 // כפתור "משוב" צף בכל עמודי המשרד — כל עובד יכול לשלוח הערה/הדגש לשיפור.
+// למנהל: בועה אדומה עם מספר המשובים הפתוחים (כמו "לא נקראו" בוואטסאפ).
 export default function FeedbackWidget() {
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("improvement");
@@ -21,6 +22,19 @@ export default function FeedbackWidget() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [openCount, setOpenCount] = useState(0);
+
+  // ספירת משובים פתוחים — נגיש למנהל בלבד; אצל עובדים הקריאה נכשלת בשקט.
+  const loadCount = useCallback(() => {
+    api<{ openCount: number }>("/api/feedback?count=1")
+      .then((d) => setOpenCount(d.openCount))
+      .catch(() => setOpenCount(0));
+  }, []);
+  useEffect(() => {
+    loadCount();
+    const t = setInterval(loadCount, 120000);
+    return () => clearInterval(t);
+  }, [loadCount]);
 
   function reset() {
     setCategory("improvement");
@@ -49,10 +63,15 @@ export default function FeedbackWidget() {
       <button
         onClick={() => { reset(); setOpen(true); }}
         className="fixed bottom-5 left-5 z-40 flex items-center gap-2 rounded-full bg-[#3a5bd9] px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-[#3a5bd9]/30 transition hover:bg-[#2f4bc0]"
-        title="שליחת משוב על המערכת"
+        title={openCount > 0 ? `${openCount} משובים פתוחים — לחצו לצפייה בתיבת המשוב` : "שליחת משוב על המערכת"}
       >
         <Icon name="note" className="h-4 w-4" />
         משוב
+        {openCount > 0 ? (
+          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white shadow">
+            {openCount > 99 ? "99+" : openCount}
+          </span>
+        ) : null}
       </button>
 
       {open ? (
@@ -73,6 +92,14 @@ export default function FeedbackWidget() {
               <p className="text-xs text-slate-500">
                 הערה, הדגש או רעיון לשיפור המערכת — יגיע ישירות למנהלה.
               </p>
+              {openCount > 0 ? (
+                <a
+                  href="/admin/feedback"
+                  className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-100"
+                >
+                  🔔 יש {openCount} משובים פתוחים מהצוות — לצפייה בתיבת המשוב
+                </a>
+              ) : null}
               {error ? <p className="text-sm text-red-600">{error}</p> : null}
               <div className="flex flex-wrap gap-1.5">
                 {CATEGORIES.map((c) => (
