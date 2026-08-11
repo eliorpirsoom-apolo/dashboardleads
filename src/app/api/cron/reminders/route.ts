@@ -173,15 +173,15 @@ export async function GET(req: Request) {
     console.error("[transcription]", err);
   }
 
-  // 📄 סנכרון SUMIT אוטומטי — כל רבע שעה (חד-כיווני: מסמכים מ-SUMIT → דשבורד).
-  // רץ אחרי ההקלטות כדי שלא יחסום אותן. ?sumit=force לבדיקה מיידית.
+  // 📄 סנכרון SUMIT עבר לקרון עצמאי (/api/cron/sumit, כל 15 דק') — כדי שלא
+  // יתחרה על תקציב הזמן עם ההקלטות/תמלולים. ?sumit=force עדיין עובד לבדיקה.
   let sumitSync: unknown = null;
-  try {
-    sumitSync = await maybeAutoSyncSumit(
-      new URL(req.url).searchParams.get("sumit") === "force"
-    );
-  } catch (err) {
-    console.error("[sumit-sync]", err);
+  if (new URL(req.url).searchParams.get("sumit") === "force") {
+    try {
+      sumitSync = await maybeAutoSyncSumit(true);
+    } catch (err) {
+      console.error("[sumit-sync]", err);
+    }
   }
 
   // 🎨 סטודיו: תזכורות אישור ללקוח (כל יומיים×3) + סימון משימות באיחור.

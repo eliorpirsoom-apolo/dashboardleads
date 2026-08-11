@@ -88,6 +88,7 @@ function MediaGrid({
   activeId,
   selected,
   onToggle,
+  onPreview,
 }: {
   assets: Asset[];
   onDelete?: (id: string) => void;
@@ -97,6 +98,7 @@ function MediaGrid({
   activeId?: string | null;
   selected?: Set<string>;
   onToggle?: (id: string) => void;
+  onPreview?: (id: string) => void;
 }) {
   if (assets.length === 0) return <p className="text-xs text-slate-600">אין קבצים.</p>;
   return (
@@ -114,29 +116,54 @@ function MediaGrid({
                 className="absolute right-1 top-1 z-10 h-4 w-4 cursor-pointer rounded border-slate-300 bg-white/90 shadow"
               />
             ) : null}
-            <a href={`/api/design-assets/${a.id}`} target="_blank" rel="noopener noreferrer" className="block">
-              {isImage(a) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/design-assets/${a.id}`}
-                  alt={a.fileName || "asset"}
-                  className="h-20 w-full bg-slate-100 object-contain transition group-hover:opacity-90"
-                />
-              ) : isVideo(a) ? (
-                <video
-                  src={`/api/design-assets/${a.id}`}
-                  preload="metadata"
-                  muted
-                  className="h-20 w-full bg-slate-900 object-contain"
-                />
+            {(() => {
+              const previewable = isImage(a) || isVideo(a);
+              const media = (
+                <>
+                  {isImage(a) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/design-assets/${a.id}`}
+                      alt={a.fileName || "asset"}
+                      className="h-20 w-full bg-slate-100 object-contain transition group-hover:opacity-90"
+                    />
+                  ) : isVideo(a) ? (
+                    <video
+                      src={`/api/design-assets/${a.id}`}
+                      preload="metadata"
+                      muted
+                      className="h-20 w-full bg-slate-900 object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-700">
+                      <Icon name="doc" className="h-6 w-6" />
+                      <span className="px-2 text-center text-[10px]">קובץ</span>
+                    </div>
+                  )}
+                  <div className="truncate px-2 py-1 text-[10px] text-slate-600">{a.fileName}</div>
+                </>
+              );
+              // תוצר בר-תצוגה נפתח במציג הפנימי (עם חיצים); אחר — בטאב חדש.
+              return onPreview && previewable ? (
+                <button type="button" onClick={() => onPreview(a.id)} className="block w-full text-right">
+                  {media}
+                </button>
               ) : (
-                <div className="flex h-20 w-full flex-col items-center justify-center gap-1 text-slate-400 transition group-hover:text-cyan-700">
-                  <Icon name="doc" className="h-6 w-6" />
-                  <span className="px-2 text-center text-[10px]">קובץ</span>
-                </div>
-              )}
-              <div className="truncate px-2 py-1 text-[10px] text-slate-600">{a.fileName}</div>
-            </a>
+                <a href={`/api/design-assets/${a.id}`} target="_blank" rel="noopener noreferrer" className="block">
+                  {media}
+                </a>
+              );
+            })()}
+            {onPreview ? (
+              <a
+                href={`/api/design-assets/${a.id}?download=1`}
+                title="הורדת הקובץ"
+                className="absolute left-1 top-1 rounded-md bg-slate-100 p-1 text-slate-500 transition hover:text-[#3a5bd9]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Icon name="download" className="h-3.5 w-3.5" />
+              </a>
+            ) : null}
             {onComment ? (
               <button
                 onClick={() => onComment(a.id)}
@@ -158,7 +185,7 @@ function MediaGrid({
               <button
                 onClick={() => onDelete(a.id)}
                 title="מחיקה"
-                className="absolute left-1 top-1 rounded-md bg-slate-100 p-1 text-slate-400 opacity-0 transition hover:text-rose-400 group-hover:opacity-100"
+                className={`absolute top-1 rounded-md bg-slate-100 p-1 text-slate-400 opacity-0 transition hover:text-rose-400 group-hover:opacity-100 ${onPreview ? "left-8" : "left-1"}`}
               >
                 <Icon name="trash" className="h-3.5 w-3.5" />
               </button>
@@ -201,6 +228,28 @@ export default function StudioTaskDrawer({
   const [clientOpts, setClientOpts] = useState<{ id: string; name: string }[]>([]);
   // סימון תוצרים לפעולה מרובה (מחיקה / הורדה).
   const [selAssets, setSelAssets] = useState<Set<string>>(new Set());
+  // מציג תוצרים (חיצים ימינה/שמאלה) + גרירת קבצים מהמחשב.
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  // רשימת התוצרים ברי-התצוגה (תמונות/וידאו) — לדפדוף במציג.
+  const previewables = (t?.assets ?? []).filter((a) => a.kind === "deliverable" && (isImage(a) || isVideo(a)));
+  const stepViewer = (dir: 1 | -1) =>
+    setViewerId((cur) => {
+      if (!cur || previewables.length === 0) return cur;
+      const i = previewables.findIndex((a) => a.id === cur);
+      return previewables[(i + dir + previewables.length) % previewables.length]?.id ?? cur;
+    });
+  useEffect(() => {
+    if (!viewerId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setViewerId(null);
+      else if (e.key === "ArrowLeft") stepViewer(1);
+      else if (e.key === "ArrowRight") stepViewer(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewerId, t]);
   const [chatBusy, setChatBusy] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [assetCommentText, setAssetCommentText] = useState("");
@@ -415,16 +464,16 @@ export default function StudioTaskDrawer({
     }
   }
 
-  // הורדה מרובה — השרת אורז את כל המסומנים ל-ZIP אחד ומחזיר קובץ להורדה.
-  async function bulkDownloadAssets() {
-    if (selAssets.size === 0) return;
+  // הורדת קבוצת תוצרים — השרת אורז ל-ZIP אחד ומחזיר קובץ להורדה.
+  async function downloadZip(ids: string[]) {
+    if (ids.length === 0) return;
     setBusy(true);
     setError("");
     try {
       const res = await fetch("/api/design-assets/zip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [...selAssets] }),
+        body: JSON.stringify({ ids }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -819,15 +868,27 @@ export default function StudioTaskDrawer({
             <MediaGrid assets={references} onDelete={delAsset} />
           </section>
 
-          {/* Deliverables */}
-          <section className="mb-5">
+          {/* Deliverables — תומך גם בגרירת קבצים מהמחשב ישירות לאזור */}
+          <section
+            className={`mb-5 rounded-xl transition ${dragOver ? "bg-[#3a5bd9]/5 ring-2 ring-dashed ring-[#3a5bd9]/50" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              if (e.dataTransfer?.files?.length) upload(e.dataTransfer.files);
+            }}
+          >
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-bold text-slate-600">תוצרים ({deliverables.length})</p>
+              <p className="text-sm font-bold text-slate-600">
+                תוצרים ({deliverables.length})
+                <span className="mr-2 text-[10px] font-normal text-slate-400">אפשר לגרור קבצים לכאן ⤵</span>
+              </p>
               <div className="flex items-center gap-1.5">
                 {selAssets.size > 0 ? (
                   <>
                     <span className="text-xs text-slate-500">{selAssets.size} מסומנים</span>
-                    <Button size="sm" variant="ghost" onClick={bulkDownloadAssets}>
+                    <Button size="sm" variant="ghost" onClick={() => downloadZip([...selAssets])}>
                       <Icon name="download" className="h-4 w-4" />
                       הורדה
                     </Button>
@@ -837,6 +898,11 @@ export default function StudioTaskDrawer({
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setSelAssets(new Set())}>ביטול</Button>
                   </>
+                ) : deliverables.length > 0 ? (
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => downloadZip(deliverables.map((a) => a.id))}>
+                    <Icon name="download" className="h-4 w-4" />
+                    הורדת הכל (ZIP)
+                  </Button>
                 ) : null}
                 <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />
                 <Button size="sm" variant="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
@@ -854,6 +920,7 @@ export default function StudioTaskDrawer({
               activeId={openAsset}
               selected={selAssets}
               onToggle={toggleAssetSel}
+              onPreview={setViewerId}
             />
             {openAsset ? (
               <div className="mt-2 rounded-xl border border-cyan-200 bg-slate-50 p-3">
@@ -1199,6 +1266,53 @@ export default function StudioTaskDrawer({
           )}
         </aside>
       </div>
+
+      {/* מציג תוצרים — דפדוף בחיצים (מסך/מקלדת), הורדה וסגירה */}
+      {viewerId ? (() => {
+        const cur = previewables.find((a) => a.id === viewerId);
+        if (!cur) return null;
+        const idx = previewables.findIndex((a) => a.id === viewerId);
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85" onClick={() => setViewerId(null)}>
+            <div className="relative max-h-[90vh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+              {isVideo(cur) ? (
+                <video src={`/api/design-assets/${cur.id}`} controls autoPlay className="max-h-[80vh] max-w-[90vw] rounded-xl" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`/api/design-assets/${cur.id}`} alt={cur.fileName || ""} className="max-h-[80vh] max-w-[90vw] rounded-xl object-contain" />
+              )}
+              <div className="mt-2 flex items-center justify-between gap-3 text-sm text-white/90">
+                <span className="truncate">{cur.fileName} · {idx + 1}/{previewables.length}</span>
+                <a href={`/api/design-assets/${cur.id}?download=1`} className="rounded-lg bg-white/15 px-3 py-1 text-xs hover:bg-white/25">⬇ הורדה</a>
+              </div>
+            </div>
+            {previewables.length > 1 ? (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); stepViewer(-1); }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/15 p-3 text-2xl leading-none text-white hover:bg-white/30"
+                  title="הקודם"
+                >
+                  ›
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); stepViewer(1); }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/15 p-3 text-2xl leading-none text-white hover:bg-white/30"
+                  title="הבא"
+                >
+                  ‹
+                </button>
+              </>
+            ) : null}
+            <button
+              onClick={() => setViewerId(null)}
+              className="absolute right-4 top-4 rounded-full bg-white/15 px-3 py-1.5 text-sm text-white hover:bg-white/30"
+            >
+              ✕ סגירה
+            </button>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }
