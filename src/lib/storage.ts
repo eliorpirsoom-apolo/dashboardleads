@@ -42,6 +42,46 @@ async function s3() {
   });
 }
 
+// --- Bucket CORS -------------------------------------------------------------
+// ההעלאות הגדולות (presigned PUT) רצות ישירות מהדפדפן אל R2 — בלי כלל CORS
+// על הדלי הדפדפן חוסם את ה-PUT ("Failed to fetch"). מנוהל מכאן כדי שלא
+// יהיה תלוי בקונסולת Cloudflare.
+
+export async function getBucketCors(): Promise<unknown> {
+  if (!r2Configured()) return { local: true };
+  const { GetBucketCorsCommand } = await import("@aws-sdk/client-s3");
+  try {
+    const res = await (await s3()).send(
+      new GetBucketCorsCommand({ Bucket: process.env.R2_BUCKET! })
+    );
+    return res.CORSRules ?? [];
+  } catch (err: any) {
+    if (err?.name === "NoSuchCORSConfiguration") return [];
+    throw err;
+  }
+}
+
+export async function setBucketCors(origins: string[]): Promise<void> {
+  if (!r2Configured()) return;
+  const { PutBucketCorsCommand } = await import("@aws-sdk/client-s3");
+  await (await s3()).send(
+    new PutBucketCorsCommand({
+      Bucket: process.env.R2_BUCKET!,
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedOrigins: origins,
+            AllowedMethods: ["PUT", "GET", "HEAD"],
+            AllowedHeaders: ["*"],
+            ExposeHeaders: ["etag"],
+            MaxAgeSeconds: 3600,
+          },
+        ],
+      },
+    })
+  );
+}
+
 /** Storage keys: clients/<clientId>/<category>/<random>-<safe-name> */
 export function makeFileKey(
   clientId: string,
