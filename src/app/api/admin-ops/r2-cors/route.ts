@@ -11,9 +11,19 @@ export const dynamic = "force-dynamic";
 // כלל שמתיר PUT/GET מהאפליקציה (APP_BASE_URL).
 // ---------------------------------------------------------------------------
 
+// שגיאות S3 חוזרות עם name+message בלבד (בלי סודות) כדי שאפשר לאבחן
+// מרחוק — למשל AccessDenied כשטוקן ה-R2 הוא ברמת אובייקטים בלבד.
+function errInfo(err: any) {
+  return { name: err?.name ?? "Error", message: String(err?.message ?? err).slice(0, 300) };
+}
+
 export const GET = handle(async () => {
   await requireManager();
-  return NextResponse.json({ r2: r2Configured(), rules: await getBucketCors() });
+  try {
+    return NextResponse.json({ r2: r2Configured(), rules: await getBucketCors() });
+  } catch (err: any) {
+    return NextResponse.json({ r2: r2Configured(), error: errInfo(err) }, { status: 502 });
+  }
 });
 
 export const POST = handle(async () => {
@@ -25,6 +35,10 @@ export const POST = handle(async () => {
     process.env.APP_BASE_URL || "https://app.apolloadv.co.il",
     "http://localhost:3000",
   ];
-  await setBucketCors(origins);
-  return NextResponse.json({ ok: true, origins, rules: await getBucketCors() });
+  try {
+    await setBucketCors(origins);
+    return NextResponse.json({ ok: true, origins, rules: await getBucketCors() });
+  } catch (err: any) {
+    return NextResponse.json({ ok: false, origins, error: errInfo(err) }, { status: 502 });
+  }
 });
