@@ -14,6 +14,7 @@ import {
   BRIEF_TYPES,
   briefTypeLabel,
   DESIGN_PRIORITIES,
+  DESIGN_PRIORITY_COLORS,
 } from "@/lib/studio";
 
 interface Opt {
@@ -45,7 +46,7 @@ interface Group {
   orderIndex: number;
 }
 
-const PRIORITY_COLOR: Record<string, string> = { low: "#64748b", normal: "#38bdf8", high: "#f87171" };
+const PRIORITY_COLOR = DESIGN_PRIORITY_COLORS;
 // פלטת צבעים לכותרות קבוצות (לפי סדר), אם לא הוגדר צבע.
 const GROUP_PALETTE = ["#38bdf8", "#a78bfa", "#34d399", "#f59e0b", "#f472b6", "#22d3ee", "#fb7185", "#84cc16"];
 
@@ -216,8 +217,21 @@ export default function StudioBoard({
         {t.client ? <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip> : "—"}
       </td>
       <td className="px-3 py-2 text-slate-600">{briefTypeLabel(t.briefType)}</td>
-      <td className="px-3 py-2">
-        <Chip color={PRIORITY_COLOR[t.priority]}>{DESIGN_PRIORITIES.find((p) => p.value === t.priority)?.label}</Chip>
+      <td className="px-3 py-2 w-32">
+        <select
+          value={t.priority}
+          onChange={(e) => patch(t.id, { priority: e.target.value })}
+          className={`${selCls} font-medium`}
+          style={{
+            borderColor: PRIORITY_COLOR[t.priority],
+            color: PRIORITY_COLOR[t.priority],
+            backgroundColor: `${PRIORITY_COLOR[t.priority]}14`,
+          }}
+        >
+          {DESIGN_PRIORITIES.map((p) => (
+            <option key={p.value} value={p.value} style={{ color: "#0f172a" }}>{p.label}</option>
+          ))}
+        </select>
       </td>
       <td className="px-3 py-2 w-40">
         <select value={t.designer?.id ?? ""} onChange={(e) => patch(t.id, { designerId: e.target.value || null })} className={selCls}>

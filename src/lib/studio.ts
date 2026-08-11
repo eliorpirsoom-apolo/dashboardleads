@@ -45,7 +45,17 @@ export function briefTypeLabel(v: string): string {
 }
 
 export const DESIGN_PRIORITIES = [
-  { value: "low", label: "נמוכה" },
-  { value: "normal", label: "רגילה" },
-  { value: "high", label: "גבוהה" },
+  { value: "low", label: "קל" },
+  { value: "normal", label: "בינוני" },
+  { value: "high", label: "חשוב מאוד" },
 ] as const;
+
+export const DESIGN_PRIORITY_COLORS: Record<string, string> = {
+  low: "#64748b",
+  normal: "#38bdf8",
+  high: "#f87171",
+};
+
+export function priorityLabel(v: string): string {
+  return DESIGN_PRIORITIES.find((p) => p.value === v)?.label ?? v;
+}

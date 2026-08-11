@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/fetcher";
@@ -32,6 +32,16 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [q, setQ] = useState("");
+  // תצוגה: כרטיסים (ברירת מחדל) או רשימה — ההעדפה נשמרת בדפדפן.
+  const [view, setView] = useState<"grid" | "list">("grid");
+  useEffect(() => {
+    const v = localStorage.getItem("clientsView");
+    if (v === "list") setView("list");
+  }, []);
+  function switchView(v: "grid" | "list") {
+    setView(v);
+    try { localStorage.setItem("clientsView", v); } catch {}
+  }
 
   const filtered = clients.filter(
     (c) =>
@@ -40,11 +50,27 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
       (c.contactName ?? "").includes(q)
   );
 
+  const viewBtn = (v: "grid" | "list", label: string) => (
+    <button
+      type="button"
+      onClick={() => switchView(v)}
+      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+        view === v ? "bg-white text-[#3a5bd9] shadow-sm" : "text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="min-w-[220px] flex-1">
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש לקוח…" />
+        </div>
+        <div className="flex items-center gap-0.5 rounded-xl bg-slate-100 p-1" title="החלפת תצוגה">
+          {viewBtn("grid", "▦ כרטיסים")}
+          {viewBtn("list", "☰ רשימה")}
         </div>
         <Button onClick={() => setShowCreate(true)}>
           <Icon name="plus" className="h-4 w-4" />
@@ -54,6 +80,54 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
 
       {filtered.length === 0 ? (
         <EmptyState icon="users" title="אין לקוחות" hint="צרו את הלקוח הראשון כדי להתחיל." />
+      ) : view === "list" ? (
+        <div className="glass overflow-x-auto rounded-2xl">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-right text-xs text-slate-500">
+                <th className="px-4 py-2.5 font-medium">לקוח</th>
+                <th className="px-4 py-2.5 font-medium">סוג</th>
+                <th className="px-4 py-2.5 font-medium text-center">לידים השבוע</th>
+                <th className="px-4 py-2.5 font-medium text-center">סה&quot;כ לידים</th>
+                <th className="px-4 py-2.5 font-medium text-center">משימות פתוחות</th>
+                <th className="px-4 py-2.5 font-medium text-center">סטטוס</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr
+                  key={c.id}
+                  onClick={() => router.push(`/admin/clients/${c.id}`)}
+                  className={`cursor-pointer border-b border-slate-100 transition last:border-0 hover:bg-slate-50 ${c.active ? "" : "opacity-50"}`}
+                >
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black text-white"
+                        style={{ backgroundColor: c.color ?? "#334155" }}
+                      >
+                        {c.name.slice(0, 2)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-bold text-slate-800">{c.name}</p>
+                        <p className="truncate text-xs text-slate-500">{c.contactName ?? c.company ?? ""}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Chip color={TYPE_COLORS[c.type] ?? "#64748b"}>{clientTypeLabel(c.type)}</Chip>
+                  </td>
+                  <td className="px-4 py-2.5 text-center font-bold text-cyan-700">{c.newLeadsWeek}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-slate-700">{c._count.leads}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-amber-700">{c.openTasks}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <Chip color={c.active ? "#34d399" : "#94a3b8"}>{c.active ? "פעיל" : "לא פעיל"}</Chip>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((c) => (

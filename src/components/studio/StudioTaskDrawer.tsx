@@ -6,7 +6,13 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import RichEditor from "@/components/RichEditor";
-import { DESIGN_STATUS_LABELS, DESIGN_STATUS_COLORS, briefTypeLabel } from "@/lib/studio";
+import {
+  DESIGN_STATUS_LABELS,
+  DESIGN_STATUS_COLORS,
+  DESIGN_PRIORITIES,
+  DESIGN_PRIORITY_COLORS,
+  briefTypeLabel,
+} from "@/lib/studio";
 
 interface Asset {
   id: string;
@@ -56,6 +62,7 @@ interface Detail {
   brief: string | null;
   specs: string | null;
   status: string;
+  priority: string;
   round: number;
   client: { id: string; name: string } | null;
   clientPhone: string | null;
@@ -793,6 +800,31 @@ export default function StudioTaskDrawer({
             >
               {DESIGN_STATUS_LABELS[t.status]}
             </span>
+            <span> · </span>
+            <select
+              value={t.priority}
+              onChange={async (e) => {
+                const v = e.target.value;
+                try {
+                  await api(`/api/design-tasks/${taskId}`, { method: "PATCH", json: { priority: v } });
+                  await load();
+                  onChanged();
+                } catch (err: any) {
+                  setError(err.message);
+                }
+              }}
+              className="cursor-pointer rounded-full border px-2 py-px text-[11px] font-medium"
+              style={{
+                borderColor: DESIGN_PRIORITY_COLORS[t.priority],
+                color: DESIGN_PRIORITY_COLORS[t.priority],
+                backgroundColor: `${DESIGN_PRIORITY_COLORS[t.priority]}14`,
+              }}
+              title="עדיפות — ניתנת לשינוי גם אחרי הפרסום"
+            >
+              {DESIGN_PRIORITIES.map((p) => (
+                <option key={p.value} value={p.value} style={{ color: "#0f172a" }}>{p.label}</option>
+              ))}
+            </select>
             <span>
             {t.designer ? ` · ${t.designer.name}` : ""}
             {t.round > 1 ? ` · סבב ${t.round}` : ""}</span>
