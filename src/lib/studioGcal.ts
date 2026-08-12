@@ -161,6 +161,9 @@ export async function sweepStudioCalendar(): Promise<{
       status: { not: "approved" },
       designerId: { not: null },
       scheduledAt: { gte: new Date(Date.now() - 7 * 24 * H) },
+      // מגן כפילות: משימה שעודכנה ממש עכשיו מטופלת ע"י העדכון עצמו —
+      // דילוג מונע מרוץ בין הסריקה לעריכה ידנית באותו רגע.
+      updatedAt: { lt: new Date(Date.now() - 60_000) },
     },
     orderBy: { scheduledAt: "asc" },
     take: 100,
