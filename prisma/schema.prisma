@@ -331,6 +331,7 @@ model Lead {
   tasks            Task[]
   messages         Message[]
   waMessages       WhatsappMessage[]
+  documents        Document[]
 
   @@unique([clientId, number])
   @@index([clientId, receivedAt])
@@ -616,6 +617,9 @@ model Document {
   projectId    String?
   unitType     UnitType? @relation(fields: [unitTypeId], references: [id], onDelete: SetNull)
   unitTypeId   String?
+  // מסמך של ליד ספציפי (ת"ז/בקשת רכישה/חוזה) — מוצג בכרטיס הליד בלבד.
+  lead         Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId       String?
   uploadedBy   User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   uploadedById String?
   createdAt    DateTime  @default(now())
@@ -623,6 +627,7 @@ model Document {
   contracts Contract[]
 
   @@unique([provider, externalId])
+  @@index([leadId])
   @@index([clientId, category])
   @@index([clientId, month])
 }

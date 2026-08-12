@@ -5,8 +5,9 @@ export const DEFAULT_STATUSES = [
   { name: "חדש", color: "#38bdf8", order: 0, systemKind: "new", isDefault: true },
   { name: "בטיפול", color: "#f59e0b", order: 1, systemKind: "in_progress", isDefault: false },
   { name: "נקבעה פגישה", color: "#a78bfa", order: 2, systemKind: "in_progress", isDefault: false },
-  { name: "עסקה", color: "#34d399", order: 3, systemKind: "won", isDefault: false },
-  { name: "אבוד", color: "#f87171", order: 4, systemKind: "lost", isDefault: false },
+  { name: "בקשת רכישה", color: "#fb923c", order: 3, systemKind: "in_progress", isDefault: false },
+  { name: "עסקה", color: "#34d399", order: 4, systemKind: "won", isDefault: false },
+  { name: "אבוד", color: "#f87171", order: 5, systemKind: "lost", isDefault: false },
 ] as const;
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -49,9 +50,19 @@ export const FINANCIAL_CATEGORY_LABELS: Record<string, string> = {
   financial_other: "מסמכים פיננסיים",
 };
 
+// מסמכי ליד — מועלים מכרטיס הליד (בקשת רכישה, חוזה וכו').
+export const LEAD_DOC_CATEGORIES = [
+  { value: "id_card", label: "תעודת זהות" },
+  { value: "purchase_request", label: "בקשת רכישה" },
+  { value: "contract", label: "חוזה" },
+  { value: "approval", label: "אישור עקרוני/משכנתא" },
+  { value: "other", label: "אחר" },
+] as const;
+
 export function documentCategoryLabel(value: string): string {
   return (
     DOCUMENT_CATEGORIES.find((c) => c.value === value)?.label ??
+    LEAD_DOC_CATEGORIES.find((c) => c.value === value)?.label ??
     FINANCIAL_CATEGORY_LABELS[value] ??
     value
   );

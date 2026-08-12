@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime, formatDuration } from "@/lib/format";
-import { CHANNELS } from "@/lib/defaults";
+import { CHANNELS, LEAD_DOC_CATEGORIES, documentCategoryLabel } from "@/lib/defaults";
 import { fireConfetti } from "@/lib/confetti";
 import { Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -104,6 +104,15 @@ interface FullLead {
   contracts: { id: string; value: number; signedAt: string | null }[];
 }
 
+interface LeadDoc {
+  id: string;
+  category: string;
+  fileName: string;
+  size: number;
+  createdAt: string;
+  uploadedBy: { name: string } | null;
+}
+
 export default function LeadDrawer({
   leadId,
   statuses,
@@ -136,6 +145,10 @@ export default function LeadDrawer({
     toAgent: true,
     toLead: false,
   });
+  // מסמכי הליד (ת"ז/בקשת רכישה/חוזה) — נטענים בנפרד מהכרטיס.
+  const [docs, setDocs] = useState<LeadDoc[]>([]);
+  const [docCat, setDocCat] = useState<string>("id_card");
+  const [docBusy, setDocBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -157,6 +170,83 @@ export default function LeadDrawer({
       setError(e.message);
     }
   }, [leadId]);
+
+  const loadDocs = useCallback(async (clientId: string) => {
+    try {
+      const d = await api<{ documents: LeadDoc[] }>(
+        `/api/documents?clientId=${clientId}&leadId=${leadId}`
+      );
+      setDocs(d.documents);
+    } catch {
+      setDocs([]);
+    }
+  }, [leadId]);
+
+  useEffect(() => {
+    if (lead?.clientId) loadDocs(lead.clientId);
+  }, [lead?.clientId, loadDocs]);
+
+  // העלאת מסמכי ליד: קטן דרך השרת, גדול (עד 100MB) ישירות ל-R2 עם presign.
+  async function uploadDocs(files: FileList | null) {
+    if (!files || files.length === 0 || !lead) return;
+    setDocBusy(true);
+    setError("");
+    try {
+      for (const file of Array.from(files)) {
+        let key: string, fileName = file.name, mimeType = file.type || "application/octet-stream";
+        if (file.size > 3_500_000) {
+          const pres = await api<{ target: { url: string; headers: Record<string, string> }; key: string }>(
+            "/api/uploads/presign",
+            {
+              method: "POST",
+              json: { clientId: lead.clientId, category: "lead-docs", fileName: file.name, mimeType, size: file.size },
+            }
+          );
+          const put = await fetch(pres.target.url, { method: "PUT", headers: pres.target.headers, body: file });
+          if (!put.ok) throw new Error(`העלאת "${file.name}" נכשלה`);
+          key = pres.key;
+        } else {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("category", "lead-docs");
+          fd.append("clientId", lead.clientId);
+          const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+          const uj = await up.json();
+          if (!up.ok) throw new Error(uj.error || `העלאת "${file.name}" נכשלה`);
+          key = uj.key;
+          fileName = uj.fileName;
+          mimeType = uj.mimeType;
+        }
+        await api("/api/documents", {
+          method: "POST",
+          json: {
+            clientId: lead.clientId,
+            leadId: lead.id,
+            category: docCat,
+            fileKey: key,
+            fileName,
+            mimeType,
+            size: file.size,
+          },
+        });
+      }
+      await loadDocs(lead.clientId);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setDocBusy(false);
+    }
+  }
+
+  async function deleteDoc(id: string) {
+    if (!lead || !confirm("למחוק את המסמך?")) return;
+    try {
+      await api(`/api/documents/${id}`, { method: "DELETE" });
+      await loadDocs(lead.clientId);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
 
   async function scheduleTask() {
     if (!lead || !sched.dueAt) return;
@@ -818,6 +908,62 @@ export default function LeadDrawer({
                 </div>
               </>
             ) : null}
+
+            {/* מסמכי עסקה — ת"ז, בקשת רכישה, חוזה. נשמרים על הליד. */}
+            <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">מסמכים 📁</h3>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <select
+                  value={docCat}
+                  onChange={(e) => setDocCat(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-600"
+                >
+                  {LEAD_DOC_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <label className={`cursor-pointer rounded-lg bg-[#3a5bd9] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#2f4bc0] ${docBusy ? "opacity-50" : ""}`}>
+                  {docBusy ? "מעלה…" : "העלאת קבצים ⤴"}
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    disabled={docBusy}
+                    onChange={(e) => { uploadDocs(e.target.files); e.target.value = ""; }}
+                  />
+                </label>
+                <span className="text-[11px] text-slate-400">עד 100MB לקובץ</span>
+              </div>
+              {docs.length === 0 ? (
+                <p className="py-2 text-center text-xs text-slate-400">
+                  אין מסמכים עדיין — בחרו סוג והעלו (ת״ז, בקשת רכישה, חוזה…)
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {docs.map((d) => (
+                    <div key={d.id} className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
+                      <Icon name="doc" className="h-3.5 w-3.5 shrink-0 text-cyan-500" />
+                      <a
+                        href={`/api/files/${d.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate font-medium text-slate-700 hover:text-[#3a5bd9] hover:underline"
+                        title="פתיחה/הורדה"
+                      >
+                        {d.fileName}
+                      </a>
+                      <Chip color="#fb923c">{documentCategoryLabel(d.category)}</Chip>
+                      <span className="mr-auto whitespace-nowrap text-slate-400">
+                        {d.uploadedBy?.name ? `${d.uploadedBy.name} · ` : ""}{formatDateTime(d.createdAt)}
+                      </span>
+                      <button onClick={() => deleteDoc(d.id)} title="מחיקה" className="text-slate-400 transition hover:text-rose-500">
+                        <Icon name="trash" className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* שיחת וואטסאפ מול הליד */}
             <LeadWhatsappChat leadId={lead.id} hasPhone={Boolean(lead.phone)} />
