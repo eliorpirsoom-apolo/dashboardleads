@@ -1163,6 +1163,9 @@ model DesignTask {
   clientNotifiedAt DateTime? // מתי נשלח ללקוח לאישור (לחישוב תזכורות)
   remindersSent    Int    @default(0)
   calendarTaskId   String? // ה-Task המקושר ביומן של המעצב/ת (נוצר בתזמון)
+  gcalState        String    @default("none") // none|pending|synced|blocked — האם המשימה באמת ביומן Google
+  gcalCheckedAt    DateTime? // מתי אומת מול Google לאחרונה
+  gcalError        String? // סיבת חסימה/כשל אחרונה (למשל: מעצבת לא חיברה יומן)
   approvalToken    String? @unique // טוקן קישור-אישור ללקוח ללא התחברות
   group      DesignGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   groupId    String? // קבוצה בלוח הסטודיו (כמו Monday)

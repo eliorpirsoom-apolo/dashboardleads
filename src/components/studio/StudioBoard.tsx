@@ -31,6 +31,8 @@ interface DTask {
   status: string;
   scheduledAt: string | null;
   dueAt: string | null;
+  gcalState: string;
+  gcalError: string | null;
   overdue: boolean;
   round: number;
   groupId: string | null;
@@ -251,6 +253,17 @@ export default function StudioBoard({
           onChange={(e) => patch(t.id, { scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} />
       </td>
+      <td className="px-3 py-2 text-center">
+        {!t.designer || !t.scheduledAt ? (
+          <span className="text-xs text-slate-300" title="אין מעצב/ת או מועד — אין מה לתזמן ביומן">—</span>
+        ) : t.gcalState === "synced" ? (
+          <span title="המשימה ביומן ה-Google של המעצב/ת (אומת)">🟢</span>
+        ) : t.gcalState === "blocked" ? (
+          <span title={t.gcalError ?? "לא ניתן לתזמן ביומן"}>🔴</span>
+        ) : (
+          <span title="ממתין לסנכרון ליומן — ינוסה שוב אוטומטית תוך דקות">🟡</span>
+        )}
+      </td>
       <td className="px-3 py-2 w-48">
         <input type="datetime-local" dir="ltr" value={toLocalInput(t.dueAt)}
           onChange={(e) => patch(t.id, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
@@ -267,7 +280,13 @@ export default function StudioBoard({
             backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}14`,
           }}
         >
-          {DESIGN_STATUSES.map((s) => (<option key={s} value={s} style={{ color: "#0f172a" }}>{DESIGN_STATUS_LABELS[s]}</option>))}
+          {DESIGN_STATUSES.map((s) => (
+            <option key={s} value={s} style={{ color: "#0f172a" }}>
+              {s === "scheduled" && t.status === "scheduled" && t.gcalState === "synced"
+                ? "תוזמנה בלוז ✓"
+                : DESIGN_STATUS_LABELS[s]}
+            </option>
+          ))}
         </select>
       </td>
       <td className="px-3 py-2 text-left">
@@ -288,6 +307,7 @@ export default function StudioBoard({
         <th className="px-3 py-2 font-medium">עדיפות</th>
         <th className="px-3 py-2 font-medium">מעצב/ת</th>
         <th className="px-3 py-2 font-medium">מתוזמן ללו״ז</th>
+        <th className="px-3 py-2 font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז?</th>
         <th className="px-3 py-2 font-medium">דדליין</th>
         <th className="px-3 py-2 font-medium">
           <button

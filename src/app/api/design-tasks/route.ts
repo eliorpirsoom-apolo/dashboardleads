@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
 import { sanitizeRich } from "@/lib/sanitizeHtml";
+import { syncDesignTaskCalendar } from "@/lib/studioGcal";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,13 @@ export const POST = handle(async (req) => {
         uploadedById: user.id,
       })),
     });
+  }
+
+  // בריף שנוצר כבר עם מעצב/ת + מועד — נכנס ליומן מיד (לא מחכה לעדכון הבא).
+  if (task.designerId && task.scheduledAt) {
+    await syncDesignTaskCalendar(task.id, user.id).catch((e) =>
+      console.error("[studio:gcal]", e)
+    );
   }
 
   return NextResponse.json({ task }, { status: 201 });

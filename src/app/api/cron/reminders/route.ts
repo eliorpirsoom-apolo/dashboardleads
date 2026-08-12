@@ -11,6 +11,7 @@ import {
 } from "@/lib/transcription";
 import { sendDueBirthdayGreetings } from "@/lib/birthday";
 import { sendDueDesignApprovalReminders, markOverdueDesignTasks } from "@/lib/studioReminders";
+import { sweepStudioCalendar } from "@/lib/studioGcal";
 import { runWhatsappBroadcast } from "@/lib/whatsappBroadcast";
 import { runLeadSlaChecks } from "@/lib/leadSla";
 
@@ -184,14 +185,16 @@ export async function GET(req: Request) {
     }
   }
 
-  // 🎨 סטודיו: תזכורות אישור ללקוח (כל יומיים×3) + סימון משימות באיחור.
+  // 🎨 סטודיו: תזכורות אישור ללקוח (כל יומיים×3) + סימון משימות באיחור
+  // + ריפוי-עצמי של סנכרון היומן ("תוזמן בלוז" — שאף משימה לא תברח).
   let studio: unknown = null;
   try {
-    const [approvalReminders, overdue] = await Promise.all([
+    const [approvalReminders, overdue, gcal] = await Promise.all([
       sendDueDesignApprovalReminders(),
       markOverdueDesignTasks(),
+      sweepStudioCalendar(),
     ]);
-    studio = { approvalReminders, overdue };
+    studio = { approvalReminders, overdue, gcal };
   } catch (err) {
     console.error("[studio]", err);
   }

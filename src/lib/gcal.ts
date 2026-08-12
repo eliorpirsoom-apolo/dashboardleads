@@ -288,6 +288,28 @@ export async function syncTaskEvent(taskId: string): Promise<void> {
   }
 }
 
+/** Does the linked Google event still exist (and isn't cancelled)?
+ *  Returns null when it can't be checked (no link / no active connection). */
+export async function taskEventExists(task: {
+  googleEventId?: string | null;
+  googleEventOwnerId?: string | null;
+}): Promise<boolean | null> {
+  if (!task.googleEventId || !task.googleEventOwnerId) return null;
+  const conn = await prisma.calendarConnection.findUnique({
+    where: { userId: task.googleEventOwnerId },
+  });
+  if (!conn?.active) return null;
+  const token = await gcalAccessToken(conn);
+  const res = await fetch(
+    `${CAL_API}/calendars/primary/events/${encodeURIComponent(task.googleEventId)}?fields=status`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (res.status === 404 || res.status === 410) return false;
+  if (!res.ok) return null; // תקלה זמנית — לא מסיקים כלום
+  const data = (await res.json()) as { status?: string };
+  return data.status !== "cancelled";
+}
+
 /** Delete the linked Google event (task deleted in the system). */
 export async function deleteTaskEvent(task: {
   googleEventId?: string | null;

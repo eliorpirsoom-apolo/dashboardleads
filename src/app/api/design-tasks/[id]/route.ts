@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
-import { DESIGN_STATUSES, briefTypeLabel } from "@/lib/studio";
-import { createTaskEvent, deleteTaskEvent, syncTaskEvent } from "@/lib/gcal";
+import { DESIGN_STATUSES } from "@/lib/studio";
+import { deleteTaskEvent } from "@/lib/gcal";
+import { syncDesignTaskCalendar } from "@/lib/studioGcal";
 import { sendMessage } from "@/lib/messaging";
-import { formatDateTime } from "@/lib/format";
 import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
 import { ensureApprovalToken, clientApprovalUrl } from "@/lib/studioLinks";
 import { sanitizeRich } from "@/lib/sanitizeHtml";
@@ -40,71 +40,6 @@ async function notifyClientForApproval(task: any): Promise<void> {
 }
 
 export const dynamic = "force-dynamic";
-
-// פעולה: תזמון המשימה ביומן של המעצב/ת (Task מקושר → מופיע בלו"ז ומסתנכרן ל-Google),
-// + התראה למעצב/ת. אידמפוטנטי לפי calendarTaskId.
-async function scheduleInDesignerCalendar(task: any, actorId: string): Promise<void> {
-  if (!task.designerId || !task.scheduledAt) return;
-  const title = `🎨 עיצוב — ${task.title}`;
-  if (task.calendarTaskId) {
-    const existing = await prisma.task.findUnique({ where: { id: task.calendarTaskId } });
-    if (!existing) return;
-    const designerChanged =
-      !!existing.googleEventOwnerId && existing.googleEventOwnerId !== task.designerId;
-    await prisma.task
-      .update({
-        where: { id: task.calendarTaskId },
-        data: { assigneeId: task.designerId, dueAt: task.scheduledAt, title },
-      })
-      .catch(() => {});
-    if (designerChanged) {
-      // הוחלף/ה מעצב/ת — מוחקים את האירוע מיומן ה-Google הישן ויוצרים מחדש אצל החדש/ה.
-      await deleteTaskEvent(existing).catch(() => {});
-      await prisma.task
-        .update({ where: { id: task.calendarTaskId }, data: { googleEventId: null, googleEventOwnerId: null } })
-        .catch(() => {});
-      const fresh = await prisma.task.findUnique({ where: { id: task.calendarTaskId } });
-      if (fresh) await createTaskEvent({ ...fresh, createdById: actorId }).catch(() => {});
-    } else {
-      // אותה/ו מעצב/ת — דחיפת עדכון המועד/כותרת לאירוע הקיים ב-Google.
-      await syncTaskEvent(task.calendarTaskId).catch(() => {});
-    }
-    return;
-  }
-  const calTask = await prisma.task.create({
-    data: {
-      clientId: task.clientId,
-      title,
-      description: task.brief || null,
-      type: "task",
-      ownerSide: "agency",
-      assigneeId: task.designerId,
-      dueAt: task.scheduledAt,
-      createdById: actorId,
-    },
-  });
-  await prisma.designTask.update({
-    where: { id: task.id },
-    data: { calendarTaskId: calTask.id },
-  });
-  await createTaskEvent({ ...calTask, createdById: actorId }).catch(() => {});
-
-  // התראה למעצב/ת ששובצה משימה.
-  const designer = await prisma.user.findUnique({ where: { id: task.designerId } });
-  if (designer?.email) {
-    await sendMessage({
-      channel: "email",
-      to: designer.email,
-      subject: "🎨 משימת עיצוב תוזמנה לך",
-      body:
-        `שובצה לך משימת עיצוב: ${task.title} (${briefTypeLabel(task.briefType)})\n` +
-        `מועד: ${formatDateTime(task.scheduledAt)}` +
-        (task.brief ? `\n\nבריף:\n${task.brief}` : ""),
-      kind: "reminder",
-      clientId: task.clientId,
-    }).catch(() => {});
-  }
-}
 
 // GET /api/design-tasks/[id] — כרטיס משימת עיצוב מלא.
 export const GET = handle(async (_req, { params }: { params: { id: string } }) => {
@@ -217,13 +152,11 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 
   const task = await prisma.designTask.update({ where: { id: params.id }, data });
 
-  // פעולת סטטוס: כשיש מעצב/ת + מועד → אירוע ביומן ה-Google שלו/ה + התראה.
-  // נוצר בתזמון הראשון, וממשיך להסתנכרן כל עוד קיימת משימת יומן מקושרת (שינוי מועד/מעצב).
-  if (task.designerId && task.scheduledAt && (task.status === "scheduled" || task.calendarTaskId)) {
-    await scheduleInDesignerCalendar(task, user.id).catch((e) =>
-      console.error("[studio:schedule]", e)
-    );
-  }
+  // סנכרון ליומן המעצב/ת + רישום מצב "תוזמן בלוז". רץ על כל עדכון:
+  // מטפל גם בהסרת מעצב/ת או מועד (ניקוי האירוע) וגם בכשלים (pending לקרון).
+  await syncDesignTaskCalendar(task.id, user.id).catch((e) =>
+    console.error("[studio:gcal]", e)
+  );
   // פעולת סטטוס: נשלח ללקוח לאישור → התראה ללקוח.
   if (b.status === "sent_to_client" && cur.status !== "sent_to_client") {
     await notifyClientForApproval(task).catch((e) => console.error("[studio:notify]", e));
