@@ -12,12 +12,15 @@ export default function ProfileView({
   initialBirthday = "",
   email,
   hasPassword,
+  calendar,
 }: {
   initialName: string;
   initialPhone: string;
   initialBirthday?: string; // "yyyy-mm-dd"
   email: string;
   hasPassword: boolean;
+  // חיבור יומן Google אישי (צד משרד בלבד) — undefined מסתיר את הכרטיס.
+  calendar?: { connected: boolean; email: string | null };
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
@@ -68,6 +71,20 @@ export default function ProfileView({
     }
   }
 
+  async function disconnectCalendar() {
+    if (!confirm("לנתק את יומן ה-Google? משימות סטודיו חדשות לא ייכנסו ליומן עד חיבור מחדש.")) return;
+    setBusy(true);
+    try {
+      await api("/api/gcal", { method: "DELETE" });
+      setMsg("היומן נותק ✓");
+      router.refresh();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function logoutAll() {
     if (!confirm("לנתק את החשבון מכל המכשירים (כולל זה)?")) return;
     await api("/api/me/logout-all", { method: "POST" });
@@ -111,6 +128,37 @@ export default function ProfileView({
           </div>
         </form>
       </Card>
+
+      {calendar ? (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-800">יומן Google 📅</h3>
+              {calendar.connected ? (
+                <p className="mt-0.5 text-xs text-slate-500" dir="ltr">
+                  ✓ מחובר{calendar.email ? ` — ${calendar.email}` : ""}
+                </p>
+              ) : (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  חיבור היומן האישי — פגישות ומשימות (כולל משימות סטודיו) ייכנסו אליו אוטומטית.
+                </p>
+              )}
+            </div>
+            {calendar.connected ? (
+              <Button variant="ghost" disabled={busy} onClick={disconnectCalendar}>
+                ניתוק היומן
+              </Button>
+            ) : (
+              <a
+                href="/api/integrations/google/connect?kind=calendar"
+                className="rounded-xl bg-[#3a5bd9] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2f4bc0]"
+              >
+                + חיבור יומן Google
+              </a>
+            )}
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <h3 className="mb-3 text-base font-bold text-slate-800">שינוי סיסמה</h3>
