@@ -122,7 +122,14 @@ export default function StudioBoard({
   const groupIds = new Set(groups.map((g) => g.id));
   const effGroup = (t: DTask): string | null => (t.groupId && groupIds.has(t.groupId) ? t.groupId : null);
   const byOrder = (a: DTask, b: DTask) => a.orderIndex - b.orderIndex || (a.title < b.title ? -1 : 1);
-  const dndEnabled = !designerFilter; // גרירה מושבתת בזמן סינון (שלא לשבש סדר של פריטים מוסתרים)
+  // מיון לפי סטטוס (לחיצה על כותרת העמודה) — לפי סדר שלבי העבודה, ואז לפי הסדר הידני.
+  const [statusSort, setStatusSort] = useState(false);
+  const bySort = (a: DTask, b: DTask) =>
+    statusSort
+      ? DESIGN_STATUSES.indexOf(a.status as any) - DESIGN_STATUSES.indexOf(b.status as any) || byOrder(a, b)
+      : byOrder(a, b);
+  // גרירה מושבתת בזמן סינון/מיון (שלא לשבש סדר של פריטים מוסתרים)
+  const dndEnabled = !designerFilter && !statusSort;
 
   async function handleGroupDrop(targetGroupId: string) {
     const id = dragGroupId;
@@ -182,9 +189,9 @@ export default function StudioBoard({
       key: g.id,
       group: g as Group | null,
       color: g.color || GROUP_PALETTE[i % GROUP_PALETTE.length],
-      items: tasks.filter((t) => effGroup(t) === g.id).sort(byOrder),
+      items: tasks.filter((t) => effGroup(t) === g.id).sort(bySort),
     })),
-    { key: "none", group: null as Group | null, color: "#64748b", items: tasks.filter((t) => effGroup(t) === null).sort(byOrder) },
+    { key: "none", group: null as Group | null, color: "#64748b", items: tasks.filter((t) => effGroup(t) === null).sort(bySort) },
   ];
 
   const renderTaskRow = (t: DTask, groupKey: string) => (
@@ -244,7 +251,11 @@ export default function StudioBoard({
           onChange={(e) => patch(t.id, { scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} />
       </td>
-      <td className="px-3 py-2 text-xs text-slate-400">{t.dueAt ? formatDateTime(t.dueAt) : "—"}</td>
+      <td className="px-3 py-2 w-48">
+        <input type="datetime-local" dir="ltr" value={toLocalInput(t.dueAt)}
+          onChange={(e) => patch(t.id, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+          className={selCls} title="דדליין ללקוח — ניתן לשינוי" />
+      </td>
       <td className="px-3 py-2 w-44">
         <select
           value={t.status}
@@ -278,7 +289,16 @@ export default function StudioBoard({
         <th className="px-3 py-2 font-medium">מעצב/ת</th>
         <th className="px-3 py-2 font-medium">מתוזמן ללו״ז</th>
         <th className="px-3 py-2 font-medium">דדליין</th>
-        <th className="px-3 py-2 font-medium">סטטוס</th>
+        <th className="px-3 py-2 font-medium">
+          <button
+            type="button"
+            onClick={() => setStatusSort((v) => !v)}
+            className={`flex items-center gap-1 transition ${statusSort ? "font-bold text-[#3a5bd9]" : "hover:text-slate-700"}`}
+            title={statusSort ? "ביטול מיון לפי סטטוס (חזרה לסדר הידני)" : "מיון לפי סטטוס"}
+          >
+            סטטוס {statusSort ? "↓" : "⇅"}
+          </button>
+        </th>
         <th className="px-3 py-2"></th>
       </tr>
     </thead>
