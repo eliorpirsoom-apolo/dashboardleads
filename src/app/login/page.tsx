@@ -43,6 +43,11 @@ export default async function LoginPage({
             initialError={errorMsg}
           />
         </div>
+        {/* קישור מדיניות פרטיות — נדרש גם לאימות אפליקציית ה-OAuth של Google. */}
+        <p className="mt-4 text-center text-xs text-slate-400">
+          מערכת ניהול לקוחות, לידים ופרויקטים של משרד הפרסום אפולו ·{" "}
+          <a href="/privacy" className="underline hover:text-slate-600">מדיניות פרטיות</a>
+        </p>
       </div>
     </main>
   );
