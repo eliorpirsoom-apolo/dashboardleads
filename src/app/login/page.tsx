@@ -31,10 +31,19 @@ export default async function LoginPage({
           <img
             src="/brand/apollo-logo.png"
             alt="Apollo"
-            className="mx-auto mb-4 h-9 w-auto"
+            className="mx-auto mb-3 h-9 w-auto"
           />
+          {/* השם והתיאור נדרשים כטקסט גלוי — אימות אפליקציית ה-OAuth של Google
+              בודק שהשם "Apollo CRM" ומטרת האפליקציה מופיעים בדף הבית. */}
+          <h1 className="text-lg font-bold text-slate-700">Apollo CRM</h1>
           <p className="mt-1 text-sm text-slate-400">
-            התחברות לניהול הפעילות הדיגיטלית שלך
+            מערכת ניהול הלקוחות, הלידים, הפרויקטים והסטודיו של משרד הפרסום אפולו —
+            לצוות המשרד וללקוחותיו.
+          </p>
+          <p className="mt-1 text-xs text-slate-300" dir="ltr">
+            Apollo CRM — the client, lead &amp; project management platform of the
+            Apollo advertising agency. Authorized staff and clients sign in to manage
+            leads, campaigns, tasks, designs and reports.
           </p>
         </div>
         <div className="glass rounded-2xl p-6">
