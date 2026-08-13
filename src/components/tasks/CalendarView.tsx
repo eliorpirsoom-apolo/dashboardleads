@@ -97,6 +97,10 @@ export default function CalendarView({
     for (const t of tasks) {
       (map[ymd(new Date(t.dueAt))] ??= []).push(t);
     }
+    // בתוך כל יום — סדר כרונולוגי לפי שעה.
+    for (const list of Object.values(map)) {
+      list.sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+    }
     return map;
   }, [tasks]);
 
@@ -112,6 +116,10 @@ export default function CalendarView({
       const day = ymd(new Date(e.start));
       if (syncedTitles.has(`${day}|${e.title}`) || syncedTitles.has(`${day}|✓ ${e.title}`)) continue;
       (map[day] ??= []).push(e);
+    }
+    // בתוך כל יום — סדר כרונולוגי (אירועי יום-שלם ראשונים, אח"כ לפי שעה).
+    for (const list of Object.values(map)) {
+      list.sort((a, b) => a.start.localeCompare(b.start));
     }
     return map;
   }, [gEvents, tasks, hiddenOwners]);
@@ -214,11 +222,13 @@ export default function CalendarView({
           {cells.map((d) => {
             const key = ymd(d);
             const inMonth = d.getMonth() === cursor.getMonth();
-            const list = byDay[key] ?? [];
-            const gList = googleByDay[key] ?? [];
-            const shown = list.slice(0, 3);
-            const gShown = gList.slice(0, Math.max(0, 3 - shown.length));
-            const extra = list.length + gList.length - shown.length - gShown.length;
+            // מיזוג משימות + אירועי Google לרצף כרונולוגי אחד לפי שעה.
+            const merged = [
+              ...(byDay[key] ?? []).map((t) => ({ kind: "task" as const, at: t.dueAt, t, e: null as GoogleEvent | null })),
+              ...(googleByDay[key] ?? []).map((e) => ({ kind: "g" as const, at: e.start, t: null as TaskRow | null, e })),
+            ].sort((a, b) => a.at.localeCompare(b.at));
+            const shownItems = merged.slice(0, 3);
+            const extra = merged.length - shownItems.length;
             return (
               <button
                 key={key}
@@ -236,27 +246,28 @@ export default function CalendarView({
                   {d.getDate()}
                 </span>
                 <div className="mt-1 flex flex-col gap-0.5">
-                  {shown.map((t) => (
-                    <span
-                      key={t.id}
-                      className={`truncate rounded px-1 text-[10px] leading-4 ${
-                        t.type === "meeting"
-                          ? "bg-violet-500/20 text-violet-700"
-                          : "bg-cyan-500/15 text-cyan-700"
-                      } ${t.status === "done" ? "line-through opacity-50" : ""}`}
-                    >
-                      {t.title}
-                    </span>
-                  ))}
-                  {gShown.map((e) => (
-                    <span
-                      key={e.id}
-                      className="truncate rounded px-1 text-[10px] leading-4 text-slate-700"
-                      style={{ backgroundColor: `${e.color}2e` }}
-                    >
-                      {e.title}
-                    </span>
-                  ))}
+                  {shownItems.map((item) =>
+                    item.kind === "task" && item.t ? (
+                      <span
+                        key={item.t.id}
+                        className={`truncate rounded px-1 text-[10px] leading-4 ${
+                          item.t.type === "meeting"
+                            ? "bg-violet-500/20 text-violet-700"
+                            : "bg-cyan-500/15 text-cyan-700"
+                        } ${item.t.status === "done" ? "line-through opacity-50" : ""}`}
+                      >
+                        {item.t.title}
+                      </span>
+                    ) : item.e ? (
+                      <span
+                        key={item.e.id}
+                        className="truncate rounded px-1 text-[10px] leading-4 text-slate-700"
+                        style={{ backgroundColor: `${item.e.color}2e` }}
+                      >
+                        {item.e.title}
+                      </span>
+                    ) : null
+                  )}
                   {extra > 0 ? (
                     <span className="text-[10px] text-slate-500">+{extra}</span>
                   ) : null}
@@ -288,48 +299,49 @@ export default function CalendarView({
         {dayTasks.length === 0 && dayGoogle.length === 0 ? (
           <p className="py-6 text-center text-xs text-slate-600">אין משימות ביום זה</p>
         ) : (
-          <>
-            {dayTasks
-              .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
-              .map((t) => (
+          // רצף כרונולוגי אחד: משימות המערכת ואירועי Google משולבים לפי שעה.
+          [
+            ...dayTasks.map((t) => ({ kind: "task" as const, at: t.dueAt, t, e: null as GoogleEvent | null })),
+            ...dayGoogle.map((e) => ({ kind: "g" as const, at: e.start, t: null as TaskRow | null, e })),
+          ]
+            .sort((a, b) => a.at.localeCompare(b.at))
+            .map((item) =>
+              item.kind === "task" && item.t ? (
                 <button
-                  key={t.id}
-                  onClick={() => setEditTask(t)}
+                  key={item.t.id}
+                  onClick={() => setEditTask(item.t)}
                   className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-right transition hover:border-cyan-500/40"
                 >
-                  <span className="font-mono text-xs text-slate-500">{formatTime(t.dueAt)}</span>
+                  <span className="font-mono text-xs text-slate-500">{formatTime(item.t.dueAt)}</span>
                   <Icon
-                    name={t.type === "meeting" ? "calendar" : "tasks"}
-                    className={`h-3.5 w-3.5 ${t.type === "meeting" ? "text-violet-400" : "text-cyan-400"}`}
+                    name={item.t.type === "meeting" ? "calendar" : "tasks"}
+                    className={`h-3.5 w-3.5 ${item.t.type === "meeting" ? "text-violet-400" : "text-cyan-400"}`}
                   />
-                  <span className={`flex-1 truncate text-sm text-slate-700 ${t.status === "done" ? "line-through opacity-60" : ""}`}>
-                    {t.title}
+                  <span className={`flex-1 truncate text-sm text-slate-700 ${item.t.status === "done" ? "line-through opacity-60" : ""}`}>
+                    {item.t.title}
                   </span>
-                  {isAdmin && t.client ? (
-                    <span className="text-[10px] text-slate-500">{t.client.name}</span>
+                  {isAdmin && item.t.client ? (
+                    <span className="text-[10px] text-slate-500">{item.t.client.name}</span>
                   ) : null}
                 </button>
-              ))}
-            {dayGoogle
-              .sort((a, b) => a.start.localeCompare(b.start))
-              .map((e) => (
+              ) : item.e ? (
                 <a
-                  key={e.id}
-                  href={e.link ?? undefined}
+                  key={item.e.id}
+                  href={item.e.link ?? undefined}
                   target="_blank"
                   rel="noreferrer"
-                  title={`${e.calendarName} · ${e.ownerName} — פתיחה ב-Google Calendar`}
+                  title={`${item.e.calendarName} · ${item.e.ownerName} — פתיחה ב-Google Calendar`}
                   className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-right transition hover:border-slate-500"
-                  style={{ borderInlineStartColor: e.color, borderInlineStartWidth: 3 }}
+                  style={{ borderInlineStartColor: item.e.color, borderInlineStartWidth: 3 }}
                 >
                   <span className="font-mono text-xs text-slate-500">
-                    {e.allDay ? "יום" : formatTime(e.start)}
+                    {item.e.allDay ? "יום" : formatTime(item.e.start)}
                   </span>
-                  <span className="flex-1 truncate text-sm text-slate-700">{e.title}</span>
-                  <span className="text-[10px] text-slate-500">{e.ownerName}</span>
+                  <span className="flex-1 truncate text-sm text-slate-700">{item.e.title}</span>
+                  <span className="text-[10px] text-slate-500">{item.e.ownerName}</span>
                 </a>
-              ))}
-          </>
+              ) : null
+            )
         )}
       </div>
 
