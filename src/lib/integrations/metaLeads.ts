@@ -215,6 +215,75 @@ function mapToIntakePayload(lead: Record<string, any>): Record<string, any> {
   return out;
 }
 
+/** משיכת לידים אחרונים מהעמוד (טפסי Lead Ads) — גיבוי לוובהוק ואימות חיבור.
+ *  עובר על כל הטפסים של העמוד ומזרים כל ליד לצינור הקליטה; מגן הכפילויות
+ *  (externalId = מזהה הליד ב-Meta) מונע כפל מול לידים שכבר הגיעו בוובהוק. */
+export async function pullRecentLeads(
+  metaPageDbId: string,
+  days = 30
+): Promise<{ forms: number; scanned: number; sent: number; errors: string[] }> {
+  const page = await prisma.metaPage.findUnique({
+    where: { id: metaPageDbId },
+    include: { source: { select: { token: true, active: true } } },
+  });
+  if (!page?.active || !page.source?.active) {
+    throw new Error("העמוד לא מחובר או שהמקור כבוי");
+  }
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
+  const out = { forms: 0, scanned: 0, sent: 0, errors: [] as string[] };
+
+  const formsRes = await fetch(
+    `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=50&access_token=${encodeURIComponent(page.pageToken)}`
+  );
+  const formsData = await formsRes.json();
+  if (!formsRes.ok) {
+    throw new Error(`שליפת טפסים נכשלה: ${JSON.stringify(formsData.error ?? formsData).slice(0, 200)}`);
+  }
+
+  for (const form of formsData.data ?? []) {
+    out.forms++;
+    let url =
+      `${GRAPH}/${form.id}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_name,campaign_name,platform&limit=100&access_token=${encodeURIComponent(page.pageToken)}`;
+    for (let i = 0; i < 3 && url; i++) {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) {
+        out.errors.push(`${form.name}: ${JSON.stringify(data.error ?? data).slice(0, 150)}`);
+        break;
+      }
+      let reachedOld = false;
+      for (const lead of data.data ?? []) {
+        out.scanned++;
+        if (lead.created_time && new Date(lead.created_time).getTime() < cutoff) {
+          reachedOld = true;
+          continue;
+        }
+        try {
+          const payload = mapToIntakePayload(lead);
+          const r = await fetch(`${base.replace(/\/$/, "")}/api/intake/${page.source.token}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (r.ok) out.sent++;
+        } catch (err) {
+          out.errors.push(String((err as Error)?.message ?? err).slice(0, 100));
+        }
+      }
+      url = reachedOld ? "" : data.paging?.next ?? "";
+    }
+  }
+
+  if (out.sent > 0) {
+    await prisma.metaPage.update({
+      where: { id: page.id },
+      data: { lastLeadAt: new Date(), lastError: null },
+    });
+  }
+  return out;
+}
+
 /** אירוע leadgen מהוובהוק: עמוד + מזהה ליד → משיכה → הזרמה לקליטה. */
 export async function processLeadgenEvent(
   pageId: string,

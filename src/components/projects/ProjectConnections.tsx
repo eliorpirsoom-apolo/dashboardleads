@@ -89,6 +89,24 @@ export default function ProjectConnections({
     }
   }
 
+  const [pulling, setPulling] = useState("");
+  async function pullMeta(p: MetaPageRow) {
+    setPulling(p.id);
+    setError("");
+    try {
+      const r = await api<{ forms: number; scanned: number; sent: number }>(
+        "/api/integrations/meta/pull",
+        { method: "POST", json: { id: p.id, days: 30 } }
+      );
+      alert(`נמשכו ${r.sent} לידים (נסרקו ${r.scanned} מ-${r.forms} טפסים, 30 יום אחורה). כפילויות סוננו אוטומטית.`);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setPulling("");
+    }
+  }
+
   async function add(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -151,7 +169,10 @@ export default function ProjectConnections({
                     {p.source?._count.leads ?? 0} לידים
                     {p.lastLeadAt ? ` · ליד אחרון ${formatDateTime(p.lastLeadAt)}` : " · טרם התקבלו לידים"}
                   </span>
-                  <div className="mr-auto">
+                  <div className="mr-auto flex items-center gap-1">
+                    <Button variant="ghost" size="sm" disabled={pulling === p.id} onClick={() => pullMeta(p)} title="משיכת הלידים מ-30 הימים האחרונים מהטפסים של העמוד (כפילויות מסוננות)">
+                      {pulling === p.id ? "מושך…" : "משיכת לידים אחרונים"}
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => disconnectMeta(p)}>ניתוק</Button>
                   </div>
                 </div>
