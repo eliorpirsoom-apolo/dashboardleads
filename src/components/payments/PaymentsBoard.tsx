@@ -126,8 +126,11 @@ export default function PaymentsBoard() {
     });
   }
 
-  async function saveCell(clientId: string, mNum: number, kind: Kind) {
-    const c = cells[clientId]?.[mNum]?.[kind] || { amount: null, sumitAmount: null, statusId: null, note: null };
+  // patch מועבר במפורש כשנשמר מיד אחרי שינוי (סטטוס) — קריאת ה-state כאן
+  // רואה את הרינדור הקודם, ובלי ה-patch נשלח לשרת הערך הישן והשינוי "נעלם".
+  async function saveCell(clientId: string, mNum: number, kind: Kind, patch?: Partial<Cell>) {
+    const base = cells[clientId]?.[mNum]?.[kind] || { amount: null, sumitAmount: null, statusId: null, note: null };
+    const c = { ...base, ...patch };
     try {
       await api("/api/payments", {
         method: "POST",
@@ -297,7 +300,11 @@ export default function PaymentsBoard() {
                               />
                               <select
                                 value={c?.statusId ?? ""}
-                                onChange={(e) => { setCell(cl.id, mNum, k.key, { statusId: e.target.value || null }); setTimeout(() => saveCell(cl.id, mNum, k.key), 0); }}
+                                onChange={(e) => {
+                                  const statusId = e.target.value || null;
+                                  setCell(cl.id, mNum, k.key, { statusId });
+                                  saveCell(cl.id, mNum, k.key, { statusId });
+                                }}
                                 className="mt-0.5 w-full rounded border-0 bg-transparent text-center text-[10px] text-slate-600 focus:outline-none"
                                 style={{ color: st?.color }}
                               >
