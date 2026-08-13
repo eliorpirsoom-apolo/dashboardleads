@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createDefaultStatuses } from "@/lib/defaults";
 import {
   sumitConfigured,
   sumitListDocuments,
@@ -318,6 +319,8 @@ async function resolveOrCreateClient(
     })
     .catch(() => null);
   if (!c) return { clientId: null, created: false };
+  // בלי סטטוסי ברירת מחדל, לידים עתידיים של הלקוח יקבלו סטטוס שרירותי.
+  await createDefaultStatuses(prisma, c.id).catch(() => {});
   maps.bySumitId.set(d.CustomerID, c.id);
   maps.byName.set(normName(name), c.id);
   if (cust?.email) maps.byEmail.set(cust.email, c.id);
