@@ -77,7 +77,12 @@ export async function syncDesignTaskCalendar(
       await prisma.task
         .update({
           where: { id: calTaskId },
-          data: { assigneeId: task.designerId, dueAt: task.scheduledAt, title },
+          data: {
+            assigneeId: task.designerId,
+            dueAt: task.scheduledAt,
+            title,
+            durationMin: task.durationMin ?? 60,
+          },
         })
         .catch(() => {});
       if (designerChanged) {
@@ -107,6 +112,7 @@ export async function syncDesignTaskCalendar(
         ownerSide: "agency",
         assigneeId: task.designerId,
         dueAt: task.scheduledAt,
+        durationMin: task.durationMin ?? 60,
         createdById: actorId ?? null,
       },
     });

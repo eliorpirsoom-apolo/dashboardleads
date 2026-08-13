@@ -1181,6 +1181,7 @@ model DesignTask {
   designer    User?    @relation("DesignTaskDesigner", fields: [designerId], references: [id], onDelete: SetNull)
   designerId  String?
   scheduledAt DateTime? // הסלוט בלו"ז של המעצב/ת
+  durationMin Int? // משך העבודה בדקות (ברירת מחדל 60) — קובע את אורך האירוע ביומן
   dueAt       DateTime? // דדליין ללקוח
   status      String   @default("scheduled")
   round       Int      @default(1) // סבב תיקונים נוכחי

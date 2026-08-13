@@ -30,6 +30,7 @@ interface DTask {
   priority: string;
   status: string;
   scheduledAt: string | null;
+  durationMin: number | null;
   dueAt: string | null;
   gcalState: string;
   gcalError: string | null;
@@ -124,14 +125,30 @@ export default function StudioBoard({
   const groupIds = new Set(groups.map((g) => g.id));
   const effGroup = (t: DTask): string | null => (t.groupId && groupIds.has(t.groupId) ? t.groupId : null);
   const byOrder = (a: DTask, b: DTask) => a.orderIndex - b.orderIndex || (a.title < b.title ? -1 : 1);
-  // מיון לפי סטטוס (לחיצה על כותרת העמודה) — לפי סדר שלבי העבודה, ואז לפי הסדר הידני.
+  // מיון בלחיצה על כותרת עמודה: לפי סטטוס (סדר שלבי העבודה) או לפי מועד בלו"ז.
   const [statusSort, setStatusSort] = useState(false);
+  const [timeSort, setTimeSort] = useState(false);
   const bySort = (a: DTask, b: DTask) =>
     statusSort
       ? DESIGN_STATUSES.indexOf(a.status as any) - DESIGN_STATUSES.indexOf(b.status as any) || byOrder(a, b)
-      : byOrder(a, b);
+      : timeSort
+        ? (a.scheduledAt || "z").localeCompare(b.scheduledAt || "z") || byOrder(a, b)
+        : byOrder(a, b);
   // גרירה מושבתת בזמן סינון/מיון (שלא לשבש סדר של פריטים מוסתרים)
-  const dndEnabled = !designerFilter && !statusSort;
+  const dndEnabled = !designerFilter && !statusSort && !timeSort;
+
+  // משכי עבודה לבחירה — חצי שעה עד יום עבודה.
+  const DURATIONS: { v: number; l: string }[] = [
+    { v: 30, l: "חצי שעה" },
+    { v: 60, l: "שעה" },
+    { v: 90, l: "שעה וחצי" },
+    { v: 120, l: "שעתיים" },
+    { v: 180, l: "3 שעות" },
+    { v: 240, l: "4 שעות" },
+    { v: 300, l: "5 שעות" },
+    { v: 360, l: "6 שעות" },
+    { v: 480, l: "8 שעות" },
+  ];
 
   async function handleGroupDrop(targetGroupId: string) {
     const id = dragGroupId;
@@ -253,6 +270,16 @@ export default function StudioBoard({
           onChange={(e) => patch(t.id, { scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} />
       </td>
+      <td className="px-3 py-2 w-28">
+        <select
+          value={t.durationMin ?? 60}
+          onChange={(e) => patch(t.id, { durationMin: Number(e.target.value) })}
+          className={selCls}
+          title="משך העבודה — קובע את אורך האירוע ביומן המעצב/ת"
+        >
+          {DURATIONS.map((d) => (<option key={d.v} value={d.v}>{d.l}</option>))}
+        </select>
+      </td>
       <td className="px-3 py-2 text-center">
         {!t.designer || !t.scheduledAt ? (
           <span className="text-xs text-slate-300" title="אין מעצב/ת או מועד — אין מה לתזמן ביומן">—</span>
@@ -306,13 +333,23 @@ export default function StudioBoard({
         <th className="px-3 py-2 font-medium">סוג</th>
         <th className="px-3 py-2 font-medium">עדיפות</th>
         <th className="px-3 py-2 font-medium">מעצב/ת</th>
-        <th className="px-3 py-2 font-medium">מתוזמן ללו״ז</th>
+        <th className="px-3 py-2 font-medium">
+          <button
+            type="button"
+            onClick={() => { setTimeSort((v) => !v); setStatusSort(false); }}
+            className={`flex items-center gap-1 transition ${timeSort ? "font-bold text-[#3a5bd9]" : "hover:text-slate-700"}`}
+            title={timeSort ? "ביטול מיון כרונולוגי (חזרה לסדר הידני)" : "מיון כרונולוגי לפי מועד בלו״ז"}
+          >
+            מתוזמן ללו״ז {timeSort ? "↓" : "⇅"}
+          </button>
+        </th>
+        <th className="px-3 py-2 font-medium">משך</th>
         <th className="px-3 py-2 font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז?</th>
         <th className="px-3 py-2 font-medium">דדליין</th>
         <th className="px-3 py-2 font-medium">
           <button
             type="button"
-            onClick={() => setStatusSort((v) => !v)}
+            onClick={() => { setStatusSort((v) => !v); setTimeSort(false); }}
             className={`flex items-center gap-1 transition ${statusSort ? "font-bold text-[#3a5bd9]" : "hover:text-slate-700"}`}
             title={statusSort ? "ביטול מיון לפי סטטוס (חזרה לסדר הידני)" : "מיון לפי סטטוס"}
           >
@@ -494,10 +531,21 @@ function CapacityView({
 }) {
   const active = tasks.filter((t) => t.status !== "approved");
   const cols = [...designers.map((d) => ({ id: d.id, name: d.name })), { id: "", name: "לא משויך" }];
+  // תאריך + שעה — הרשימה ממוינת כרונולוגית, והשעה מוצגת כדי שרואים את הרצף.
   const fmt = (iso: string | null) =>
     iso
-      ? new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit" }).format(new Date(iso))
+      ? new Intl.DateTimeFormat("he-IL", {
+          timeZone: "Asia/Jerusalem",
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(iso))
       : "ללא מועד";
+  const dur = (min: number | null) => {
+    const m = min ?? 60;
+    return m % 60 === 0 ? `${m / 60} ש׳` : `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")} ש׳`;
+  };
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0,1fr))` }}>
       {cols.map((c) => {
@@ -521,7 +569,8 @@ function CapacityView({
                 >
                   <div className="truncate font-medium text-slate-700">{t.title}</div>
                   <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
-                    <span>{fmt(t.scheduledAt)}</span>·
+                    <span dir="ltr">{fmt(t.scheduledAt)}</span>
+                    {t.scheduledAt ? <span>· {dur(t.durationMin)}</span> : null}·
                     <span
                       className="rounded-full px-1.5 py-px font-medium"
                       style={{ color: DESIGN_STATUS_COLORS[t.status], backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}1a` }}
@@ -566,6 +615,7 @@ function CreateBriefModal({
     designerId: "",
     groupId: initialGroupId || "",
     scheduledAt: "",
+    durationMin: "60",
     dueAt: "",
   });
   const [busy, setBusy] = useState(false);
@@ -640,6 +690,7 @@ function CreateBriefModal({
           designerId: form.designerId || null,
           groupId: form.groupId || null,
           scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
+          durationMin: Number(form.durationMin) || 60,
           dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : null,
           references: refs.length ? refs : undefined,
         },
@@ -781,6 +832,19 @@ function CreateBriefModal({
           </Field>
           <Field label="תזמון בלו״ז">
             <Input type="datetime-local" dir="ltr" value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
+          </Field>
+          <Field label="משך העבודה" hint="קובע את אורך האירוע ביומן המעצב/ת">
+            <Select value={form.durationMin} onChange={(e) => setForm({ ...form, durationMin: e.target.value })}>
+              <option value="30">חצי שעה</option>
+              <option value="60">שעה</option>
+              <option value="90">שעה וחצי</option>
+              <option value="120">שעתיים</option>
+              <option value="180">3 שעות</option>
+              <option value="240">4 שעות</option>
+              <option value="300">5 שעות</option>
+              <option value="360">6 שעות</option>
+              <option value="480">8 שעות</option>
+            </Select>
           </Field>
           <Field label="דדליין ללקוח">
             <Input type="datetime-local" dir="ltr" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} />

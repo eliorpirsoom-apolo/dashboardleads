@@ -88,6 +88,7 @@ const UpdateDesignTask = z.object({
   priority: z.enum(["low", "normal", "high"]).optional(),
   designerId: z.string().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
+  durationMin: z.number().int().min(15).max(720).nullable().optional(),
   dueAt: z.string().nullable().optional(),
   status: z.enum(DESIGN_STATUSES).optional(),
   round: z.number().int().min(1).max(50).optional(),
@@ -129,6 +130,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     data.scheduledAt = b.scheduledAt ? new Date(b.scheduledAt) : null;
     data.overdue = false; // תזמון מחדש מנקה את דגל האיחור
   }
+  if (b.durationMin !== undefined) data.durationMin = b.durationMin;
   if (b.dueAt !== undefined) data.dueAt = b.dueAt ? new Date(b.dueAt) : null;
   if (b.round !== undefined) data.round = b.round;
   if (b.overdue !== undefined) data.overdue = b.overdue;

@@ -46,6 +46,7 @@ const CreateDesignTask = z.object({
   designerId: z.string().nullable().optional(),
   groupId: z.string().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
+  durationMin: z.number().int().min(15).max(720).nullable().optional(),
   dueAt: z.string().nullable().optional(),
   references: z.array(RefAsset).max(15).optional(), // רפרנסים/דוגמאות למעצב/ת
 });
@@ -78,6 +79,7 @@ export const POST = handle(async (req) => {
       groupId,
       orderIndex: (last?.orderIndex ?? -1) + 1,
       scheduledAt: b.scheduledAt ? new Date(b.scheduledAt) : null,
+      durationMin: b.durationMin ?? null,
       dueAt: b.dueAt ? new Date(b.dueAt) : null,
       createdById: user.id,
       status: "scheduled",
