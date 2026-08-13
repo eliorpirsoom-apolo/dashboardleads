@@ -19,6 +19,16 @@ interface Source {
   _count: { leads: number };
 }
 
+interface MetaPageRow {
+  id: string;
+  pageId: string;
+  pageName: string;
+  active: boolean;
+  lastLeadAt: string | null;
+  lastError: string | null;
+  source: { name: string; _count: { leads: number } } | null;
+}
+
 // קבוצות התצוגה: טלפונים / טפסים ואתרים / וואטסאפ.
 const GROUPS: { kind: string; label: string; icon: string; hint: string }[] = [
   { kind: "call", label: "📞 טלפונים", icon: "phone", hint: "מספרי פייקול/CheckCall — הכתובת מודבקת בפאנל של פייקול" },
@@ -37,6 +47,8 @@ export default function ProjectConnections({
   projectId: string;
 }) {
   const [sources, setSources] = useState<Source[]>([]);
+  const [metaPages, setMetaPages] = useState<MetaPageRow[]>([]);
+  const [metaEnabled, setMetaEnabled] = useState(true);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("form");
   const [channel, setChannel] = useState("");
@@ -53,10 +65,29 @@ export default function ProjectConnections({
     } catch (e: any) {
       setError(e.message);
     }
+    try {
+      const m = await api<{ enabled: boolean; pages: MetaPageRow[] }>(
+        `/api/integrations/meta/pages?projectId=${projectId}`
+      );
+      setMetaPages(m.pages);
+      setMetaEnabled(m.enabled);
+    } catch {
+      /* אינטגרציית Meta לא זמינה — הכרטיס יציג חיבור בלבד */
+    }
   }, [clientId, projectId]);
   useEffect(() => {
     load();
   }, [load]);
+
+  async function disconnectMeta(p: MetaPageRow) {
+    if (!confirm(`לנתק את העמוד "${p.pageName}"? לידים חדשים מפייסבוק יפסיקו להיכנס. הלידים הקיימים נשארים.`)) return;
+    try {
+      await api(`/api/integrations/meta/pages?id=${p.id}`, { method: "DELETE" });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -101,6 +132,49 @@ export default function ProjectConnections({
       </p>
 
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+
+      {/* חיבור ישיר לפייסבוק (Meta Lead Ads) — לידים בזמן אמת, בלי גשר באמצע */}
+      <div className="mb-4">
+        <p className="mb-1.5 text-sm font-bold text-slate-700">📘 פייסבוק — חיבור ישיר</p>
+        {metaPages.length === 0 ? (
+          <p className="mb-2 text-xs text-slate-400">
+            חיבור עמוד פייסבוק מזרים את הלידים מטפסי הפייסבוק ישירות לפרויקט תוך שניות — בלי מנהל לידים באמצע.
+          </p>
+        ) : (
+          <div className="mb-2 flex flex-col gap-2">
+            {metaPages.map((p) => (
+              <div key={p.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">📘 {p.pageName}</span>
+                  {!p.active ? <Chip color="#f87171">כבוי</Chip> : p.lastError ? <Chip color="#f59e0b">שגיאה</Chip> : <Chip color="#34d399">מחובר</Chip>}
+                  <span className="text-xs text-slate-500">
+                    {p.source?._count.leads ?? 0} לידים
+                    {p.lastLeadAt ? ` · ליד אחרון ${formatDateTime(p.lastLeadAt)}` : " · טרם התקבלו לידים"}
+                  </span>
+                  <div className="mr-auto">
+                    <Button variant="ghost" size="sm" onClick={() => disconnectMeta(p)}>ניתוק</Button>
+                  </div>
+                </div>
+                {p.lastError ? (
+                  <p className="mt-1 text-[11px] text-amber-700">{p.lastError}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+        {metaEnabled ? (
+          <a
+            href={`/api/integrations/meta/connect?projectId=${projectId}`}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#1877f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0f66d8]"
+          >
+            + חיבור עמוד פייסבוק
+          </a>
+        ) : (
+          <p className="text-xs text-amber-700">
+            חיבור Meta טרם הוגדר בסביבה (META_APP_ID/SECRET) — פנו למנהל המערכת.
+          </p>
+        )}
+      </div>
 
       <div className="flex flex-col gap-4">
         {GROUPS.map((g) => {

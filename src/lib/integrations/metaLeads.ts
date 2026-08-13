@@ -1,0 +1,253 @@
+import crypto from "crypto";
+import { prisma } from "@/lib/prisma";
+
+// ---------------------------------------------------------------------------
+// Meta (Facebook Lead Ads) — חיבור ישיר, בלי Lead Manager באמצע:
+//   1. וובהוק leadgen: Meta מודיעה בזמן אמת על ליד חדש (רק מזהה).
+//   2. משיכת פרטי הליד המלאים מ-Graph API עם טוקן העמוד.
+//   3. הזרמה לצינור הקליטה הקיים (/api/intake/<token>) — אותו מנגנון
+//      בדיוק כמו טפסים/פייקול: דה-דופ, שיוך אוטומטי, וואטסאפ למשווק, יומן.
+// עמודים מחוברים פר-פרויקט (MetaPage) עם טוקן עמוד ארוך-טווח.
+// ---------------------------------------------------------------------------
+
+const GRAPH = "https://graph.facebook.com/v21.0";
+
+const SECRET =
+  process.env.AUTH_SECRET || "dev-insecure-secret-change-me-in-production";
+
+export function metaEnabled(): boolean {
+  return Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET);
+}
+
+export function metaRedirectUri(): string {
+  const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
+  return `${base.replace(/\/$/, "")}/api/integrations/meta/callback`;
+}
+
+/** טוקן האימות של הוובהוק — נגזר מסוד המערכת, בלי env נוסף. */
+export function metaVerifyToken(): string {
+  return crypto
+    .createHmac("sha256", SECRET)
+    .update("meta-webhook-verify")
+    .digest("hex")
+    .slice(0, 32);
+}
+
+// --- state / blob חתומים (כמו ב-Google OAuth) -------------------------------
+
+export function packMetaState(clientId: string, projectId: string): string {
+  const payload = `${clientId}.${projectId}.${Date.now()}`;
+  const sig = crypto.createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 24);
+  return Buffer.from(`${payload}.${sig}`).toString("base64url");
+}
+
+export function unpackMetaState(
+  state: string
+): { clientId: string; projectId: string } | null {
+  try {
+    const raw = Buffer.from(state, "base64url").toString("utf8");
+    const [clientId, projectId, ts, sig] = raw.split(".");
+    const payload = `${clientId}.${projectId}.${ts}`;
+    const expected = crypto.createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 24);
+    if (sig !== expected) return null;
+    if (Date.now() - Number(ts) > 15 * 60 * 1000) return null;
+    return { clientId, projectId };
+  } catch {
+    return null;
+  }
+}
+
+/** חתימה על טוקן המשתמש בין מסך בחירת העמוד (callback) לחיבור (attach). */
+export function signUserToken(token: string): string {
+  const payload = `${token}.${Date.now()}`;
+  const sig = crypto.createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 24);
+  return Buffer.from(`${payload}.${sig}`).toString("base64url");
+}
+
+export function verifyUserToken(blob: string): string | null {
+  try {
+    const raw = Buffer.from(blob, "base64url").toString("utf8");
+    const idx = raw.lastIndexOf(".");
+    const idx2 = raw.lastIndexOf(".", idx - 1);
+    const token = raw.slice(0, idx2);
+    const ts = raw.slice(idx2 + 1, idx);
+    const sig = raw.slice(idx + 1);
+    const expected = crypto
+      .createHmac("sha256", SECRET)
+      .update(`${token}.${ts}`)
+      .digest("hex")
+      .slice(0, 24);
+    if (sig !== expected) return null;
+    if (Date.now() - Number(ts) > 15 * 60 * 1000) return null;
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+/** אימות חתימת וובהוק של Meta (X-Hub-Signature-256). */
+export function verifyMetaSignature(rawBody: string, header: string | null): boolean {
+  if (!header?.startsWith("sha256=")) return false;
+  const expected = crypto
+    .createHmac("sha256", process.env.META_APP_SECRET!)
+    .update(rawBody)
+    .digest("hex");
+  const got = header.slice(7);
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(got, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+// --- Graph API ---------------------------------------------------------------
+
+/** קוד → טוקן משתמש ארוך-טווח (60 יום). */
+export async function exchangeCodeForUserToken(code: string): Promise<string> {
+  const p1 = new URLSearchParams({
+    client_id: process.env.META_APP_ID!,
+    client_secret: process.env.META_APP_SECRET!,
+    redirect_uri: metaRedirectUri(),
+    code,
+  });
+  const r1 = await fetch(`${GRAPH}/oauth/access_token?${p1}`);
+  const d1 = await r1.json();
+  if (!r1.ok || !d1.access_token) {
+    throw new Error(`החלפת קוד נכשלה: ${JSON.stringify(d1.error ?? d1).slice(0, 200)}`);
+  }
+  const p2 = new URLSearchParams({
+    grant_type: "fb_exchange_token",
+    client_id: process.env.META_APP_ID!,
+    client_secret: process.env.META_APP_SECRET!,
+    fb_exchange_token: d1.access_token,
+  });
+  const r2 = await fetch(`${GRAPH}/oauth/access_token?${p2}`);
+  const d2 = await r2.json();
+  return d2.access_token ?? d1.access_token;
+}
+
+/** העמודים שהמשתמש מנהל. */
+export async function listUserPages(
+  userToken: string
+): Promise<{ id: string; name: string }[]> {
+  const out: { id: string; name: string }[] = [];
+  let url = `${GRAPH}/me/accounts?fields=id,name&limit=100&access_token=${encodeURIComponent(userToken)}`;
+  for (let i = 0; i < 5 && url; i++) {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`שליפת עמודים נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
+    }
+    out.push(...(data.data ?? []).map((p: any) => ({ id: p.id, name: p.name })));
+    url = data.paging?.next ?? "";
+  }
+  return out;
+}
+
+/** טוקן עמוד (Page Access Token) — לא פג כשנגזר מטוקן משתמש ארוך-טווח. */
+export async function getPageToken(
+  pageId: string,
+  userToken: string
+): Promise<{ token: string; name: string }> {
+  const res = await fetch(
+    `${GRAPH}/${pageId}?fields=access_token,name&access_token=${encodeURIComponent(userToken)}`
+  );
+  const data = await res.json();
+  if (!res.ok || !data.access_token) {
+    throw new Error(`שליפת טוקן עמוד נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
+  }
+  return { token: data.access_token, name: data.name ?? "" };
+}
+
+/** רישום האפליקציה לקבלת leadgen מהעמוד. */
+export async function subscribePageToLeadgen(pageId: string, pageToken: string): Promise<void> {
+  const res = await fetch(`${GRAPH}/${pageId}/subscribed_apps`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      subscribed_fields: "leadgen",
+      access_token: pageToken,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(`רישום הוובהוק לעמוד נכשל: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
+  }
+}
+
+export async function unsubscribePage(pageId: string, pageToken: string): Promise<void> {
+  await fetch(
+    `${GRAPH}/${pageId}/subscribed_apps?access_token=${encodeURIComponent(pageToken)}`,
+    { method: "DELETE" }
+  ).catch(() => {});
+}
+
+// --- עיבוד ליד נכנס -----------------------------------------------------------
+
+/** משיכת ליד מלא מ-Graph לפי מזהה. */
+async function fetchLeadgen(leadgenId: string, pageToken: string): Promise<Record<string, any>> {
+  const fields = "id,created_time,field_data,ad_id,ad_name,adset_name,campaign_name,form_id,platform";
+  const res = await fetch(
+    `${GRAPH}/${leadgenId}?fields=${fields}&access_token=${encodeURIComponent(pageToken)}`
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`משיכת ליד נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 300)}`);
+  }
+  return data;
+}
+
+/** field_data של Meta → מפתחות שצינור הקליטה כבר מכיר (ALIASES). */
+function mapToIntakePayload(lead: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const f of lead.field_data ?? []) {
+    const key = String(f.name ?? "").toLowerCase();
+    const value = Array.isArray(f.values) ? f.values.join(", ") : String(f.values ?? "");
+    if (!value) continue;
+    out[key] = value; // full_name / phone_number / email / city + שדות מותאמים
+  }
+  out.id = lead.id; // externalId — מגן כפילויות גם על שליחה חוזרת של Meta
+  if (lead.campaign_name) out.campaign_name = lead.campaign_name;
+  if (lead.adset_name) out.adset_name = lead.adset_name;
+  if (lead.ad_name) out.ad_name = lead.ad_name;
+  out.platform = lead.platform === "ig" ? "instagram" : "facebook";
+  out.channel = "facebook";
+  return out;
+}
+
+/** אירוע leadgen מהוובהוק: עמוד + מזהה ליד → משיכה → הזרמה לקליטה. */
+export async function processLeadgenEvent(
+  pageId: string,
+  leadgenId: string
+): Promise<{ ok: boolean; note: string }> {
+  const page = await prisma.metaPage.findUnique({
+    where: { pageId },
+    include: { source: { select: { token: true, active: true } } },
+  });
+  if (!page?.active || !page.source?.active) {
+    return { ok: false, note: `עמוד ${pageId} לא מחובר/כבוי` };
+  }
+  try {
+    const lead = await fetchLeadgen(leadgenId, page.pageToken);
+    const payload = mapToIntakePayload(lead);
+    const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
+    const res = await fetch(`${base.replace(/\/$/, "")}/api/intake/${page.source.token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`intake ${res.status}`);
+    await prisma.metaPage.update({
+      where: { id: page.id },
+      data: { lastLeadAt: new Date(), lastError: null },
+    });
+    return { ok: true, note: leadgenId };
+  } catch (err) {
+    const msg = String((err as Error)?.message ?? err).slice(0, 300);
+    await prisma.metaPage
+      .update({ where: { id: page.id }, data: { lastError: msg } })
+      .catch(() => {});
+    console.error("[meta leadgen]", pageId, leadgenId, msg);
+    return { ok: false, note: msg };
+  }
+}

@@ -158,6 +158,7 @@ model Client {
   statuses         LeadStatus[]
   customFields     CustomFieldDef[]
   sources          LeadSource[]
+  metaPages        MetaPage[]
   tasks            Task[]
   documents        Document[]
   budgets          Budget[]
@@ -396,6 +397,30 @@ model LeadSource {
 
   leads      Lead[]
   intakeLogs IntakeLog[]
+  metaPage   MetaPage?
+
+  @@index([clientId])
+}
+
+// עמוד פייסבוק מחובר ישירות (Meta Lead Ads) — לידים נכנסים בזמן אמת דרך
+// וובהוק leadgen ומוזרמים לצינור הקליטה של המקור המקושר.
+model MetaPage {
+  id            String     @id @default(cuid())
+  client        Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId      String
+  project       Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId     String?
+  source        LeadSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceId      String     @unique
+  pageId        String     @unique // מזהה העמוד ב-Meta
+  pageName      String
+  pageToken     String // Page Access Token (ארוך-טווח)
+  connectedById String?
+  active        Boolean    @default(true)
+  lastLeadAt    DateTime?
+  lastError     String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   @@index([clientId])
 }
@@ -783,6 +808,7 @@ model Project {
   contracts        Contract[]
   assignments      ProjectAssignment[]
   sources          LeadSource[]
+  metaPages        MetaPage[]
   materials        ProjectMaterial[]
   designTasks      DesignTask[]
 
