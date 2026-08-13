@@ -25,7 +25,8 @@ export const GET = handle(async (req) => {
     client_id: process.env.META_APP_ID!,
     redirect_uri: metaRedirectUri(),
     state: packMetaState(project.clientId, project.id),
-    scope: "pages_show_list,pages_read_engagement,pages_manage_metadata,leads_retrieval",
+    // pages_manage_ads — נדרש לקריאת רשימת טפסי הלידים (משיכת לידים אחורה).
+    scope: "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads,leads_retrieval",
     response_type: "code",
   });
   return NextResponse.redirect(`https://www.facebook.com/v21.0/dialog/oauth?${params}`);
