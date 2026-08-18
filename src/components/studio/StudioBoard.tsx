@@ -571,9 +571,10 @@ export default function StudioBoard({
               <p className="py-8 text-center text-sm text-slate-600">אין משימות עיצוב עדיין. לחצו על ״בריף חדש״ או ״קבוצה חדשה״.</p>
             </Card>
           ) : null}
-          {/* מיכל גלילה אחד לכל הבלוקים — כל הקבוצות מיושרות לאותו גריד עמודות. */}
+          {/* מיכל גלילה אחד לכל הבלוקים — כל הקבוצות מיושרות לאותו גריד עמודות.
+              הרוחב המינימלי גדל עם הרחבת עמודות (כמו באקסל) כדי שעמודת המשימה לא תימחץ. */}
           <div className="overflow-x-auto pb-1">
-            <div className="flex min-w-[1060px] flex-col gap-3">
+            <div className="flex flex-col gap-3" style={{ minWidth: 240 + colW.reduce((a, b) => a + b, 0) }}>
               {sections.map((sec) => {
                 // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
                 if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
