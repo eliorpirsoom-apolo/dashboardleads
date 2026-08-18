@@ -408,12 +408,12 @@ export default function StudioBoard({
   const columnsHead = (
     <thead>
       <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
-        <th className="px-3 py-2 text-right font-medium">משימה</th>
-        <th className="px-2 py-2 text-right font-medium">לקוח</th>
-        <th className="px-2 py-2 text-right font-medium">סוג</th>
-        <th className="px-2 py-2 text-right font-medium">עדיפות</th>
-        <th className="px-2 py-2 text-right font-medium">מעצב/ת</th>
-        <th className="px-2 py-2 text-right font-medium">
+        <th className="relative px-3 py-2 text-right font-medium">משימה</th>
+        <th className="relative px-2 py-2 text-right font-medium">לקוח<Resizer i={0} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">סוג<Resizer i={1} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">עדיפות<Resizer i={2} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">מעצב/ת<Resizer i={3} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">
           <button
             type="button"
             onClick={() => { setTimeSort((v) => !v); setStatusSort(false); }}
@@ -422,11 +422,12 @@ export default function StudioBoard({
           >
             מתוזמן ללו״ז {timeSort ? "↓" : "⇅"}
           </button>
+          <Resizer i={4} />
         </th>
-        <th className="px-2 py-2 text-right font-medium">משך</th>
-        <th className="px-1 py-2 text-center font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז</th>
-        <th className="px-2 py-2 text-right font-medium">דדליין</th>
-        <th className="px-2 py-2 text-right font-medium">
+        <th className="relative px-2 py-2 text-right font-medium">משך<Resizer i={5} /></th>
+        <th className="relative px-1 py-2 text-center font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז<Resizer i={6} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">דדליין<Resizer i={7} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">
           <button
             type="button"
             onClick={() => { setStatusSort((v) => !v); setTimeSort(false); }}
@@ -435,8 +436,9 @@ export default function StudioBoard({
           >
             סטטוס {statusSort ? "↓" : "⇅"}
           </button>
+          <Resizer i={8} />
         </th>
-        <th className="px-1 py-2"></th>
+        <th className="relative px-1 py-2"><Resizer i={9} /></th>
       </tr>
     </thead>
   );
