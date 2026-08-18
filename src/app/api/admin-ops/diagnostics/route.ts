@@ -50,8 +50,40 @@ export const GET = handle(async () => {
     prisma.lead.count({ where: { kind: "call", callRecordingUrl: { startsWith: "http" }, callRecordingKey: null, createdAt: { gte: weekAgo } } }),
   ]);
 
+  // הלידים הבעייתיים עצמם — כדי שאפשר יהיה לשחזר/לאבחן בלי לנחש מזהים.
+  const problems = await prisma.lead.findMany({
+    where: {
+      kind: "call",
+      OR: [
+        { callTranscriptStatus: { in: ["failed", "pending", "no_audio"] }, createdAt: { gte: weekAgo } },
+        { callRecordingUrl: { startsWith: "http" }, callRecordingKey: null, createdAt: { gte: weekAgo } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      createdAt: true,
+      fullName: true,
+      phone: true,
+      callTranscriptStatus: true,
+      callRecordingKey: true,
+      callRecordingUrl: true,
+      client: { select: { name: true } },
+    },
+  });
+
   return NextResponse.json({
     env,
     transcription: { nullCount, failedCount, pendingCount, doneCount, noSpeech, recNoKey },
+    problems: problems.map((p) => ({
+      leadId: p.id,
+      client: p.client?.name,
+      who: p.fullName ?? p.phone,
+      createdAt: p.createdAt,
+      status: p.callTranscriptStatus,
+      hasRecording: Boolean(p.callRecordingKey),
+      urlHost: p.callRecordingUrl ? new URL(p.callRecordingUrl).host : null,
+    })),
   });
 });

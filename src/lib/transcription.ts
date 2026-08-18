@@ -284,7 +284,8 @@ export async function downloadPendingRecordings(limit = 3): Promise<RecordingRun
       callRecordingUrl: { startsWith: "http" },
       createdAt: { gte: weekAgo },
     },
-    orderBy: { createdAt: "asc" },
+    // חדשות קודם — הקלטה ישנה שלא זמינה אצל הספק לא תחסום את האחרונות.
+    orderBy: { createdAt: "desc" },
     take: limit,
     select: { id: true, callRecordingUrl: true, callTranscriptStatus: true },
   });
@@ -405,27 +406,45 @@ export async function processPendingCallTranscriptions(
   const result: TranscriptionRunResult = { processed: 0, done: 0, failed: 0 };
   if (!transcriptionConfigured()) return result;
 
-  // כולל ניסיון חוזר לכשלים/תקועים מ-7 הימים האחרונים (חלון בטיחות).
+  // שיחות חדשות (שטרם נוסו) תמיד ראשונות — כדי שכשל ישן שחוזר על עצמו לא
+  // "יתפוס" את כל הסלוטים וירעיב את השיחות האחרונות. ניסיונות חוזרים לכשלים
+  // מ-7 הימים האחרונים ממלאים את הסלוטים שנותרו, עם הפוגה של 30 דק' בין
+  // ניסיונות (updatedAt מתעדכן בכל סימון failed/pending).
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const pending = await prisma.lead.findMany({
+  const halfHourAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const sel = {
+    id: true,
+    callRecordingUrl: true,
+    callRecordingKey: true,
+    callTargetName: true,
+    callDurationSec: true,
+  } as const;
+  const fresh = await prisma.lead.findMany({
     where: {
       kind: "call",
       callRecordingUrl: { startsWith: "http" },
-      OR: [
-        { callTranscriptStatus: null },
-        { callTranscriptStatus: { in: ["failed", "pending"] }, createdAt: { gte: weekAgo } },
-      ],
+      callTranscriptStatus: null,
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     take: limit,
-    select: {
-      id: true,
-      callRecordingUrl: true,
-      callRecordingKey: true,
-      callTargetName: true,
-      callDurationSec: true,
-    },
+    select: sel,
   });
+  const retries =
+    fresh.length < limit
+      ? await prisma.lead.findMany({
+          where: {
+            kind: "call",
+            callRecordingUrl: { startsWith: "http" },
+            callTranscriptStatus: { in: ["failed", "pending"] },
+            createdAt: { gte: weekAgo },
+            updatedAt: { lt: halfHourAgo },
+          },
+          orderBy: { updatedAt: "asc" },
+          take: limit - fresh.length,
+          select: sel,
+        })
+      : [];
+  const pending = [...fresh, ...retries];
 
   for (const lead of pending) {
     result.processed++;
