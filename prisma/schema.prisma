@@ -566,6 +566,34 @@ model ClientPayment {
   @@index([year])
 }
 
+// הגדרות התראות הנהלת חשבונות (רשומה יחידה, key="billing"): למי ובאיזה ערוץ
+// לשלוח התראת אי-תשלום חודשית, ומאיזה יום בחודש.
+model BillingAlertConfig {
+  id             String   @id @default(cuid())
+  key            String   @unique @default("billing")
+  enabled        Boolean  @default(false)
+  contactPhone   String?
+  contactEmail   String?
+  channel        String   @default("whatsapp") // "whatsapp" | "email" | "both"
+  alertDay       Int      @default(15)
+  lastAlertMonth String? // "YYYY-MM" — ההתראה החודשית כבר נשלחה לחודש זה
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// תזכורת ידנית של הנהלת חשבונות ("לחייב את הלקוח באשראי ב-23") — נשלחת
+// בבוקר תאריך היעד לאיש הקשר של הנה"ח בערוץ שנבחר בהגדרות.
+model BillingReminder {
+  id            String    @id @default(cuid())
+  text          String
+  dueOn         DateTime // תאריך היעד (שעה לא רלוונטית — נשלח בבוקר)
+  sentAt        DateTime?
+  createdByName String?
+  createdAt     DateTime  @default(now())
+
+  @@index([dueOn])
+}
+
 // מילות מפתח לסיווג חשבוניות SUMIT לריטיינר/חד-פעמי — ניתנות לעריכה בדשבורד.
 model PaymentKeyword {
   id        String   @id @default(cuid())

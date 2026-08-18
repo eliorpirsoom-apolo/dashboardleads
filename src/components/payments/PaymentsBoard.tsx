@@ -42,7 +42,7 @@ export default function PaymentsBoard() {
   const [cells, setCells] = useState<CellMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [panel, setPanel] = useState<"" | "status" | "keywords">("");
+  const [panel, setPanel] = useState<"" | "status" | "keywords" | "billing">("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -177,6 +177,9 @@ export default function PaymentsBoard() {
           <Icon name="edit" className="h-4 w-4" />
           מילות סיווג
         </Button>
+        <Button variant="ghost" onClick={() => setPanel((p) => (p === "billing" ? "" : "billing"))}>
+          🔔 התראות הנה״ח
+        </Button>
         {error ? <span className="text-sm text-red-600">{error}</span> : null}
       </div>
 
@@ -233,6 +236,7 @@ export default function PaymentsBoard() {
 
       {panel === "status" ? <StatusManager statuses={statuses} onChange={load} /> : null}
       {panel === "keywords" ? <KeywordManager /> : null}
+      {panel === "billing" ? <BillingAlertsPanel /> : null}
 
       {/* טבלת התשלומים — שתי תת-שורות לכל לקוח (ריטיינר / חד-פעמי) */}
       <Card className="!p-0">
@@ -519,6 +523,148 @@ function KeywordManager() {
           <option value="oneoff">חד-פעמי</option>
         </select>
         <Button size="sm" disabled={busy || !text.trim()} onClick={add}>הוספה</Button>
+      </div>
+    </Card>
+  );
+}
+
+// פאנל התראות הנהלת חשבונות: איש קשר + ערוץ + יום התראה חודשית, ותזכורות ידניות.
+function BillingAlertsPanel() {
+  interface BillingConfig {
+    enabled: boolean;
+    contactPhone: string | null;
+    contactEmail: string | null;
+    channel: "whatsapp" | "email" | "both";
+    alertDay: number;
+  }
+  interface BillingReminder {
+    id: string;
+    text: string;
+    dueOn: string;
+    sentAt: string | null;
+    createdByName: string | null;
+  }
+  const [cfg, setCfg] = useState<BillingConfig | null>(null);
+  const [reminders, setReminders] = useState<BillingReminder[]>([]);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [newText, setNewText] = useState("");
+  const [newDate, setNewDate] = useState("");
+
+  const loadAll = useCallback(async () => {
+    const d = await api<{ config: BillingConfig; reminders: BillingReminder[] }>("/api/billing-alerts");
+    setCfg(d.config);
+    setReminders(d.reminders);
+  }, []);
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  async function save(patch: Record<string, unknown>) {
+    setMsg("");
+    try {
+      const d = await api<{ config: BillingConfig }>("/api/billing-alerts", { method: "PATCH", json: patch });
+      setCfg(d.config);
+      setMsg("נשמר ✓");
+    } catch (e: any) { setMsg("שגיאה: " + e.message); }
+  }
+
+  async function addReminder() {
+    if (!newText.trim() || !newDate) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      await api("/api/billing-alerts", { method: "POST", json: { text: newText.trim(), dueOn: newDate } });
+      setNewText("");
+      setNewDate("");
+      loadAll();
+    } catch (e: any) { setMsg("שגיאה: " + e.message); } finally { setBusy(false); }
+  }
+
+  async function delReminder(id: string) {
+    await api(`/api/billing-alerts/${id}`, { method: "DELETE" }).catch(() => {});
+    loadAll();
+  }
+
+  async function sendTest() {
+    if (!confirm("לשלוח עכשיו דוח אי-תשלום לבדיקה לאיש הקשר שהוגדר?")) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      await api("/api/billing-alerts", { method: "POST", json: { test: true } });
+      setMsg("נשלחה בדיקה ✓ (בדקו את הוואטסאפ/מייל של איש הקשר)");
+    } catch (e: any) { setMsg("שגיאה: " + e.message); } finally { setBusy(false); }
+  }
+
+  if (!cfg) return <Card><p className="p-4 text-center text-sm text-slate-500">טוען…</p></Card>;
+
+  const inputCls = "rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none";
+  const fmtDate = (iso: string) => new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso));
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-bold text-slate-800">🔔 התראות הנהלת חשבונות</h3>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={cfg.enabled} onChange={(e) => save({ enabled: e.target.checked })} className="h-4 w-4 accent-[#3a5bd9]" />
+          מופעל
+        </label>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="flex flex-col gap-1 text-xs text-slate-500">
+          וואטסאפ של הנה״ח
+          <input dir="ltr" className={inputCls} placeholder="0501234567" defaultValue={cfg.contactPhone ?? ""} onBlur={(e) => e.target.value !== (cfg.contactPhone ?? "") && save({ contactPhone: e.target.value || null })} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-500">
+          מייל של הנה״ח
+          <input dir="ltr" type="email" className={inputCls} placeholder="billing@..." defaultValue={cfg.contactEmail ?? ""} onBlur={(e) => e.target.value !== (cfg.contactEmail ?? "") && save({ contactEmail: e.target.value || null })} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-500">
+          לאן שולחים
+          <select className={inputCls} value={cfg.channel} onChange={(e) => save({ channel: e.target.value })}>
+            <option value="whatsapp">וואטסאפ</option>
+            <option value="email">מייל</option>
+            <option value="both">גם וגם</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-500">
+          התראת אי-תשלום מיום בחודש
+          <select className={inputCls} value={cfg.alertDay} onChange={(e) => save({ alertDay: Number(e.target.value) })}>
+            {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (<option key={d} value={d}>{d} בחודש</option>))}
+          </select>
+        </label>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+        פעם בחודש, ביום שנבחר, נשלחת אוטומטית רשימת כל הלקוחות שעדיין לא סומנו בסטטוס ״שולם״ בריטיינר של החודש
+        (כולל לקוחות ריטיינר שטרם נרשמה להם חשבונית החודש).
+      </p>
+      <div className="mt-2 flex items-center gap-3">
+        <Button size="sm" variant="ghost" disabled={busy || (!cfg.contactPhone && !cfg.contactEmail)} onClick={sendTest}>שליחת דוח בדיקה עכשיו</Button>
+        {msg ? <span className="text-xs text-slate-500">{msg}</span> : null}
+      </div>
+
+      <div className="mt-4 border-t border-slate-100 pt-3">
+        <h4 className="mb-2 text-xs font-bold text-slate-700">תזכורות ידניות (למשל: ״לחייב את הלקוח באשראי ב-23 לחודש״)</h4>
+        <div className="flex flex-wrap items-end gap-2">
+          <input className={`${inputCls} min-w-64 flex-1`} placeholder="מה להזכיר להנהלת החשבונות?" value={newText} onChange={(e) => setNewText(e.target.value)} />
+          <input type="date" dir="ltr" className={inputCls} value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+          <Button size="sm" disabled={busy || !newText.trim() || !newDate} onClick={addReminder}>הוספה</Button>
+        </div>
+        <div className="mt-2 flex flex-col gap-1.5">
+          {reminders.map((r) => (
+            <div key={r.id} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs">
+              <span className={`rounded-full px-2 py-0.5 font-medium ${r.sentAt ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+                {r.sentAt ? "נשלחה" : "ממתינה"}
+              </span>
+              <span dir="ltr" className="font-mono text-slate-500">{fmtDate(r.dueOn)}</span>
+              <span className="flex-1 text-slate-700">{r.text}</span>
+              {r.createdByName ? <span className="text-slate-400">{r.createdByName}</span> : null}
+              <button onClick={() => delReminder(r.id)} title="מחיקה" className="text-slate-400 transition hover:text-rose-500">
+                <Icon name="trash" className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          {reminders.length === 0 ? <p className="text-[11px] text-slate-500">אין תזכורות עדיין.</p> : null}
+        </div>
       </div>
     </Card>
   );

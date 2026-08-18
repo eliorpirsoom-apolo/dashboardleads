@@ -14,6 +14,7 @@ import { sendDueDesignApprovalReminders, markOverdueDesignTasks } from "@/lib/st
 import { sweepStudioCalendar } from "@/lib/studioGcal";
 import { runWhatsappBroadcast } from "@/lib/whatsappBroadcast";
 import { runLeadSlaChecks } from "@/lib/leadSla";
+import { processBillingAlerts } from "@/lib/billingAlerts";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -207,6 +208,14 @@ export async function GET(req: Request) {
     console.error("[lead-sla]", err);
   }
 
+  // 💰 התראות הנהלת חשבונות — אי-תשלום חודשי + תזכורות ידניות.
+  let billing: unknown = null;
+  try {
+    billing = await processBillingAlerts();
+  } catch (err) {
+    console.error("[billing-alerts]", err);
+  }
+
   // 📣 בוט קבוצות וואטסאפ — הודעת בוקר/סוף-יום לקבוצות (כבוי כברירת מחדל).
   // מתוזמן לפי שעון ישראל עם dedup יומי; ?broadcast=force לשליחה מיידית לבדיקה.
   let broadcast: unknown = null;
@@ -230,6 +239,7 @@ export async function GET(req: Request) {
     transcriptions,
     studio,
     leadSla,
+    billing,
     broadcast,
   });
 }

@@ -213,6 +213,25 @@ export default function StudioBoard({
     { key: "none", group: null as Group | null, color: "#64748b", items: tasks.filter((t) => effGroup(t) === null).sort(bySort) },
   ];
 
+  // 11 עמודות בפריסה קבועה — כל בלוקי הקבוצות מיושרים לאותו גריד, בלי גלילה
+  // אופקית נפרדת פר-קבוצה. העמודה הראשונה (משימה) גמישה וסופגת את השאר.
+  const COLS = 11;
+  const colGroup = (
+    <colgroup>
+      <col />
+      <col style={{ width: 104 }} />
+      <col style={{ width: 84 }} />
+      <col style={{ width: 100 }} />
+      <col style={{ width: 118 }} />
+      <col style={{ width: 148 }} />
+      <col style={{ width: 88 }} />
+      <col style={{ width: 44 }} />
+      <col style={{ width: 148 }} />
+      <col style={{ width: 124 }} />
+      <col style={{ width: 36 }} />
+    </colgroup>
+  );
+
   const renderTaskRow = (t: DTask, groupKey: string) => (
     <tr
       key={t.id}
@@ -224,10 +243,14 @@ export default function StudioBoard({
       className={`border-b border-slate-100 align-middle hover:bg-slate-50 ${dragId === t.id ? "opacity-40" : ""} ${dragOver === `${groupKey}:${t.id}` ? "border-t-2 border-t-cyan-400" : ""}`}
     >
       <td className="px-3 py-2">
-        <div className="flex items-center gap-2">
-          {dndEnabled ? <span className="cursor-grab select-none text-slate-600" title="גרירה">⠿</span> : null}
-          <div>
-            <button onClick={() => setOpenId(t.id)} className="text-right font-medium text-slate-800 hover:text-cyan-700">
+        <div className="flex min-w-0 items-center gap-2">
+          {dndEnabled ? <span className="shrink-0 cursor-grab select-none text-slate-400" title="גרירה">⠿</span> : null}
+          <div className="min-w-0">
+            <button
+              onClick={() => setOpenId(t.id)}
+              title={t.title}
+              className="block max-w-full truncate text-right font-medium text-slate-800 hover:text-[#3a5bd9]"
+            >
               {t.title}
             </button>
             {t.overdue || t.round > 1 ? (
@@ -239,11 +262,21 @@ export default function StudioBoard({
           </div>
         </div>
       </td>
-      <td className="px-3 py-2">
-        {t.client ? <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip> : "—"}
+      <td className="px-2 py-2">
+        {t.client ? (
+          <span
+            className="block max-w-full truncate rounded-full px-2 py-0.5 text-center text-[11px] font-medium"
+            title={t.client.name}
+            style={{ color: t.client.color ?? "#64748b", backgroundColor: `${t.client.color ?? "#64748b"}1a` }}
+          >
+            {t.client.name}
+          </span>
+        ) : (
+          <span className="block text-center text-slate-400">—</span>
+        )}
       </td>
-      <td className="px-3 py-2 text-slate-600">{briefTypeLabel(t.briefType)}</td>
-      <td className="px-3 py-2 w-32">
+      <td className="truncate px-2 py-2 text-xs text-slate-600">{briefTypeLabel(t.briefType)}</td>
+      <td className="px-2 py-2">
         <select
           value={t.priority}
           onChange={(e) => patch(t.id, { priority: e.target.value })}
@@ -259,18 +292,18 @@ export default function StudioBoard({
           ))}
         </select>
       </td>
-      <td className="px-3 py-2 w-40">
+      <td className="px-2 py-2">
         <select value={t.designer?.id ?? ""} onChange={(e) => patch(t.id, { designerId: e.target.value || null })} className={selCls}>
           <option value="">— לא משויך —</option>
           {designers.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
         </select>
       </td>
-      <td className="px-3 py-2 w-48">
+      <td className="px-2 py-2">
         <input type="datetime-local" dir="ltr" value={toLocalInput(t.scheduledAt)}
           onChange={(e) => patch(t.id, { scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} />
       </td>
-      <td className="px-3 py-2 w-28">
+      <td className="px-2 py-2">
         <select
           value={t.durationMin ?? 60}
           onChange={(e) => patch(t.id, { durationMin: Number(e.target.value) })}
@@ -280,7 +313,7 @@ export default function StudioBoard({
           {DURATIONS.map((d) => (<option key={d.v} value={d.v}>{d.l}</option>))}
         </select>
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="px-1 py-2 text-center">
         {!t.designer || !t.scheduledAt ? (
           <span className="text-xs text-slate-300" title="אין מעצב/ת או מועד — אין מה לתזמן ביומן">—</span>
         ) : t.gcalState === "synced" ? (
@@ -291,12 +324,12 @@ export default function StudioBoard({
           <span title="ממתין לסנכרון ליומן — ינוסה שוב אוטומטית תוך דקות">🟡</span>
         )}
       </td>
-      <td className="px-3 py-2 w-48">
+      <td className="px-2 py-2">
         <input type="datetime-local" dir="ltr" value={toLocalInput(t.dueAt)}
           onChange={(e) => patch(t.id, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} title="דדליין ללקוח — ניתן לשינוי" />
       </td>
-      <td className="px-3 py-2 w-44">
+      <td className="px-2 py-2">
         <select
           value={t.status}
           onChange={(e) => patch(t.id, { status: e.target.value })}
@@ -327,13 +360,13 @@ export default function StudioBoard({
   // שורת כותרות-העמודות (חוזרת בכל בלוק-קבוצה, כמו במאנדיי).
   const columnsHead = (
     <thead>
-      <tr className="border-b border-slate-200 text-xs text-slate-500">
-        <th className="px-3 py-2 font-medium">משימה</th>
-        <th className="px-3 py-2 font-medium">לקוח</th>
-        <th className="px-3 py-2 font-medium">סוג</th>
-        <th className="px-3 py-2 font-medium">עדיפות</th>
-        <th className="px-3 py-2 font-medium">מעצב/ת</th>
-        <th className="px-3 py-2 font-medium">
+      <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
+        <th className="px-3 py-2 text-right font-medium">משימה</th>
+        <th className="px-2 py-2 text-right font-medium">לקוח</th>
+        <th className="px-2 py-2 text-right font-medium">סוג</th>
+        <th className="px-2 py-2 text-right font-medium">עדיפות</th>
+        <th className="px-2 py-2 text-right font-medium">מעצב/ת</th>
+        <th className="px-2 py-2 text-right font-medium">
           <button
             type="button"
             onClick={() => { setTimeSort((v) => !v); setStatusSort(false); }}
@@ -343,10 +376,10 @@ export default function StudioBoard({
             מתוזמן ללו״ז {timeSort ? "↓" : "⇅"}
           </button>
         </th>
-        <th className="px-3 py-2 font-medium">משך</th>
-        <th className="px-3 py-2 font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז?</th>
-        <th className="px-3 py-2 font-medium">דדליין</th>
-        <th className="px-3 py-2 font-medium">
+        <th className="px-2 py-2 text-right font-medium">משך</th>
+        <th className="px-1 py-2 text-center font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז</th>
+        <th className="px-2 py-2 text-right font-medium">דדליין</th>
+        <th className="px-2 py-2 text-right font-medium">
           <button
             type="button"
             onClick={() => { setStatusSort((v) => !v); setTimeSort(false); }}
@@ -356,7 +389,7 @@ export default function StudioBoard({
             סטטוס {statusSort ? "↓" : "⇅"}
           </button>
         </th>
-        <th className="px-3 py-2"></th>
+        <th className="px-1 py-2"></th>
       </tr>
     </thead>
   );
@@ -396,26 +429,27 @@ export default function StudioBoard({
           </span>
         </div>
         {!isCollapsed ? (
-          <div className="overflow-x-auto border-t border-slate-200">
-            <table className="w-full min-w-[980px] text-right text-sm">
+          <div className="border-t border-slate-200">
+            <table className="w-full table-fixed text-right text-sm">
+              {colGroup}
               {columnsHead}
               <tbody>
                 {sec.items.map((t) => renderTaskRow(t, sec.key))}
-                {dndEnabled ? (
+                {dndEnabled && dragId ? (
                   <tr
                     onDragOver={(e) => { if (dragGroupId) return; e.preventDefault(); setDragOver(`${sec.key}:end`); }}
                     onDrop={(e) => { if (dragGroupId) return; e.preventDefault(); handleDrop(gidOf(sec.key), null); }}
                   >
-                    <td colSpan={9} className={`px-3 py-1.5 text-center text-[11px] ${dragOver === `${sec.key}:end` ? "bg-cyan-500/10 text-cyan-700" : "text-slate-700"}`}>
+                    <td colSpan={COLS} className={`px-3 py-2 text-center text-[11px] ${dragOver === `${sec.key}:end` ? "bg-cyan-500/10 text-cyan-700" : "text-slate-500"}`}>
                       גררו לכאן להוספה לקבוצה
                     </td>
                   </tr>
                 ) : sec.items.length === 0 ? (
-                  <tr><td colSpan={9} className="px-3 py-3 text-center text-[11px] text-slate-600">אין משימות בקבוצה</td></tr>
+                  <tr><td colSpan={COLS} className="px-3 py-3 text-center text-[11px] text-slate-500">אין משימות בקבוצה</td></tr>
                 ) : null}
                 <tr>
-                  <td colSpan={9} className="border-t border-slate-100 px-3 py-2">
-                    <button onClick={() => openCreateInGroup(gidOf(sec.key))} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-cyan-700">
+                  <td colSpan={COLS} className="border-t border-slate-100 px-3 py-1.5">
+                    <button onClick={() => openCreateInGroup(gidOf(sec.key))} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#3a5bd9]">
                       <Icon name="plus" className="h-3.5 w-3.5" /> הוספת משימה
                     </button>
                   </td>
@@ -488,11 +522,16 @@ export default function StudioBoard({
               <p className="py-8 text-center text-sm text-slate-600">אין משימות עיצוב עדיין. לחצו על ״בריף חדש״ או ״קבוצה חדשה״.</p>
             </Card>
           ) : null}
-          {sections.map((sec) => {
-            // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
-            if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
-            return <Fragment key={sec.key}>{renderGroupBlock(sec)}</Fragment>;
-          })}
+          {/* מיכל גלילה אחד לכל הבלוקים — כל הקבוצות מיושרות לאותו גריד עמודות. */}
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-[1060px] flex-col gap-3">
+              {sections.map((sec) => {
+                // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
+                if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
+                return <Fragment key={sec.key}>{renderGroupBlock(sec)}</Fragment>;
+              })}
+            </div>
+          </div>
         </div>
       ) : (
         <CapacityView tasks={tasks} designers={designers} onOpen={setOpenId} />
@@ -547,7 +586,8 @@ function CapacityView({
     return m % 60 === 0 ? `${m / 60} ש׳` : `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")} ש׳`;
   };
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0,1fr))` }}>
+    <div className="overflow-x-auto pb-1">
+    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(230px,1fr))` }}>
       {cols.map((c) => {
         const mine = active
           .filter((t) => (t.designer?.id ?? "") === c.id)
@@ -586,6 +626,7 @@ function CapacityView({
           </Card>
         );
       })}
+    </div>
     </div>
   );
 }

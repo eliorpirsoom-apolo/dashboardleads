@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pnina-landing",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "-l", "8123", "C:/Users/ASUS/Desktop/Projects/pninatrahelmesika"],
+      "port": 8123
+    }
+  ]
+}

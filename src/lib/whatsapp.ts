@@ -55,7 +55,10 @@ export async function sendWhatsappRaw(
   const token = creds?.token || process.env.GREENAPI_API_TOKEN!;
   const base = (process.env.GREENAPI_API_URL || "https://api.green-api.com").replace(/\/$/, "");
   const intl = waIntl(to);
-  if (!intl) return { ok: false, error: "מספר לא תקין" };
+  // ולידציה מוקדמת — שגיאה ברורה בעברית במקום 400 עמום מגרין-API.
+  if (!intl || !/^\d{11,15}$/.test(intl)) {
+    return { ok: false, error: `מספר לא תקין (${to}) — יש להזין מספר נייד מלא, למשל 0501234567` };
+  }
   try {
     const res = await fetch(`${base}/waInstance${id}/sendMessage/${token}`, {
       method: "POST",
