@@ -16,18 +16,27 @@ export const GET = handle(async () => {
   await requireAdmin();
   if (!whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
   const { id, token } = creds();
-  const [res, stateRes] = await Promise.all([
+  const [res, stateRes, inRes] = await Promise.all([
     fetch(`${base()}/waInstance${id}/getSettings/${token}`),
     fetch(`${base()}/waInstance${id}/getStateInstance/${token}`),
+    // הודעות שנקלטו במופע ב-24 השעות האחרונות — בלי תלות ב-webhooks. אם יש
+    // הודעות כאן אבל אין POST-ים אצלנו, גרין-API לא דוחף את ההתראות.
+    fetch(`${base()}/waInstance${id}/lastIncomingMessages/${token}?minutes=1440`),
   ]);
   const j = await res.json().catch(() => ({}));
   // authorized = הטלפון מקושר; notAuthorized = נדרשת סריקת QR מחדש בקונסולת Green API.
   const state = await stateRes.json().catch(() => ({}));
+  const incoming = await inRes.json().catch(() => null);
+  const incomingArr = Array.isArray(incoming) ? incoming : [];
+  const newestTs = incomingArr.reduce((m: number, x: any) => Math.max(m, Number(x?.timestamp) || 0), 0);
   const envTok = process.env.GREENAPI_WEBHOOK_TOKEN || "";
   return NextResponse.json({
+    idInstance: id,
     stateInstance: state?.stateInstance ?? null,
     webhookUrl: j?.webhookUrl ?? null,
     incomingWebhook: j?.incomingWebhook ?? null,
+    incoming24h: inRes.ok ? incomingArr.length : `HTTP ${inRes.status}`,
+    incomingNewestAt: newestTs ? new Date(newestTs * 1000).toISOString() : null,
     envLen: envTok.length,
     greenLen: (j?.webhookUrlToken || "").length,
     aligned: Boolean(envTok) && envTok === (j?.webhookUrlToken || ""),
