@@ -61,13 +61,14 @@ function parseTasks(raw: string): ExtractedTask[] {
   }
 }
 
-// חילוץ משימות מטקסט חופשי (עברית). מחזיר [] אם אין משימה או שה-AI לא מוגדר.
-export async function extractTasks(
+// חילוץ משימות עם פירוט מלא (לאבחון): התשובה הגולמית של ה-AI + שגיאה אם הייתה.
+export async function extractTasksRaw(
   text: string,
   instructions?: string | null,
   model?: string | null
-): Promise<ExtractedTask[]> {
-  if (!aiConfigured() || !text.trim()) return [];
+): Promise<{ tasks: ExtractedTask[]; raw: string; error: string | null }> {
+  if (!aiConfigured()) return { tasks: [], raw: "", error: "AI לא מוגדר (OPENAI_API_KEY)" };
+  if (!text.trim()) return { tasks: [], raw: "", error: "טקסט ריק" };
   const system =
     `אתה עוזר שמחלץ משימות ותזכורות מהודעות טקסט בעברית של צוות סוכנות פרסום.\n` +
     `מההודעה, חלץ 0 או יותר פריטי משימה קצרים וברורים לביצוע.\n` +
@@ -76,13 +77,23 @@ export async function extractTasks(
     `- אם צוין מועד/דד-ליין — כתוב אותו ב-dueHint (למשל "מחר", "יום ראשון 10:00"); אחרת null.\n` +
     (instructions ? `הנחיות נוספות מהמשתמש: ${instructions}\n` : "") +
     `החזר JSON תקין בלבד, בלי טקסט נוסף, בפורמט: {"tasks":[{"title":"...","dueHint":"..."}]}`;
-  let raw = "";
   try {
-    raw = await aiComplete({ system, user: text.trim().slice(0, 4000), temperature: 0.2, maxTokens: 500, model: model || undefined });
-  } catch {
-    return [];
+    const raw = await aiComplete({ system, user: text.trim().slice(0, 4000), temperature: 0.2, maxTokens: 500, model: model || undefined });
+    return { tasks: parseTasks(raw), raw, error: null };
+  } catch (e: any) {
+    return { tasks: [], raw: "", error: String(e?.message || e).slice(0, 300) };
   }
-  return parseTasks(raw);
+}
+
+// חילוץ משימות מטקסט חופשי (עברית). מחזיר [] אם אין משימה או שה-AI לא מוגדר.
+export async function extractTasks(
+  text: string,
+  instructions?: string | null,
+  model?: string | null
+): Promise<ExtractedTask[]> {
+  const r = await extractTasksRaw(text, instructions, model);
+  if (r.error) console.error("[task-agent:extract]", r.error);
+  return r.tasks;
 }
 
 // טקסט הפריט במאגר: כותרת + רמז-מועד (אם יש).

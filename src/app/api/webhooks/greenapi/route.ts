@@ -25,6 +25,8 @@ export async function POST(req: Request) {
 
   try {
     const res = await ingestInboundWhatsapp(payload);
+    // לוג אבחון: מסלול העיבוד של כל הודעה (dedup/group-ignored/task-agent/...) — נצפה ב-Vercel Logs.
+    console.log("[greenapi:ingest]", JSON.stringify({ type: payload?.typeWebhook, chat: payload?.senderData?.chatId, msg: payload?.messageData?.typeMessage, ...res }));
     return NextResponse.json({ ok: true, ...res });
   } catch (err) {
     console.error("[greenapi:webhook]", err);
