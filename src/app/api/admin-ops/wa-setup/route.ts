@@ -16,10 +16,16 @@ export const GET = handle(async () => {
   await requireAdmin();
   if (!whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
   const { id, token } = creds();
-  const res = await fetch(`${base()}/waInstance${id}/getSettings/${token}`);
+  const [res, stateRes] = await Promise.all([
+    fetch(`${base()}/waInstance${id}/getSettings/${token}`),
+    fetch(`${base()}/waInstance${id}/getStateInstance/${token}`),
+  ]);
   const j = await res.json().catch(() => ({}));
+  // authorized = הטלפון מקושר; notAuthorized = נדרשת סריקת QR מחדש בקונסולת Green API.
+  const state = await stateRes.json().catch(() => ({}));
   const envTok = process.env.GREENAPI_WEBHOOK_TOKEN || "";
   return NextResponse.json({
+    stateInstance: state?.stateInstance ?? null,
     webhookUrl: j?.webhookUrl ?? null,
     incomingWebhook: j?.incomingWebhook ?? null,
     envLen: envTok.length,
