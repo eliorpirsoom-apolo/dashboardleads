@@ -42,7 +42,7 @@ export default function PaymentsBoard() {
   const [cells, setCells] = useState<CellMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [panel, setPanel] = useState<"" | "status" | "keywords" | "billing">("");
+  const [panel, setPanel] = useState<"" | "status" | "keywords">("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -177,9 +177,6 @@ export default function PaymentsBoard() {
           <Icon name="edit" className="h-4 w-4" />
           מילות סיווג
         </Button>
-        <Button variant="ghost" onClick={() => setPanel((p) => (p === "billing" ? "" : "billing"))}>
-          🔔 התראות הנה״ח
-        </Button>
         {error ? <span className="text-sm text-red-600">{error}</span> : null}
       </div>
 
@@ -236,8 +233,6 @@ export default function PaymentsBoard() {
 
       {panel === "status" ? <StatusManager statuses={statuses} onChange={load} /> : null}
       {panel === "keywords" ? <KeywordManager /> : null}
-      {panel === "billing" ? <BillingAlertsPanel /> : null}
-
       {/* טבלת התשלומים — שתי תת-שורות לכל לקוח (ריטיינר / חד-פעמי) */}
       <Card className="!p-0">
         {loading ? (
@@ -346,6 +341,9 @@ export default function PaymentsBoard() {
           </div>
         )}
       </Card>
+
+      {/* התראות הנה"ח — כרטיס קבוע מתחת ללוח, ניתן למזעור/הרחבה */}
+      <BillingAlertsPanel />
     </div>
   );
 }
@@ -550,13 +548,25 @@ function BillingAlertsPanel() {
   const [busy, setBusy] = useState(false);
   const [newText, setNewText] = useState("");
   const [newDate, setNewDate] = useState("");
+  // ממוזער כברירת מחדל; הבחירה נשמרת מקומית.
+  const [open, setOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("billing-panel-open") === "1";
+    return false;
+  });
+  function toggleOpen() {
+    setOpen((v) => {
+      try { localStorage.setItem("billing-panel-open", v ? "0" : "1"); } catch { /* לא קריטי */ }
+      return !v;
+    });
+  }
 
   const loadAll = useCallback(async () => {
     const d = await api<{ config: BillingConfig; reminders: BillingReminder[] }>("/api/billing-alerts");
     setCfg(d.config);
     setReminders(d.reminders);
   }, []);
-  useEffect(() => { loadAll(); }, [loadAll]);
+  // נטען רק כשהכרטיס נפתח לראשונה.
+  useEffect(() => { if (open && !cfg) loadAll(); }, [open, cfg, loadAll]);
 
   async function save(patch: Record<string, unknown>) {
     setMsg("");
@@ -594,15 +604,30 @@ function BillingAlertsPanel() {
     } catch (e: any) { setMsg("שגיאה: " + e.message); } finally { setBusy(false); }
   }
 
-  if (!cfg) return <Card><p className="p-4 text-center text-sm text-slate-500">טוען…</p></Card>;
-
   const inputCls = "rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none";
   const fmtDate = (iso: string) => new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso));
 
+  const header = (
+    <button type="button" onClick={toggleOpen} className="flex w-full items-center justify-between text-right">
+      <span className="flex items-center gap-2 text-sm font-bold text-slate-800">
+        🔔 התראות הנהלת חשבונות
+        {cfg ? (
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${cfg.enabled ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+            {cfg.enabled ? "מופעל" : "כבוי"}
+          </span>
+        ) : null}
+      </span>
+      <span className="text-slate-400">{open ? "▾ מזעור" : "▸ הרחבה"}</span>
+    </button>
+  );
+
+  if (!open) return <Card>{header}</Card>;
+  if (!cfg) return <Card>{header}<p className="p-4 text-center text-sm text-slate-500">טוען…</p></Card>;
+
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-slate-800">🔔 התראות הנהלת חשבונות</h3>
+      <div className="mb-3">{header}</div>
+      <div className="mb-3 flex items-center justify-end">
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={cfg.enabled} onChange={(e) => save({ enabled: e.target.checked })} className="h-4 w-4 accent-[#3a5bd9]" />
           מופעל

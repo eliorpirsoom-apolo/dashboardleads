@@ -215,20 +215,67 @@ export default function StudioBoard({
 
   // 11 עמודות בפריסה קבועה — כל בלוקי הקבוצות מיושרים לאותו גריד, בלי גלילה
   // אופקית נפרדת פר-קבוצה. העמודה הראשונה (משימה) גמישה וסופגת את השאר.
+  // רוחבי העמודות ניתנים לשינוי בגרירת הידית שבקצה כל כותרת (כמו באקסל) ונשמרים מקומית.
   const COLS = 11;
+  const DEFAULT_COL_WIDTHS = [104, 84, 100, 118, 148, 88, 44, 148, 124, 36]; // עמודות 1..10 (משימה גמישה)
+  const [colW, setColW] = useState<number[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const s = JSON.parse(localStorage.getItem("studio-col-widths") || "null");
+        if (Array.isArray(s) && s.length === DEFAULT_COL_WIDTHS.length && s.every((n) => Number.isFinite(n))) return s;
+      } catch {
+        /* ברירת מחדל */
+      }
+    }
+    return DEFAULT_COL_WIDTHS;
+  });
+  const resizeRef = useRef<{ idx: number; startX: number; startW: number } | null>(null);
+  function startResize(idx: number, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeRef.current = { idx, startX: e.clientX, startW: colW[idx] };
+    const onMove = (ev: MouseEvent) => {
+      const r = resizeRef.current;
+      if (!r) return;
+      // RTL: גרירה שמאלה מרחיבה את העמודה.
+      const delta = r.startX - ev.clientX;
+      setColW((prev) => {
+        const next = [...prev];
+        next[r.idx] = Math.min(440, Math.max(40, r.startW + delta));
+        return next;
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      resizeRef.current = null;
+      setColW((prev) => {
+        try {
+          localStorage.setItem("studio-col-widths", JSON.stringify(prev));
+        } catch {
+          /* לא קריטי */
+        }
+        return prev;
+      });
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+  // ידית שינוי-רוחב בקצה השמאלי של כותרת (i = אינדקס בעמודות 0..9 של colW).
+  const Resizer = ({ i }: { i: number }) => (
+    <span
+      onMouseDown={(e) => startResize(i, e)}
+      onClick={(e) => e.stopPropagation()}
+      title="גרירה לשינוי רוחב העמודה"
+      className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-[#3a5bd9]/40"
+    />
+  );
   const colGroup = (
     <colgroup>
       <col />
-      <col style={{ width: 104 }} />
-      <col style={{ width: 84 }} />
-      <col style={{ width: 100 }} />
-      <col style={{ width: 118 }} />
-      <col style={{ width: 148 }} />
-      <col style={{ width: 88 }} />
-      <col style={{ width: 44 }} />
-      <col style={{ width: 148 }} />
-      <col style={{ width: 124 }} />
-      <col style={{ width: 36 }} />
+      {colW.map((w, i) => (
+        <col key={i} style={{ width: w }} />
+      ))}
     </colgroup>
   );
 
