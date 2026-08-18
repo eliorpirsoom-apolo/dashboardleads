@@ -217,11 +217,13 @@ export default function StudioBoard({
   // אופקית נפרדת פר-קבוצה. העמודה הראשונה (משימה) גמישה וסופגת את השאר.
   // רוחבי העמודות ניתנים לשינוי בגרירת הידית שבקצה כל כותרת (כמו באקסל) ונשמרים מקומית.
   const COLS = 11;
-  const DEFAULT_COL_WIDTHS = [104, 84, 100, 118, 148, 88, 44, 148, 124, 36]; // עמודות 1..10 (משימה גמישה)
+  // גרסת המפתח (v2) מאפסת רוחבים שמורים כשברירות המחדל מכווננות מחדש.
+  const COL_WIDTHS_KEY = "studio-col-widths-v2";
+  const DEFAULT_COL_WIDTHS = [104, 84, 100, 118, 148, 76, 44, 148, 124, 36]; // עמודות 1..10 (משימה גמישה)
   const [colW, setColW] = useState<number[]>(() => {
     if (typeof window !== "undefined") {
       try {
-        const s = JSON.parse(localStorage.getItem("studio-col-widths") || "null");
+        const s = JSON.parse(localStorage.getItem(COL_WIDTHS_KEY) || "null");
         if (Array.isArray(s) && s.length === DEFAULT_COL_WIDTHS.length && s.every((n) => Number.isFinite(n))) return s;
       } catch {
         /* ברירת מחדל */
@@ -251,7 +253,7 @@ export default function StudioBoard({
       resizeRef.current = null;
       setColW((prev) => {
         try {
-          localStorage.setItem("studio-col-widths", JSON.stringify(prev));
+          localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
         } catch {
           /* לא קריטי */
         }
