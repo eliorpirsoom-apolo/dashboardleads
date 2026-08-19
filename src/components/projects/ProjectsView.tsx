@@ -33,16 +33,19 @@ export default function ProjectsView({
 }) {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ projects: ProjectRow[] }>(`/api/projects?clientId=${clientId}`);
+      const d = await api<{ projects: ProjectRow[] }>(
+        `/api/projects?clientId=${clientId}${showArchived ? "&archived=1" : ""}`
+      );
       setProjects(d.projects);
     } catch (e: any) {
       setError(e.message);
     }
-  }, [clientId]);
+  }, [clientId, showArchived]);
 
   useEffect(() => {
     load();
@@ -50,12 +53,25 @@ export default function ProjectsView({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setShowCreate(true)}>
-          <Icon name="plus" className="h-4 w-4" />
-          פרויקט חדש
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          variant="ghost"
+          onClick={() => setShowArchived((v) => !v)}
+          className={showArchived ? "!border-[#3a5bd9] !text-[#3a5bd9]" : "!border-slate-300 !text-slate-500"}
+        >
+          🗄 {showArchived ? "חזרה לפרויקטים פעילים" : "ארכיון"}
         </Button>
+        {!showArchived ? (
+          <Button onClick={() => setShowCreate(true)}>
+            <Icon name="plus" className="h-4 w-4" />
+            פרויקט חדש
+          </Button>
+        ) : null}
       </div>
+
+      {showArchived ? (
+        <p className="text-xs text-slate-500">🗄 מציג פרויקטים בארכיון בלבד — לחיצה על פרויקט פותחת אותו כרגיל.</p>
+      ) : null}
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 

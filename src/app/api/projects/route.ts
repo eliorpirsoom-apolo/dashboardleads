@@ -8,16 +8,22 @@ import { parseItems, sendMaterialsRequest } from "@/lib/materials";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/projects?clientId — projects with inventory + sales summary.
+// GET /api/projects?clientId&archived=1 — projects with inventory + sales summary.
+// ברירת מחדל: פרויקטים בארכיון מוסתרים; archived=1 מחזיר את הארכיון בלבד.
 // סוכן-פרויקטים מקבל רק את הפרויקטים שהוא משויך אליהם.
 export const GET = handle(async (req) => {
   const user = await requireUser();
   const p = new URL(req.url).searchParams;
   const clientId = scopeClientId(user, p.get("clientId"));
   const allowed = await allowedProjectIds(user);
+  const archivedOnly = p.get("archived") === "1";
 
   const projects = await prisma.project.findMany({
-    where: { clientId, ...(allowed ? { id: { in: allowed } } : {}) },
+    where: {
+      clientId,
+      ...(allowed ? { id: { in: allowed } } : {}),
+      status: archivedOnly ? "archived" : { not: "archived" },
+    },
     orderBy: { createdAt: "desc" },
     include: {
       unitTypes: true,
