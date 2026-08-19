@@ -59,10 +59,10 @@ export const POST = handle(async (req) => {
   if (!client) throw new ApiError(404, "לקוח לא נמצא");
 
   const groupId = b.groupId || null;
-  // מוסיפים בסוף הקבוצה (orderIndex הבא).
-  const last = await prisma.designTask.findFirst({
+  // משימה חדשה נכנסת בראש הקבוצה (חדש = למעלה, כמו בכל המערכת).
+  const first = await prisma.designTask.findFirst({
     where: { groupId },
-    orderBy: { orderIndex: "desc" },
+    orderBy: { orderIndex: "asc" },
     select: { orderIndex: true },
   });
 
@@ -77,7 +77,7 @@ export const POST = handle(async (req) => {
       priority: b.priority,
       designerId: b.designerId || null,
       groupId,
-      orderIndex: (last?.orderIndex ?? -1) + 1,
+      orderIndex: (first?.orderIndex ?? 1) - 1,
       scheduledAt: b.scheduledAt ? new Date(b.scheduledAt) : null,
       durationMin: b.durationMin ?? null,
       dueAt: b.dueAt ? new Date(b.dueAt) : null,

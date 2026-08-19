@@ -221,10 +221,11 @@ export default function StudioBoard({
   // 11 עמודות בפריסה קבועה — כל בלוקי הקבוצות מיושרים לאותו גריד, בלי גלילה
   // אופקית נפרדת פר-קבוצה. העמודה הראשונה (משימה) גמישה וסופגת את השאר.
   // רוחבי העמודות ניתנים לשינוי בגרירת הידית שבקצה כל כותרת (כמו באקסל) ונשמרים מקומית.
-  const COLS = 11;
+  const COLS = 12;
   // גרסת המפתח (v2) מאפסת רוחבים שמורים כשברירות המחדל מכווננות מחדש.
-  const COL_WIDTHS_KEY = "studio-col-widths-v3";
-  const DEFAULT_COL_WIDTHS = [104, 124, 100, 118, 148, 76, 44, 148, 84, 36]; // עמודות 1..10 (משימה גמישה)
+  const COL_WIDTHS_KEY = "studio-col-widths-v4";
+  // כל 11 העמודות ברוחב קבוע וניתן לגרירה (כולל "משימה"); עמודת-מילוי ריקה בסוף סופגת את שאר המסך.
+  const DEFAULT_COL_WIDTHS = [240, 104, 124, 100, 118, 148, 76, 44, 148, 84, 36];
   const [colW, setColW] = useState<number[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -279,10 +280,10 @@ export default function StudioBoard({
   );
   const colGroup = (
     <colgroup>
-      <col />
       {colW.map((w, i) => (
         <col key={i} style={{ width: w }} />
       ))}
+      <col /> {/* עמודת מילוי — סופגת את שארית הרוחב */}
     </colgroup>
   );
 
@@ -408,6 +409,7 @@ export default function StudioBoard({
           <Icon name="trash" className="h-4 w-4" />
         </button>
       </td>
+      <td className="px-0 py-2"></td>
     </tr>
   );
 
@@ -415,8 +417,8 @@ export default function StudioBoard({
   const columnsHead = (
     <thead>
       <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
-        <th className="relative px-3 py-2 text-right font-medium">משימה</th>
-        <th className="relative px-2 py-2 text-right font-medium">לקוח<Resizer i={0} /></th>
+        <th className="relative px-3 py-2 text-right font-medium">משימה<Resizer i={0} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">לקוח<Resizer i={1} /></th>
         <th className="relative px-2 py-2 text-right font-medium">
           <button
             type="button"
@@ -426,10 +428,10 @@ export default function StudioBoard({
           >
             סטטוס {statusSort ? "↓" : "⇅"}
           </button>
-          <Resizer i={1} />
+          <Resizer i={2} />
         </th>
-        <th className="relative px-2 py-2 text-right font-medium">עדיפות<Resizer i={2} /></th>
-        <th className="relative px-2 py-2 text-right font-medium">מעצב/ת<Resizer i={3} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">עדיפות<Resizer i={3} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">מעצב/ת<Resizer i={4} /></th>
         <th className="relative px-2 py-2 text-right font-medium">
           <button
             type="button"
@@ -439,13 +441,14 @@ export default function StudioBoard({
           >
             מתוזמן ללו״ז {timeSort ? "↓" : "⇅"}
           </button>
-          <Resizer i={4} />
+          <Resizer i={5} />
         </th>
-        <th className="relative px-2 py-2 text-right font-medium">משך<Resizer i={5} /></th>
-        <th className="relative px-1 py-2 text-center font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז<Resizer i={6} /></th>
-        <th className="relative px-2 py-2 text-right font-medium">דדליין<Resizer i={7} /></th>
-        <th className="relative px-2 py-2 text-right font-medium">סוג<Resizer i={8} /></th>
-        <th className="relative px-1 py-2"><Resizer i={9} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">משך<Resizer i={6} /></th>
+        <th className="relative px-1 py-2 text-center font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז<Resizer i={7} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">דדליין<Resizer i={8} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">סוג<Resizer i={9} /></th>
+        <th className="relative px-1 py-2"><Resizer i={10} /></th>
+        <th className="px-0 py-2"></th>
       </tr>
     </thead>
   );
@@ -581,7 +584,7 @@ export default function StudioBoard({
           {/* מיכל גלילה אחד לכל הבלוקים — כל הקבוצות מיושרות לאותו גריד עמודות.
               הרוחב המינימלי גדל עם הרחבת עמודות (כמו באקסל) כדי שעמודת המשימה לא תימחץ. */}
           <div className="overflow-x-auto pb-1">
-            <div className="flex flex-col gap-3" style={{ minWidth: 240 + colW.reduce((a, b) => a + b, 0) }}>
+            <div className="flex flex-col gap-3" style={{ minWidth: 24 + colW.reduce((a, b) => a + b, 0) }}>
               {sections.map((sec) => {
                 // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
                 if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
