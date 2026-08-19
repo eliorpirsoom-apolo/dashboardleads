@@ -82,6 +82,7 @@ const CreateTask = z.object({
   reminderMinutesBefore: z.number().int().min(0).max(60 * 24 * 14).optional(),
   // למי לשלוח את התזכורת: הסוכן/משרד ו/או הליד עצמו.
   reminderTargets: z.array(z.enum(["agent", "lead"])).optional(),
+  priority: z.enum(["low", "normal", "urgent"]).optional(),
 });
 
 // POST /api/tasks — create task/meeting with optional reminder.
@@ -135,6 +136,13 @@ export const POST = handle(async (req) => {
     });
   }
 
+  // חדש = למעלה בבורד של המטפל (orderIndex קטן מהמינימום הקיים).
+  const firstOnBoard = await prisma.task.findFirst({
+    where: { assigneeId: body.assigneeId || null, status: { in: ["open", "in_progress"] } },
+    orderBy: { orderIndex: "asc" },
+    select: { orderIndex: true },
+  });
+
   const task = await prisma.task.create({
     data: {
       clientId,
@@ -142,6 +150,8 @@ export const POST = handle(async (req) => {
       description: body.description || null,
       type: body.type,
       ownerSide,
+      priority: body.priority ?? "normal",
+      orderIndex: (firstOnBoard?.orderIndex ?? 1) - 1,
       assigneeId: body.assigneeId || null,
       leadId: body.leadId || null,
       dueAt,

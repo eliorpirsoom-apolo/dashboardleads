@@ -7,6 +7,7 @@ import { Button, Chip, EmptyState, Field, Input, Select, Textarea } from "@/comp
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import TaskInboxPanel from "@/components/tasks/TaskInboxPanel";
+import TasksBoards from "@/components/tasks/TasksBoards";
 
 export interface TaskRow {
   id: string;
@@ -38,11 +39,13 @@ export default function TasksView({
   clientId,
   clients = [],
   users = [],
+  meId,
 }: {
   isAdmin: boolean;
   clientId?: string; // fixed scope (client side / admin client workspace)
   clients?: { id: string; name: string }[];
   users?: { id: string; name: string }[];
+  meId?: string | null;
 }) {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [statusFilter, setStatusFilter] = useState("open");
@@ -51,9 +54,9 @@ export default function TasksView({
   const [error, setError] = useState("");
   const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  // מאגר לכידה מהיר (רק בעמוד המשימות הראשי של המשרד).
+  // מאגר לכידה מהיר + לוח צוות (רק בעמוד המשימות הראשי של המשרד).
   const showInboxTab = isAdmin && !clientId;
-  const [view, setView] = useState<"tasks" | "inbox">("tasks");
+  const [view, setView] = useState<"board" | "tasks" | "inbox">(showInboxTab ? "board" : "tasks");
   const [inboxOpenCount, setInboxOpenCount] = useState(0);
   const [inboxReload, setInboxReload] = useState(0);
   const [convertingId, setConvertingId] = useState<string | null>(null);
@@ -119,12 +122,20 @@ export default function TasksView({
       {showInboxTab ? (
         <div className="flex items-center gap-1.5">
           <button
+            onClick={() => setView("board")}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              view === "board" ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            לוח צוות
+          </button>
+          <button
             onClick={() => setView("tasks")}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
               view === "tasks" ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            משימות
+            רשימה
           </button>
           <button
             onClick={() => setView("inbox")}
@@ -137,7 +148,9 @@ export default function TasksView({
         </div>
       ) : null}
 
-      {showInboxTab && view === "inbox" ? (
+      {showInboxTab && view === "board" ? (
+        <TasksBoards users={users} clients={clients} meId={meId} onChanged={load} />
+      ) : showInboxTab && view === "inbox" ? (
         <TaskInboxPanel onConvert={startConvert} reloadSignal={inboxReload} onOpenCount={setInboxOpenCount} />
       ) : (
       <>
@@ -298,6 +311,7 @@ export function TaskFormModal({
   task,
   defaultDate,
   defaultTitle,
+  defaultAssigneeId,
   onClose,
   onSaved,
 }: {
@@ -308,6 +322,7 @@ export function TaskFormModal({
   task: TaskRow | null;
   defaultDate?: string;
   defaultTitle?: string;
+  defaultAssigneeId?: string; // בורד היעד בלוח הצוות — ממלא מראש את "משויך ל…"
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -323,7 +338,7 @@ export function TaskFormModal({
     type: task?.type ?? "task",
     ownerSide: task?.ownerSide ?? (isAdmin ? "agency" : "client"),
     clientId: task?.client?.id ?? clientId ?? "",
-    assigneeId: task?.assignee?.id ?? "",
+    assigneeId: task?.assignee?.id ?? defaultAssigneeId ?? "",
     dueAt: task ? toLocal(task.dueAt) : defaultDate ? `${defaultDate}T10:00` : "",
     durationMin: task?.durationMin ?? 60,
     location: task?.location ?? "",

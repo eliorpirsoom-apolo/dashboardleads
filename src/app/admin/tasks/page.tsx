@@ -6,7 +6,7 @@ import TasksView from "@/components/tasks/TasksView";
 export const dynamic = "force-dynamic";
 
 export default async function AdminTasksPage() {
-  await requireAdminModule("tasks");
+  const me = await requireAdminModule("tasks");
   const [clients, admins] = await Promise.all([
     prisma.client.findMany({
       where: { active: true },
@@ -23,9 +23,9 @@ export default async function AdminTasksPage() {
     <>
       <PageHeader
         title="משימות"
-        subtitle="כל המשימות והפגישות — של המשרד ושל הלקוחות"
+        subtitle="לוח צוות — בורד אישי לכל עובד/ת, כמו במאנדיי"
       />
-      <TasksView isAdmin clients={clients} users={admins} />
+      <TasksView isAdmin clients={clients} users={admins} meId={me.id} />
     </>
   );
 }

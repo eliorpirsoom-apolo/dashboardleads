@@ -25,7 +25,8 @@ const UpdateTask = z.object({
   durationMin: z.number().int().min(5).max(720).nullable().optional(),
   location: z.string().max(300).nullable().optional(),
   assigneeId: z.string().nullable().optional(),
-  status: z.enum(["open", "done", "canceled"]).optional(),
+  status: z.enum(["open", "in_progress", "done", "canceled"]).optional(),
+  priority: z.enum(["low", "normal", "urgent"]).optional(),
   reminder: z
     .object({
       channel: z.enum(["email", "sms", "whatsapp"]),
@@ -53,7 +54,9 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
         location: body.location,
         assigneeId: body.assigneeId,
         status: body.status,
-        completedAt: body.status === "done" ? new Date() : body.status === "open" ? null : undefined,
+        priority: body.priority,
+        completedAt:
+          body.status === "done" ? new Date() : body.status === "open" || body.status === "in_progress" ? null : undefined,
       },
     });
 

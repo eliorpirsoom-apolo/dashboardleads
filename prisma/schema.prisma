@@ -73,9 +73,54 @@ model User {
   designAssets       DesignAsset[]
   engagementTasks EngagementTask[] @relation("EngagementTaskAssignee")
   notifications   Notification[]
+  seoActions      SeoAction[]      @relation("SeoActionAssignee")
 
   @@index([clientId])
   @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// מודול קידום אורגני — מעקב ביצועים ללקוחות SEO: רכישת לינקים, כתיבת תכנים,
+// אופטימיזציה ועדכוני אתר. פעולה משויכת לחודש ("YYYY-MM") לצורך דוח ומכסה.
+// ---------------------------------------------------------------------------
+
+model SeoAction {
+  id         String    @id @default(cuid())
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+  month      String // "YYYY-MM"
+  kind       String // "link" | "content" | "onsite" | "update" | "other"
+  title      String
+  url        String? // הקישור שנרכש / כתובת המאמר
+  targetPage String? // עמוד היעד באתר הלקוח (ללינקים)
+  anchor     String? // טקסט העוגן (ללינקים)
+  cost       Float? // עלות (לינקים) — מוצג למנהלים בלבד
+  status     String    @default("planned") // "planned" | "in_progress" | "done"
+  doneAt     DateTime?
+  assignee   User?     @relation("SeoActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId String?
+  notes      String?
+  orderIndex Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([clientId, month])
+  @@index([month, kind])
+}
+
+// מכסה חודשית פר לקוח (חבילת הקידום שהובטחה): כמה מכל סוג בחודש.
+// קיום רשומה = הלקוח מופיע בלוח הקידום האורגני.
+model SeoQuota {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String   @unique
+  links     Int      @default(0)
+  content   Int      @default(0)
+  onsite    Int      @default(0)
+  updates   Int      @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // התראה פנימית למשתמש משרד (תיוג @ בעדכון וכד') — נצברת בפעמון שבסיידבר.
@@ -201,6 +246,8 @@ model Client {
   designTasks       DesignTask[]
   whatsappMessages  WhatsappMessage[]
   payments          ClientPayment[]
+  seoActions        SeoAction[]
+  seoQuota          SeoQuota?
 
   @@index([name])
   @@index([type])
@@ -481,7 +528,9 @@ model Task {
   dueAt       DateTime
   durationMin Int? // meetings: duration
   location    String? // meetings: place / video link
-  status      String    @default("open") // "open" | "done" | "canceled"
+  status      String    @default("open") // "open" | "in_progress" | "done" | "canceled"
+  priority    String    @default("normal") // "low" | "normal" | "urgent"
+  orderIndex  Int       @default(0) // סדר ידני בבורד האישי (קטן = למעלה)
   completedAt DateTime?
   // סנכרון ליומן Google: האירוע שנוצר + המשתמש שביומנו הוא יושב.
   googleEventId String?
