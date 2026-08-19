@@ -51,6 +51,14 @@ interface LeadRow {
 }
 
 // סטטוס שיחת טלפון → תווית + צבע לתצוגה בטבלה (עברית או ערך גולמי מ-CheckCall).
+// מספר ישראלי → פורמט בינלאומי לקישורי wa.me / tel (972 בלי 0 מוביל).
+function phoneIntl(phone: string): string {
+  const digits = (phone || "").replace(/\D/g, "");
+  if (digits.startsWith("972")) return digits;
+  if (digits.startsWith("0")) return `972${digits.slice(1)}`;
+  return digits;
+}
+
 function callStatusStyle(raw: string | null): { label: string; color: string } | null {
   if (!raw) return null;
   const s = raw.trim();
@@ -320,7 +328,7 @@ export default function LeadsView({
           {canImport ? (
             <Button variant="ghost" onClick={() => setShowImport(true)}>
               <Icon name="upload" className="h-4 w-4" />
-              ייבוא CSV
+              ייבוא Excel/CSV
             </Button>
           ) : null}
           <Button onClick={() => setShowCreate(true)}>
@@ -491,7 +499,31 @@ export default function LeadsView({
                       : null}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-slate-600" dir="ltr">{l.phone ?? "—"}</td>
+                <td className="px-3 py-2.5 text-slate-600" onClick={(e) => e.stopPropagation()}>
+                  {l.phone ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span dir="ltr">{l.phone}</span>
+                      <a
+                        href={`https://wa.me/${phoneIntl(l.phone)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="פתיחת שיחת וואטסאפ"
+                        className="rounded-md p-1 text-emerald-500 transition hover:bg-emerald-50 hover:text-emerald-600"
+                      >
+                        <Icon name="whatsapp" className="h-4 w-4" />
+                      </a>
+                      <a
+                        href={`tel:+${phoneIntl(l.phone)}`}
+                        title="חיוג"
+                        className="rounded-md p-1 text-[#3a5bd9] transition hover:bg-[#3a5bd9]/10"
+                      >
+                        <Icon name="phone" className="h-4 w-4" />
+                      </a>
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <select
                     value={l.status?.id ?? ""}

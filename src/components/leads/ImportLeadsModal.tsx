@@ -95,8 +95,23 @@ export default function ImportLeadsModal({
     setFileName(file.name);
     setError("");
     setResult(null);
-    const text = await file.text();
-    const rows = parseCsv(text);
+    let rows: string[][];
+    if (/\.xlsx?$/i.test(file.name)) {
+      // אקסל: פריסה לגיליון הראשון (הספרייה נטענת רק כשבאמת נבחר קובץ אקסל).
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      if (!sheet) {
+        setError("קובץ האקסל ריק");
+        return;
+      }
+      const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: "" });
+      rows = raw
+        .map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? "").trim()) : []))
+        .filter((r) => r.some((c) => c !== ""));
+    } else {
+      rows = parseCsv(await file.text());
+    }
     if (rows.length < 2) {
       setError("הקובץ ריק או חסרה שורת כותרות");
       return;
@@ -146,7 +161,7 @@ export default function ImportLeadsModal({
   }
 
   return (
-    <Modal title="ייבוא לידים מ-CSV" onClose={onClose} wide>
+    <Modal title="ייבוא לידים מקובץ (Excel / CSV)" onClose={onClose} wide>
       <div className="flex flex-col gap-3">
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
@@ -161,9 +176,9 @@ export default function ImportLeadsModal({
         ) : headers.length === 0 ? (
           <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-600 py-10 transition hover:border-cyan-500/50">
             <Icon name="upload" className="h-7 w-7 text-slate-500" />
-            <span className="text-sm text-slate-600">בחרו קובץ CSV (עד 2000 שורות)</span>
-            <span className="text-xs text-slate-500">שורה ראשונה = כותרות עמודות</span>
-            <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
+            <span className="text-sm text-slate-600">בחרו קובץ Excel (xlsx) או CSV — עד 2000 שורות</span>
+            <span className="text-xs text-slate-500">שורה ראשונה = כותרות עמודות · הגיליון הראשון בלבד</span>
+            <input type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={onFile} />
           </label>
         ) : (
           <>
