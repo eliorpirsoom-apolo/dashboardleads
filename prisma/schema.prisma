@@ -662,6 +662,26 @@ model BillingReminder {
   @@index([dueOn])
 }
 
+// עלויות ספקי צד-ג' של המערכת (Vercel/Neon/OpenAI/Green API/SMS...) — מוצג
+// למנהלים בלוח התשלומים. kind="dynamic" + estimator ⇒ אומדן מחושב מהמערכת
+// ומתרענן אוטומטית אחת לשבוע (או ברענון ידני).
+model SupplierCost {
+  id              String    @id @default(cuid())
+  name            String
+  note            String?
+  currency        String    @default("USD") // "USD" | "ILS"
+  kind            String    @default("fixed") // "fixed" | "dynamic"
+  fixedAmount     Float?
+  estimator       String? // "neon" | "openai" | "sms" — נוסחת אומדן בקוד
+  unitRate        Float? // תעריף ליחידה (למשל ₪ ל-SMS)
+  lastEstimate    Float?
+  lastEstimatedAt DateTime?
+  active          Boolean   @default(true)
+  orderIndex      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
 // מילות מפתח לסיווג חשבוניות SUMIT לריטיינר/חד-פעמי — ניתנות לעריכה בדשבורד.
 model PaymentKeyword {
   id        String   @id @default(cuid())

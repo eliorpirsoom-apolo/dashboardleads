@@ -344,6 +344,9 @@ export default function PaymentsBoard() {
 
       {/* התראות הנה"ח — כרטיס קבוע מתחת ללוח, ניתן למזעור/הרחבה */}
       <BillingAlertsPanel />
+
+      {/* עלויות ספקי צד-ג' — מנהלים בלבד (מוסתר אוטומטית לעובדים) */}
+      <SupplierCostsPanel />
     </div>
   );
 }
@@ -691,6 +694,212 @@ function BillingAlertsPanel() {
           {reminders.length === 0 ? <p className="text-[11px] text-slate-500">אין תזכורות עדיין.</p> : null}
         </div>
       </div>
+    </Card>
+  );
+}
+
+// עלויות ספקי צד-ג' (Vercel/Neon/OpenAI/וואטסאפ/SMS) — כרטיס ממוזער מתחת ללוח,
+// מנהלים בלבד (עובד מקבל 403 → הכרטיס לא מוצג). דינמיים מתרעננים אחת לשבוע.
+function SupplierCostsPanel() {
+  interface CostRow {
+    id: string;
+    name: string;
+    note: string | null;
+    currency: "USD" | "ILS";
+    kind: "fixed" | "dynamic";
+    fixedAmount: number | null;
+    estimator: string | null;
+    unitRate: number | null;
+    lastEstimate: number | null;
+    lastEstimatedAt: string | null;
+  }
+  const [rows, setRows] = useState<CostRow[] | null>(null);
+  const [totals, setTotals] = useState<{ usd: number; ils: number }>({ usd: 0, ils: 0 });
+  const [allowed, setAllowed] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+  const [newCurrency, setNewCurrency] = useState<"USD" | "ILS">("USD");
+  const [rate, setRate] = useState<string>(() =>
+    typeof window !== "undefined" ? localStorage.getItem("usd-ils-rate") || "3.7" : "3.7"
+  );
+  const [open, setOpen] = useState<boolean>(() =>
+    typeof window !== "undefined" ? localStorage.getItem("supplier-costs-open") === "1" : false
+  );
+  function toggleOpen() {
+    setOpen((v) => {
+      try { localStorage.setItem("supplier-costs-open", v ? "0" : "1"); } catch { /* לא קריטי */ }
+      return !v;
+    });
+  }
+
+  const loadCosts = useCallback(async () => {
+    try {
+      const d = await api<{ rows: CostRow[]; totals: { usd: number; ils: number } }>("/api/supplier-costs");
+      setRows(d.rows);
+      setTotals(d.totals);
+    } catch {
+      setAllowed(false); // עובד ללא הרשאה — לא מציגים את הכרטיס
+    }
+  }, []);
+  useEffect(() => { if (open && !rows) loadCosts(); }, [open, rows, loadCosts]);
+
+  async function patchRow(id: string, data: Record<string, unknown>) {
+    await api(`/api/supplier-costs/${id}`, { method: "PATCH", json: data }).catch((e) => setMsg("שגיאה: " + e.message));
+    loadCosts();
+  }
+  async function delRow(id: string) {
+    if (!confirm("להסיר את השורה?")) return;
+    await api(`/api/supplier-costs/${id}`, { method: "DELETE" }).catch(() => {});
+    loadCosts();
+  }
+  async function addRow() {
+    if (!newName.trim()) return;
+    setBusy(true);
+    try {
+      await api("/api/supplier-costs", { method: "POST", json: { name: newName.trim(), fixedAmount: Number(newAmount) || 0, currency: newCurrency } });
+      setNewName(""); setNewAmount("");
+      loadCosts();
+    } catch (e: any) { setMsg("שגיאה: " + e.message); } finally { setBusy(false); }
+  }
+  async function refreshNow() {
+    setBusy(true);
+    setMsg("");
+    try {
+      await api("/api/supplier-costs", { method: "POST", json: { refresh: true } });
+      await loadCosts();
+      setMsg("האומדנים חושבו מחדש ✓");
+    } catch (e: any) { setMsg("שגיאה: " + e.message); } finally { setBusy(false); }
+  }
+
+  if (!allowed) return null;
+
+  const inputCls = "rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#3a5bd9] focus:outline-none";
+  const fmtMoney = (n: number, cur: string) => `${cur === "USD" ? "$" : "₪"}${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })}`;
+  const fmtAgo = (iso: string | null) => {
+    if (!iso) return "—";
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    return days === 0 ? "היום" : days === 1 ? "אתמול" : `לפני ${days} ימים`;
+  };
+  const amountOf = (r: CostRow) => (r.kind === "fixed" ? r.fixedAmount ?? 0 : r.lastEstimate ?? 0);
+  const usdRate = Number(rate) || 3.7;
+  const grandIls = Math.round((totals.usd * usdRate + totals.ils) * 10) / 10;
+
+  const header = (
+    <button type="button" onClick={toggleOpen} className="flex w-full items-center justify-between text-right">
+      <span className="flex items-center gap-2 text-sm font-bold text-slate-800">
+        🧾 עלויות ספקים (צד ג׳)
+        {rows ? (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+            ≈ ₪{grandIls.toLocaleString("he-IL")} לחודש
+          </span>
+        ) : null}
+      </span>
+      <span className="text-slate-400">{open ? "▾ מזעור" : "▸ הרחבה"}</span>
+    </button>
+  );
+
+  if (!open) return <Card>{header}</Card>;
+  if (!rows) return <Card>{header}<p className="p-4 text-center text-sm text-slate-500">טוען…</p></Card>;
+
+  return (
+    <Card>
+      <div className="mb-3">{header}</div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-right text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
+              <th className="px-2 py-2 text-right font-medium">ספק</th>
+              <th className="px-2 py-2 text-right font-medium">הערה</th>
+              <th className="px-2 py-2 text-right font-medium">סוג</th>
+              <th className="px-2 py-2 text-right font-medium">סכום חודשי</th>
+              <th className="px-2 py-2 text-right font-medium">עודכן</th>
+              <th className="px-1 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-b border-slate-100 align-middle hover:bg-slate-50">
+                <td className="px-2 py-1.5 font-medium text-slate-800">{r.name}</td>
+                <td className="px-2 py-1.5 text-xs text-slate-500">
+                  {r.note}
+                  {r.estimator === "sms" ? (
+                    <span className="mr-2 inline-flex items-center gap-1">
+                      · תעריף:
+                      <input
+                        type="number" step="0.01" dir="ltr"
+                        defaultValue={r.unitRate ?? 0.07}
+                        onBlur={(e) => Number(e.target.value) !== (r.unitRate ?? 0.07) && patchRow(r.id, { unitRate: Number(e.target.value) || 0 })}
+                        className={`${inputCls} !w-16 !py-0.5`}
+                      />₪
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-2 py-1.5">
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${r.kind === "dynamic" ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+                    {r.kind === "dynamic" ? "דינמי · אומדן" : "קבוע"}
+                  </span>
+                </td>
+                <td className="px-2 py-1.5">
+                  {r.kind === "fixed" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <input
+                        type="number" step="0.01" dir="ltr"
+                        defaultValue={r.fixedAmount ?? 0}
+                        onBlur={(e) => Number(e.target.value) !== (r.fixedAmount ?? 0) && patchRow(r.id, { fixedAmount: Number(e.target.value) || 0 })}
+                        className={`${inputCls} !w-20`}
+                      />
+                      <span className="text-xs text-slate-500">{r.currency === "USD" ? "$" : "₪"}</span>
+                    </span>
+                  ) : (
+                    <span className="font-mono font-bold text-slate-800">{fmtMoney(amountOf(r), r.currency)}</span>
+                  )}
+                </td>
+                <td className="px-2 py-1.5 text-xs text-slate-400">{r.kind === "dynamic" ? fmtAgo(r.lastEstimatedAt) : "—"}</td>
+                <td className="px-1 py-1.5 text-center">
+                  <button onClick={() => delRow(r.id)} title="הסרה" className="text-slate-400 transition hover:text-rose-500">
+                    <Icon name="trash" className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-slate-50 font-bold text-slate-800">
+              <td colSpan={3} className="px-2 py-2">סה״כ חודשי</td>
+              <td colSpan={3} className="px-2 py-2">
+                ${totals.usd.toLocaleString("he-IL")} + ₪{totals.ils.toLocaleString("he-IL")}
+                <span className="mr-2 text-xs font-normal text-slate-500">
+                  ≈ ₪{grandIls.toLocaleString("he-IL")} לפי שער
+                  <input
+                    type="number" step="0.01" dir="ltr"
+                    value={rate}
+                    onChange={(e) => { setRate(e.target.value); try { localStorage.setItem("usd-ils-rate", e.target.value); } catch { /* */ } }}
+                    className={`${inputCls} mx-1 !w-14 !py-0.5`}
+                  />
+                </span>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+        <input className={`${inputCls} !py-1.5 min-w-44`} placeholder="ספק חדש…" value={newName} onChange={(e) => setNewName(e.target.value)} />
+        <input className={`${inputCls} !py-1.5 w-24`} type="number" dir="ltr" placeholder="סכום" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
+        <select className={`${inputCls} !py-1.5`} value={newCurrency} onChange={(e) => setNewCurrency(e.target.value as "USD" | "ILS")}>
+          <option value="USD">$</option>
+          <option value="ILS">₪</option>
+        </select>
+        <Button size="sm" disabled={busy || !newName.trim()} onClick={addRow}>הוספה</Button>
+        <span className="mr-auto flex items-center gap-2">
+          {msg ? <span className="text-xs text-slate-500">{msg}</span> : null}
+          <Button size="sm" variant="ghost" disabled={busy} onClick={refreshNow}>🔄 חישוב אומדנים עכשיו</Button>
+        </span>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-400">
+        שורות "דינמי" מחושבות אוטומטית מנתוני המערכת (שיחות שתומללו, הודעות שנשלחו, שעות DB) ומתרעננות אחת לשבוע.
+      </p>
     </Card>
   );
 }
