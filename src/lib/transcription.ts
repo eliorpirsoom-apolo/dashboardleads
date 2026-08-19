@@ -375,6 +375,7 @@ export async function debugTranscribeNext(): Promise<{
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
+      createdAt: true,
       callRecordingUrl: true,
       callRecordingKey: true,
       callTargetName: true,
@@ -384,7 +385,7 @@ export async function debugTranscribeNext(): Promise<{
   if (!lead) return { configured: true, leadId: null };
   try {
     const outcome = await processLead(lead);
-    if (outcome === "no_audio") {
+    if (outcome === "no_audio" && Date.now() - lead.createdAt.getTime() >= 3 * 60 * 60 * 1000) {
       await prisma.lead.update({ where: { id: lead.id }, data: { callTranscriptStatus: "no_audio" } });
     }
     return { configured: true, leadId: lead.id, outcome };
@@ -414,6 +415,7 @@ export async function processPendingCallTranscriptions(
   const halfHourAgo = new Date(Date.now() - 30 * 60 * 1000);
   const sel = {
     id: true,
+    createdAt: true,
     callRecordingUrl: true,
     callRecordingKey: true,
     callTargetName: true,
@@ -459,10 +461,16 @@ export async function processPendingCallTranscriptions(
       else {
         result.failed++;
         if (outcome === "no_audio") {
-          await prisma.lead.update({
-            where: { id: lead.id },
-            data: { callTranscriptStatus: "no_audio" },
-          });
+          // קולאינדקס מעלה את הקובץ באיחור לפעמים — שיחה טרייה (עד 3 שעות)
+          // נשארת "pending" ותנוסה שוב אוטומטית (הפוגת 30 דק'); רק שיחה ישנה
+          // שההקלטה שלה באמת אבודה מסומנת no_audio סופית.
+          const freshCall = Date.now() - lead.createdAt.getTime() < 3 * 60 * 60 * 1000;
+          if (!freshCall) {
+            await prisma.lead.update({
+              where: { id: lead.id },
+              data: { callTranscriptStatus: "no_audio" },
+            });
+          }
         }
       }
     } catch (err) {
