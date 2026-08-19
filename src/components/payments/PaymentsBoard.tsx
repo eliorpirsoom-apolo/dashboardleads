@@ -348,6 +348,9 @@ export default function PaymentsBoard() {
       {/* עלויות — מנהלים בלבד (מוסתר אוטומטית לעובדים) */}
       <SupplierCostsPanel category="crm" title={'עלויות צד ג׳ CRM'} icon={"🧾"} defaultCurrency="USD" />
       <SupplierCostsPanel category="office" title={'עלויות משרד'} icon={"🏢"} defaultCurrency="ILS" />
+
+      {/* שימוש חודשי פר לקוח — מנהלים בלבד */}
+      <ClientUsagePanel />
     </div>
   );
 }
@@ -915,6 +918,142 @@ function SupplierCostsPanel({
           שורות ״דינמי״ מחושבות אוטומטית מנתוני המערכת (שיחות שתומללו, הודעות שנשלחו, שעות DB) ומתרעננות אחת לשבוע.
         </p>
       ) : null}
+    </Card>
+  );
+}
+
+// שימוש חודשי פר לקוח (מנהלים בלבד) — לזיהוי לקוחות כבדים ותמחור דמי טכנולוגיה.
+function ClientUsagePanel() {
+  interface UsageRow {
+    client: { id: string; name: string; color: string | null };
+    leads: number;
+    calls: number;
+    sms: number;
+    whatsapp: number;
+    emails: number;
+    costUsd: number;
+    costIls: number;
+  }
+  interface UsageTotals { leads: number; calls: number; sms: number; whatsapp: number; emails: number; costUsd: number; costIls: number }
+  const now = new Date();
+  const nowYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [month, setUsageMonth] = useState(nowYm);
+  const [rows, setRows] = useState<UsageRow[] | null>(null);
+  const [totals, setTotals] = useState<UsageTotals | null>(null);
+  const [allowed, setAllowed] = useState(true);
+  const [open, setOpen] = useState<boolean>(() =>
+    typeof window !== "undefined" ? localStorage.getItem("client-usage-open") === "1" : false
+  );
+  function toggleOpen() {
+    setOpen((v) => {
+      try { localStorage.setItem("client-usage-open", v ? "0" : "1"); } catch { /* לא קריטי */ }
+      return !v;
+    });
+  }
+  function shiftMonth(delta: number) {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setUsageMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setRows(null);
+  }
+
+  const loadUsage = useCallback(async () => {
+    try {
+      const d = await api<{ rows: UsageRow[]; totals: UsageTotals }>(`/api/client-usage?month=${month}`);
+      setRows(d.rows);
+      setTotals(d.totals);
+    } catch {
+      setAllowed(false);
+    }
+  }, [month]);
+  useEffect(() => { if (open && !rows) loadUsage(); }, [open, rows, loadUsage]);
+
+  if (!allowed) return null;
+
+  const ymLabel = (() => {
+    const [y, m] = month.split("-").map(Number);
+    return `${MONTHS_FULL[m - 1]} ${y}`;
+  })();
+
+  const header = (
+    <button type="button" onClick={toggleOpen} className="flex w-full items-center justify-between text-right">
+      <span className="flex items-center gap-2 text-sm font-bold text-slate-800">📊 שימוש פר לקוח</span>
+      <span className="text-slate-400">{open ? "▾ מזעור" : "▸ הרחבה"}</span>
+    </button>
+  );
+
+  if (!open) return <Card>{header}</Card>;
+
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        {header}
+      </div>
+      <div className="mb-3 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 w-fit">
+        <button onClick={() => shiftMonth(-1)} className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100">‹</button>
+        <span className="min-w-28 text-center text-sm font-bold text-slate-800">{ymLabel}</span>
+        <button onClick={() => shiftMonth(1)} className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100">›</button>
+      </div>
+      {!rows ? (
+        <p className="p-4 text-center text-sm text-slate-500">טוען…</p>
+      ) : rows.length === 0 ? (
+        <p className="p-4 text-center text-sm text-slate-500">אין נתוני שימוש בחודש הזה.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-right text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
+                <th className="px-2 py-2 text-right font-medium">לקוח</th>
+                <th className="px-2 py-2 text-center font-medium">לידים</th>
+                <th className="px-2 py-2 text-center font-medium" title="שיחות שתומללו וסוכמו">שיחות מתומללות</th>
+                <th className="px-2 py-2 text-center font-medium">SMS</th>
+                <th className="px-2 py-2 text-center font-medium">וואטסאפ</th>
+                <th className="px-2 py-2 text-center font-medium">מיילים</th>
+                <th className="px-2 py-2 text-right font-medium" title="תמלולים (דולר) + SMS (שקל)">עלות משוערת</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.client.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-2 py-1.5">
+                    <span className="flex items-center gap-1.5 font-medium text-slate-800">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: r.client.color ?? "#94a3b8" }} />
+                      <span className="truncate">{r.client.name}</span>
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-center font-mono">{r.leads || "—"}</td>
+                  <td className="px-2 py-1.5 text-center font-mono">{r.calls || "—"}</td>
+                  <td className="px-2 py-1.5 text-center font-mono">{r.sms || "—"}</td>
+                  <td className="px-2 py-1.5 text-center font-mono">{r.whatsapp || "—"}</td>
+                  <td className="px-2 py-1.5 text-center font-mono">{r.emails || "—"}</td>
+                  <td className="px-2 py-1.5 text-xs text-slate-600">
+                    {r.costUsd ? `$${r.costUsd}` : ""}
+                    {r.costUsd && r.costIls ? " + " : ""}
+                    {r.costIls ? `₪${r.costIls}` : ""}
+                    {!r.costUsd && !r.costIls ? "—" : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {totals ? (
+              <tfoot>
+                <tr className="bg-slate-50 font-bold text-slate-800">
+                  <td className="px-2 py-2">סה״כ</td>
+                  <td className="px-2 py-2 text-center font-mono">{totals.leads}</td>
+                  <td className="px-2 py-2 text-center font-mono">{totals.calls}</td>
+                  <td className="px-2 py-2 text-center font-mono">{totals.sms}</td>
+                  <td className="px-2 py-2 text-center font-mono">{totals.whatsapp}</td>
+                  <td className="px-2 py-2 text-center font-mono">{totals.emails}</td>
+                  <td className="px-2 py-2 text-xs">{totals.costUsd ? `$${totals.costUsd}` : ""}{totals.costUsd && totals.costIls ? " + " : ""}{totals.costIls ? `₪${totals.costIls}` : "—"}</td>
+                </tr>
+              </tfoot>
+            ) : null}
+          </table>
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-slate-400">
+        וואטסאפ ומיילים בתעריף קבוע (עלות שולית ‎0‎) — מוצגים לנפח בלבד. עלות משוערת: תמלולים + SMS.
+      </p>
     </Card>
   );
 }
