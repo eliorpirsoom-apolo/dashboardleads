@@ -667,6 +667,7 @@ model BillingReminder {
 // ומתרענן אוטומטית אחת לשבוע (או ברענון ידני).
 model SupplierCost {
   id              String    @id @default(cuid())
+  category        String    @default("crm") // "crm" (ספקי המערכת) | "office" (הוצאות משרד: שכירות, תוכנות...)
   name            String
   note            String?
   currency        String    @default("USD") // "USD" | "ILS"

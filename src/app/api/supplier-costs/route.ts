@@ -8,14 +8,17 @@ import { ensureSupplierDefaults, refreshSupplierEstimates } from "@/lib/supplier
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-// GET /api/supplier-costs — טבלת עלויות הספקים (מנהלים בלבד).
-// אומדנים דינמיים מתרעננים אוטומטית אם עברו 7 ימים.
-export const GET = handle(async () => {
+// GET /api/supplier-costs?category=crm|office — טבלת עלויות (מנהלים בלבד).
+// אומדנים דינמיים (בקטגוריית crm) מתרעננים אוטומטית אם עברו 7 ימים.
+export const GET = handle(async (req) => {
   await requireManager();
-  await ensureSupplierDefaults();
-  await refreshSupplierEstimates(false).catch(() => {});
+  const category = new URL(req.url).searchParams.get("category") === "office" ? "office" : "crm";
+  if (category === "crm") {
+    await ensureSupplierDefaults();
+    await refreshSupplierEstimates(false).catch(() => {});
+  }
   const rows = await prisma.supplierCost.findMany({
-    where: { active: true },
+    where: { active: true, category },
     orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
   });
   const amountOf = (r: (typeof rows)[number]) => (r.kind === "fixed" ? r.fixedAmount ?? 0 : r.lastEstimate ?? 0);
@@ -31,6 +34,7 @@ const NewRow = z.object({
   note: z.string().max(300).nullable().optional(),
   currency: z.enum(["USD", "ILS"]).default("USD"),
   fixedAmount: z.number().min(0).max(1000000).nullable().optional(),
+  category: z.enum(["crm", "office"]).default("crm"),
   refresh: z.undefined().optional(),
 });
 
@@ -43,9 +47,14 @@ export const POST = handle(async (req) => {
     return NextResponse.json({ ok: true, updated });
   }
   const b = NewRow.parse(raw);
-  const last = await prisma.supplierCost.findFirst({ orderBy: { orderIndex: "desc" }, select: { orderIndex: true } });
+  const last = await prisma.supplierCost.findFirst({
+    where: { category: b.category },
+    orderBy: { orderIndex: "desc" },
+    select: { orderIndex: true },
+  });
   const row = await prisma.supplierCost.create({
     data: {
+      category: b.category,
       name: b.name.trim(),
       note: b.note?.trim() || null,
       currency: b.currency,

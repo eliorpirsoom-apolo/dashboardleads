@@ -345,8 +345,9 @@ export default function PaymentsBoard() {
       {/* התראות הנה"ח — כרטיס קבוע מתחת ללוח, ניתן למזעור/הרחבה */}
       <BillingAlertsPanel />
 
-      {/* עלויות ספקי צד-ג' — מנהלים בלבד (מוסתר אוטומטית לעובדים) */}
-      <SupplierCostsPanel />
+      {/* עלויות — מנהלים בלבד (מוסתר אוטומטית לעובדים) */}
+      <SupplierCostsPanel category="crm" title={'עלויות צד ג׳ CRM'} icon={"🧾"} defaultCurrency="USD" />
+      <SupplierCostsPanel category="office" title={'עלויות משרד'} icon={"🏢"} defaultCurrency="ILS" />
     </div>
   );
 }
@@ -700,7 +701,17 @@ function BillingAlertsPanel() {
 
 // עלויות ספקי צד-ג' (Vercel/Neon/OpenAI/וואטסאפ/SMS) — כרטיס ממוזער מתחת ללוח,
 // מנהלים בלבד (עובד מקבל 403 → הכרטיס לא מוצג). דינמיים מתרעננים אחת לשבוע.
-function SupplierCostsPanel() {
+function SupplierCostsPanel({
+  category,
+  title,
+  icon,
+  defaultCurrency,
+}: {
+  category: "crm" | "office";
+  title: string;
+  icon: string;
+  defaultCurrency: "USD" | "ILS";
+}) {
   interface CostRow {
     id: string;
     name: string;
@@ -720,23 +731,23 @@ function SupplierCostsPanel() {
   const [msg, setMsg] = useState("");
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
-  const [newCurrency, setNewCurrency] = useState<"USD" | "ILS">("USD");
+  const [newCurrency, setNewCurrency] = useState<"USD" | "ILS">(defaultCurrency);
   const [rate, setRate] = useState<string>(() =>
     typeof window !== "undefined" ? localStorage.getItem("usd-ils-rate") || "3.7" : "3.7"
   );
   const [open, setOpen] = useState<boolean>(() =>
-    typeof window !== "undefined" ? localStorage.getItem("supplier-costs-open") === "1" : false
+    typeof window !== "undefined" ? localStorage.getItem(`supplier-costs-open-${category}`) === "1" : false
   );
   function toggleOpen() {
     setOpen((v) => {
-      try { localStorage.setItem("supplier-costs-open", v ? "0" : "1"); } catch { /* לא קריטי */ }
+      try { localStorage.setItem(`supplier-costs-open-${category}`, v ? "0" : "1"); } catch { /* לא קריטי */ }
       return !v;
     });
   }
 
   const loadCosts = useCallback(async () => {
     try {
-      const d = await api<{ rows: CostRow[]; totals: { usd: number; ils: number } }>("/api/supplier-costs");
+      const d = await api<{ rows: CostRow[]; totals: { usd: number; ils: number } }>(`/api/supplier-costs?category=${category}`);
       setRows(d.rows);
       setTotals(d.totals);
     } catch {
@@ -758,7 +769,7 @@ function SupplierCostsPanel() {
     if (!newName.trim()) return;
     setBusy(true);
     try {
-      await api("/api/supplier-costs", { method: "POST", json: { name: newName.trim(), fixedAmount: Number(newAmount) || 0, currency: newCurrency } });
+      await api("/api/supplier-costs", { method: "POST", json: { category, name: newName.trim(), fixedAmount: Number(newAmount) || 0, currency: newCurrency } });
       setNewName(""); setNewAmount("");
       loadCosts();
     } catch (e: any) { setMsg("שגיאה: " + e.message); } finally { setBusy(false); }
@@ -789,7 +800,7 @@ function SupplierCostsPanel() {
   const header = (
     <button type="button" onClick={toggleOpen} className="flex w-full items-center justify-between text-right">
       <span className="flex items-center gap-2 text-sm font-bold text-slate-800">
-        🧾 עלויות ספקים (צד ג׳)
+        {icon} {title}
         {rows ? (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
             ≈ ₪{grandIls.toLocaleString("he-IL")} לחודש
@@ -885,7 +896,7 @@ function SupplierCostsPanel() {
         </table>
       </div>
       <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
-        <input className={`${inputCls} !py-1.5 min-w-44`} placeholder="ספק חדש…" value={newName} onChange={(e) => setNewName(e.target.value)} />
+        <input className={`${inputCls} !py-1.5 min-w-44`} placeholder={category === "office" ? "הוצאה חדשה… (שכירות, Adobe, חשמל)" : "ספק חדש…"} value={newName} onChange={(e) => setNewName(e.target.value)} />
         <input className={`${inputCls} !py-1.5 w-24`} type="number" dir="ltr" placeholder="סכום" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
         <select className={`${inputCls} !py-1.5`} value={newCurrency} onChange={(e) => setNewCurrency(e.target.value as "USD" | "ILS")}>
           <option value="USD">$</option>
@@ -894,12 +905,16 @@ function SupplierCostsPanel() {
         <Button size="sm" disabled={busy || !newName.trim()} onClick={addRow}>הוספה</Button>
         <span className="mr-auto flex items-center gap-2">
           {msg ? <span className="text-xs text-slate-500">{msg}</span> : null}
-          <Button size="sm" variant="ghost" disabled={busy} onClick={refreshNow}>🔄 חישוב אומדנים עכשיו</Button>
+          {category === "crm" ? (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={refreshNow}>🔄 חישוב אומדנים עכשיו</Button>
+          ) : null}
         </span>
       </div>
-      <p className="mt-2 text-[11px] text-slate-400">
-        שורות ״דינמי״ מחושבות אוטומטית מנתוני המערכת (שיחות שתומללו, הודעות שנשלחו, שעות DB) ומתרעננות אחת לשבוע.
-      </p>
+      {category === "crm" ? (
+        <p className="mt-2 text-[11px] text-slate-400">
+          שורות ״דינמי״ מחושבות אוטומטית מנתוני המערכת (שיחות שתומללו, הודעות שנשלחו, שעות DB) ומתרעננות אחת לשבוע.
+        </p>
+      ) : null}
     </Card>
   );
 }
