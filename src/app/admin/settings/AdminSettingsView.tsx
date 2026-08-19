@@ -22,7 +22,9 @@ interface AdminUser {
   isDesigner: boolean;
 }
 
-// מודולים הניתנים להגבלה לעובד (מקביל ל-ADMIN_MODULES בשרת). "סקירה" ו"החשבון שלי" תמיד פתוחים.
+// מודולים הניתנים להגבלה לעובד. חובה לשמור מסונכרן 1:1 עם ADMIN_MODULES
+// ב-src/lib/adminModules.ts (שאינו ניתן לייבוא כאן — תלוי סשן/שרת).
+// מודול חדש שלא יתווסף כאן — לא יופיע בצ'קבוקסים של ההרשאות!
 const MODULE_OPTIONS: { key: string; label: string }[] = [
   { key: "clients", label: "לקוחות" },
   { key: "tasks", label: "משימות" },
@@ -30,6 +32,7 @@ const MODULE_OPTIONS: { key: string; label: string }[] = [
   { key: "documents", label: "מסמכים" },
   { key: "quotes", label: "הצעות מחיר" },
   { key: "studio", label: "סטודיו" },
+  { key: "organic", label: "קידום אורגני" },
   { key: "messages", label: "הודעות" },
   { key: "payments", label: "תשלומים" },
   { key: "settings", label: "הגדרות" },

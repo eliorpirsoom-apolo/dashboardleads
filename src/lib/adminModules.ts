@@ -14,6 +14,7 @@ export interface AdminModule {
 }
 
 // מודולים הניתנים להגבלה לעובד.
+// חובה לשמור מסונכרן 1:1 עם MODULE_OPTIONS ב-AdminSettingsView.tsx (צ'קבוקסי ההרשאות).
 export const ADMIN_MODULES: AdminModule[] = [
   { key: "clients", label: "לקוחות", path: "/admin/clients" },
   { key: "tasks", label: "משימות", path: "/admin/tasks" },
