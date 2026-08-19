@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "./Icon";
 import AdminSearch from "./AdminSearch";
+import NotificationsBell from "./NotificationsBell";
 import type { NavItem } from "@/lib/nav";
 
 interface SidebarProps {
@@ -67,13 +68,16 @@ export default function Sidebar({
           </p>
           <p className="truncate text-xs text-slate-500">{roleLabel}</p>
         </div>
-        <button
-          onClick={logout}
-          title="יציאה"
-          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-red-600"
-        >
-          <Icon name="logout" className="h-[18px] w-[18px]" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          {homeHref === "/admin" ? <NotificationsBell /> : null}
+          <button
+            onClick={logout}
+            title="יציאה"
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-red-600"
+          >
+            <Icon name="logout" className="h-[18px] w-[18px]" />
+          </button>
+        </div>
       </div>
     </div>
   );

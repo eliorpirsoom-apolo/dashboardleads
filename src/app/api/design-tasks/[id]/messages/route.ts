@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, readJson, ApiError } from "@/lib/api";
 import { notifyNewDesignMessage, notifyInternalDesignMessage } from "@/lib/studioLinks";
 import { sanitizeRich, isRichEmpty } from "@/lib/sanitizeHtml";
+import { createMentionNotifications } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ const NewMessage = z.object({
   body: z.string().min(1, "הודעה ריקה").max(20000),
   assetId: z.string().nullable().optional(), // הערה ממוקדת על תוצר ספציפי
   channel: z.enum(["client", "internal"]).default("client"), // "internal" = משרד בלבד
+  mentions: z.array(z.string()).max(20).optional(), // תיוג @ — מזהי משתמשי משרד
 });
 
 // POST /api/design-tasks/[id]/messages — הוספת הודעה לשרשור (משרד או לקוח).
@@ -79,6 +81,16 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
     notifyInternalDesignMessage(task.id, user.id, plain).catch((e) => console.error("[studio:msg-notify]", e));
   } else {
     notifyNewDesignMessage(task.id, authorSide, plain).catch((e) => console.error("[studio:msg-notify]", e));
+  }
+  // תיוגי @ — פעמון + מייל למתויגים (משרד בלבד; לא חוסם את התשובה).
+  if (user.role === "ADMIN" && b.mentions?.length) {
+    createMentionNotifications({
+      actor: { id: user.id, name: user.name },
+      mentionedIds: b.mentions,
+      taskId: task.id,
+      taskTitle: task.title,
+      snippet: plain,
+    }).catch((e) => console.error("[studio:mentions]", e));
   }
   return NextResponse.json({ message }, { status: 201 });
 });

@@ -92,6 +92,11 @@ export default function StudioBoard({
   useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+  // קישור עומק מהתראת תיוג: /admin/studio?task=<id> פותח את המשימה ישירות.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("task");
+    if (id) setOpenId(id);
+  }, []);
 
   async function patch(id: string, data: Record<string, unknown>) {
     await api(`/api/design-tasks/${id}`, { method: "PATCH", json: data });
@@ -218,8 +223,8 @@ export default function StudioBoard({
   // רוחבי העמודות ניתנים לשינוי בגרירת הידית שבקצה כל כותרת (כמו באקסל) ונשמרים מקומית.
   const COLS = 11;
   // גרסת המפתח (v2) מאפסת רוחבים שמורים כשברירות המחדל מכווננות מחדש.
-  const COL_WIDTHS_KEY = "studio-col-widths-v2";
-  const DEFAULT_COL_WIDTHS = [104, 84, 100, 118, 148, 76, 44, 148, 124, 36]; // עמודות 1..10 (משימה גמישה)
+  const COL_WIDTHS_KEY = "studio-col-widths-v3";
+  const DEFAULT_COL_WIDTHS = [104, 124, 100, 118, 148, 76, 44, 148, 84, 36]; // עמודות 1..10 (משימה גמישה)
   const [colW, setColW] = useState<number[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -324,7 +329,26 @@ export default function StudioBoard({
           <span className="block text-center text-slate-400">—</span>
         )}
       </td>
-      <td className="truncate px-2 py-2 text-xs text-slate-600">{briefTypeLabel(t.briefType)}</td>
+      <td className="px-2 py-2">
+        <select
+          value={t.status}
+          onChange={(e) => patch(t.id, { status: e.target.value })}
+          className={`${selCls} font-medium`}
+          style={{
+            borderColor: DESIGN_STATUS_COLORS[t.status],
+            color: DESIGN_STATUS_COLORS[t.status],
+            backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}14`,
+          }}
+        >
+          {DESIGN_STATUSES.map((s) => (
+            <option key={s} value={s} style={{ color: "#0f172a" }}>
+              {s === "scheduled" && t.status === "scheduled" && t.gcalState === "synced"
+                ? "תוזמנה בלוז ✓"
+                : DESIGN_STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
+      </td>
       <td className="px-2 py-2">
         <select
           value={t.priority}
@@ -378,26 +402,7 @@ export default function StudioBoard({
           onChange={(e) => patch(t.id, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} title="דדליין ללקוח — ניתן לשינוי" />
       </td>
-      <td className="px-2 py-2">
-        <select
-          value={t.status}
-          onChange={(e) => patch(t.id, { status: e.target.value })}
-          className={`${selCls} font-medium`}
-          style={{
-            borderColor: DESIGN_STATUS_COLORS[t.status],
-            color: DESIGN_STATUS_COLORS[t.status],
-            backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}14`,
-          }}
-        >
-          {DESIGN_STATUSES.map((s) => (
-            <option key={s} value={s} style={{ color: "#0f172a" }}>
-              {s === "scheduled" && t.status === "scheduled" && t.gcalState === "synced"
-                ? "תוזמנה בלוז ✓"
-                : DESIGN_STATUS_LABELS[s]}
-            </option>
-          ))}
-        </select>
-      </td>
+      <td className="truncate px-2 py-2 text-xs text-slate-600">{briefTypeLabel(t.briefType)}</td>
       <td className="px-3 py-2 text-left">
         <button onClick={() => del(t.id)} title="מחיקה" className="text-slate-600 transition hover:text-rose-400">
           <Icon name="trash" className="h-4 w-4" />
@@ -412,7 +417,17 @@ export default function StudioBoard({
       <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
         <th className="relative px-3 py-2 text-right font-medium">משימה</th>
         <th className="relative px-2 py-2 text-right font-medium">לקוח<Resizer i={0} /></th>
-        <th className="relative px-2 py-2 text-right font-medium">סוג<Resizer i={1} /></th>
+        <th className="relative px-2 py-2 text-right font-medium">
+          <button
+            type="button"
+            onClick={() => { setStatusSort((v) => !v); setTimeSort(false); }}
+            className={`flex items-center gap-1 transition ${statusSort ? "font-bold text-[#3a5bd9]" : "hover:text-slate-700"}`}
+            title={statusSort ? "ביטול מיון לפי סטטוס (חזרה לסדר הידני)" : "מיון לפי סטטוס"}
+          >
+            סטטוס {statusSort ? "↓" : "⇅"}
+          </button>
+          <Resizer i={1} />
+        </th>
         <th className="relative px-2 py-2 text-right font-medium">עדיפות<Resizer i={2} /></th>
         <th className="relative px-2 py-2 text-right font-medium">מעצב/ת<Resizer i={3} /></th>
         <th className="relative px-2 py-2 text-right font-medium">
@@ -429,17 +444,7 @@ export default function StudioBoard({
         <th className="relative px-2 py-2 text-right font-medium">משך<Resizer i={5} /></th>
         <th className="relative px-1 py-2 text-center font-medium" title="האם המשימה נמצאת בפועל ביומן ה-Google של המעצב/ת">בלוז<Resizer i={6} /></th>
         <th className="relative px-2 py-2 text-right font-medium">דדליין<Resizer i={7} /></th>
-        <th className="relative px-2 py-2 text-right font-medium">
-          <button
-            type="button"
-            onClick={() => { setStatusSort((v) => !v); setTimeSort(false); }}
-            className={`flex items-center gap-1 transition ${statusSort ? "font-bold text-[#3a5bd9]" : "hover:text-slate-700"}`}
-            title={statusSort ? "ביטול מיון לפי סטטוס (חזרה לסדר הידני)" : "מיון לפי סטטוס"}
-          >
-            סטטוס {statusSort ? "↓" : "⇅"}
-          </button>
-          <Resizer i={8} />
-        </th>
+        <th className="relative px-2 py-2 text-right font-medium">סוג<Resizer i={8} /></th>
         <th className="relative px-1 py-2"><Resizer i={9} /></th>
       </tr>
     </thead>

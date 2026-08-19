@@ -13,6 +13,7 @@ export default function ProfileView({
   email,
   hasPassword,
   calendar,
+  initialMentionEmails,
 }: {
   initialName: string;
   initialPhone: string;
@@ -21,6 +22,8 @@ export default function ProfileView({
   hasPassword: boolean;
   // חיבור יומן Google אישי (צד משרד בלבד) — undefined מסתיר את הכרטיס.
   calendar?: { connected: boolean; email: string | null };
+  // מייל בעת תיוג @ (צד משרד בלבד) — undefined מסתיר את הכרטיס.
+  initialMentionEmails?: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
@@ -31,6 +34,16 @@ export default function ProfileView({
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mentionEmails, setMentionEmails] = useState(initialMentionEmails ?? true);
+
+  async function toggleMentionEmails(next: boolean) {
+    setMentionEmails(next);
+    try {
+      await api("/api/me", { method: "PATCH", json: { mentionEmails: next } });
+    } catch {
+      setMentionEmails(!next); // כשל — חזרה למצב הקודם
+    }
+  }
 
   async function saveDetails(e: React.FormEvent) {
     e.preventDefault();
@@ -156,6 +169,28 @@ export default function ProfileView({
                 + חיבור יומן Google
               </a>
             )}
+          </div>
+        </Card>
+      ) : null}
+
+      {initialMentionEmails !== undefined ? (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-800">התראות תיוג 🔔</h3>
+              <p className="mt-0.5 text-xs text-slate-500">
+                כשמתייגים אותך בעדכון (@) תמיד תופיע התראה בפעמון; כאן קובעים אם לקבל גם מייל.
+              </p>
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={mentionEmails}
+                onChange={(e) => toggleMentionEmails(e.target.checked)}
+                className="h-4 w-4 accent-[#3a5bd9]"
+              />
+              קבלת מייל בתיוג
+            </label>
           </div>
         </Card>
       ) : null}

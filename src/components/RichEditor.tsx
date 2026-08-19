@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Icon } from "@/components/Icon";
+
+export interface MentionUser {
+  id: string;
+  name: string;
+}
 
 // נגן וידאו מוטבע — <video controls> שנשמר ומוצג גם בתצוגת ההודעות.
 const Video = Node.create({
@@ -32,6 +37,8 @@ export default function RichEditor({
   uploadImage,
   resetSignal = 0,
   minHeight = 120,
+  mentionUsers,
+  onMention,
 }: {
   value?: string;
   onChange?: (html: string) => void;
@@ -39,10 +46,72 @@ export default function RichEditor({
   uploadImage?: (file: File) => Promise<string | null>;
   resetSignal?: number;
   minHeight?: number;
+  // תיוג @ (כמו במאנדיי): רשימת משתמשים לתפריט; onMention נקרא בבחירה.
+  mentionUsers?: MentionUser[];
+  onMention?: (u: MentionUser) => void;
 }) {
   const uploadRef = useRef(uploadImage);
   uploadRef.current = uploadImage;
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // --- תיוג @: מצב התפריט. refs במקביל ל-state כי handleKeyDown נסגר פעם אחת. ---
+  const [mention, setMention] = useState<{ query: string; top: number; left: number } | null>(null);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const mentionRef = useRef<{ query: string } | null>(null);
+  const mentionIdxRef = useRef(0);
+  const mentionUsersRef = useRef(mentionUsers);
+  mentionUsersRef.current = mentionUsers;
+  const onMentionRef = useRef(onMention);
+  onMentionRef.current = onMention;
+  const editorRef = useRef<Editor | null>(null);
+
+  const filteredMentions = (query: string): MentionUser[] =>
+    (mentionUsersRef.current || [])
+      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 6);
+
+  // זיהוי "@טקסט" לפני הסמן → פתיחת התפריט ליד הסמן.
+  function detectMention(ed: Editor) {
+    if (!mentionUsersRef.current?.length) return;
+    const { $from, empty } = ed.state.selection;
+    if (!empty || !$from.parent.isTextblock) {
+      mentionRef.current = null;
+      setMention(null);
+      return;
+    }
+    const before = $from.parent.textBetween(0, $from.parentOffset, "\n", "￼");
+    const m = before.match(/(?:^|\s)@([^@\s]{0,30})$/);
+    if (!m) {
+      mentionRef.current = null;
+      setMention(null);
+      return;
+    }
+    const query = m[1];
+    const coords = ed.view.coordsAtPos(ed.state.selection.from);
+    mentionRef.current = { query };
+    mentionIdxRef.current = 0;
+    setMentionIdx(0);
+    setMention({ query, top: coords.bottom + 4, left: coords.left });
+  }
+
+  // בחירת משתמש: מחיקת "@query" והוספת "@שם" מודגש + רווח רגיל.
+  function pickMention(u: MentionUser) {
+    const ed = editorRef.current;
+    const st = mentionRef.current;
+    if (!ed || !st) return;
+    const from = ed.state.selection.from;
+    ed.chain()
+      .focus()
+      .deleteRange({ from: from - (st.query.length + 1), to: from })
+      .insertContent([
+        { type: "text", marks: [{ type: "bold" }], text: `@${u.name}` },
+        { type: "text", text: " " },
+      ])
+      .run();
+    mentionRef.current = null;
+    setMention(null);
+    onMentionRef.current?.(u);
+  }
 
   // העלאת מדיה והטבעה: תמונה → <img>, וידאו → <video>, קובץ אחר → קישור להורדה.
   async function insertMedia(ed: Editor, file: File) {
@@ -74,9 +143,35 @@ export default function RichEditor({
       Placeholder.configure({ placeholder }),
     ],
     content: value,
-    onUpdate: ({ editor }) => onChange?.(editor.getHTML()),
+    onUpdate: ({ editor }) => {
+      onChange?.(editor.getHTML());
+      detectMention(editor);
+    },
+    onSelectionUpdate: ({ editor }) => detectMention(editor),
     editorProps: {
       attributes: { class: "rich-content px-3 py-2", style: `min-height:${minHeight}px` },
+      handleKeyDown: (_view, event) => {
+        const st = mentionRef.current;
+        if (!st) return false;
+        const list = filteredMentions(st.query);
+        if (list.length === 0) return false;
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          const dir = event.key === "ArrowDown" ? 1 : -1;
+          mentionIdxRef.current = (mentionIdxRef.current + dir + list.length) % list.length;
+          setMentionIdx(mentionIdxRef.current);
+          return true;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          pickMention(list[mentionIdxRef.current] || list[0]);
+          return true;
+        }
+        if (event.key === "Escape") {
+          mentionRef.current = null;
+          setMention(null);
+          return true;
+        }
+        return false;
+      },
       handlePaste: (_view, event) => {
         const items = event.clipboardData?.items;
         if (!items || !editor) return false;
@@ -107,11 +202,15 @@ export default function RichEditor({
     },
   });
 
+  editorRef.current = editor;
+
   useEffect(() => {
     if (resetSignal > 0) editor?.commands.clearContent();
   }, [resetSignal, editor]);
 
   if (!editor) return null;
+
+  const mentionList = mention ? filteredMentions(mention.query) : [];
 
   const btn = (active: boolean) =>
     `rounded px-2 py-1 text-sm leading-none transition ${
@@ -145,6 +244,28 @@ export default function RichEditor({
       </div>
       <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) insertMedia(editor, f); e.target.value = ""; }} />
       <EditorContent editor={editor} />
+      {/* תפריט תיוג @ צף ליד הסמן */}
+      {mention && mentionList.length > 0 ? (
+        <div
+          className="fixed z-[70] min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+          style={{ top: mention.top, left: mention.left }}
+        >
+          {mentionList.map((u, i) => (
+            <button
+              key={u.id}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); pickMention(u); }}
+              onMouseEnter={() => { mentionIdxRef.current = i; setMentionIdx(i); }}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-right text-sm ${i === mentionIdx ? "bg-[#3a5bd9]/10 text-[#3a5bd9]" : "text-slate-700"}`}
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#3a5bd9]/15 text-[11px] font-bold text-[#3a5bd9]">
+                {u.name.slice(0, 1)}
+              </span>
+              {u.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

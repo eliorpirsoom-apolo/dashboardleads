@@ -223,6 +223,14 @@ export default function StudioTaskDrawer({
   const [chatText, setChatText] = useState("");
   const [internalHtml, setInternalHtml] = useState("");
   const [internalSignal, setInternalSignal] = useState(0);
+  // תיוג @ בעדכונים: רשימת אנשי המשרד + מי תויג בעדכון הנוכחי.
+  const [officeUsers, setOfficeUsers] = useState<{ id: string; name: string }[]>([]);
+  const [pendingMentions, setPendingMentions] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    api<{ users: { id: string; name: string }[] }>("/api/office-users")
+      .then((d) => setOfficeUsers(d.users))
+      .catch(() => {});
+  }, []);
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [editHtml, setEditHtml] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -558,8 +566,15 @@ export default function StudioTaskDrawer({
     if (isHtmlEmpty(internalHtml)) return;
     setChatBusy(true);
     try {
-      await api(`/api/design-tasks/${taskId}/messages`, { method: "POST", json: { body: internalHtml, channel: "internal" } });
+      // רק תיוגים שעדיין מופיעים בטקסט (אם המשתמש מחק "@שם" — לא נתריע).
+      const plain = internalHtml.replace(/<[^>]*>/g, " ");
+      const mentions = pendingMentions.filter((m) => plain.includes(`@${m.name}`)).map((m) => m.id);
+      await api(`/api/design-tasks/${taskId}/messages`, {
+        method: "POST",
+        json: { body: internalHtml, channel: "internal", mentions: mentions.length ? mentions : undefined },
+      });
       setInternalHtml("");
+      setPendingMentions([]);
       setInternalSignal((s) => s + 1);
       await load();
     } catch (e: any) {
@@ -1286,11 +1301,13 @@ export default function StudioTaskDrawer({
                   onChange={setInternalHtml}
                   resetSignal={internalSignal}
                   uploadImage={uploadStudioMedia}
-                  placeholder="כתבו עדכון — טקסט, תמונות, צילומי מסך, קישורים…"
+                  placeholder="כתבו עדכון — @ לתיוג עמית/ה, טקסט, תמונות, קישורים…"
                   minHeight={80}
+                  mentionUsers={officeUsers}
+                  onMention={(u) => setPendingMentions((p) => (p.some((x) => x.id === u.id) ? p : [...p, u]))}
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <p className="text-[10px] text-slate-500">🔒 העדכון נשמר פנימי — שליחה ללקוח דרך הכפתורים שבכל בלוק.</p>
+                  <p className="text-[10px] text-slate-500">🔒 העדכון נשמר פנימי — @ מתייג עמית/ה (פעמון + מייל) · שליחה ללקוח דרך הכפתורים שבכל בלוק.</p>
                   <Button disabled={chatBusy || isHtmlEmpty(internalHtml)} onClick={sendInternal}>פרסום עדכון</Button>
                 </div>
               </div>

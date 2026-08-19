@@ -48,6 +48,8 @@ model User {
   // ולא מקבל וואטסאפ. נוכחות המספר = הפעלת ההתראה.
   whatsappPhone String?
   birthday     DateTime? // יום הולדת — לבאנר "מזל טוב" בצד המשרד
+  // מייל כשמתייגים אותי בעדכון (@תיוג בסטודיו) — ניתן לכיבוי ב"חשבון שלי".
+  mentionEmails Boolean  @default(true)
   client       Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId     String?
   active       Boolean   @default(true)
@@ -70,9 +72,26 @@ model User {
   designTasksCreated DesignTask[] @relation("DesignTaskCreator")
   designAssets       DesignAsset[]
   engagementTasks EngagementTask[] @relation("EngagementTaskAssignee")
+  notifications   Notification[]
 
   @@index([clientId])
   @@index([role])
+}
+
+// התראה פנימית למשתמש משרד (תיוג @ בעדכון וכד') — נצברת בפעמון שבסיידבר.
+model Notification {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  kind      String    @default("mention")
+  text      String
+  link      String? // קישור פנימי, למשל /admin/studio?task=...
+  actorName String? // מי תייג
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 // חיבור יומן Google אישי (עובד משרד): הלוח המשותף קורא את כל היומנים,

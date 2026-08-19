@@ -19,6 +19,8 @@ const UpdateMe = z.object({
   // Password change requires proving the current password.
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8, "סיסמה חדשה קצרה מדי (מינימום 8)").optional(),
+  // מייל בעת תיוג @ בעדכונים (צד משרד).
+  mentionEmails: z.boolean().optional(),
 });
 
 // PATCH /api/me — self-service profile: name, phone, password.
@@ -51,6 +53,7 @@ export const PATCH = handle(async (req) => {
     data: {
       name: body.name,
       phone: body.phone,
+      ...(body.mentionEmails !== undefined ? { mentionEmails: body.mentionEmails } : {}),
       ...(body.birthday !== undefined
         ? { birthday: body.birthday ? new Date(`${body.birthday}T12:00:00Z`) : null }
         : {}),

@@ -21,6 +21,7 @@ export default async function AdminProfilePage() {
         email={dbUser?.email ?? ""}
         hasPassword={Boolean(dbUser?.passwordHash)}
         calendar={{ connected: Boolean(calConn?.active), email: calConn?.googleEmail ?? null }}
+        initialMentionEmails={dbUser?.mentionEmails ?? true}
       />
     </>
   );
