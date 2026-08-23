@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/fetcher";
 import { Card, Button } from "@/components/ui";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 const CAPS = [
   { k: "broadcast", l: "דיוור יזום ללקוחות", hint: "שליחת קמפיינים/הודעות לאנשי הקשר של הלקוח" },
@@ -37,6 +38,7 @@ export default function MessagingPermsCard({
   allowed: Record<string, boolean>;
 }) {
   const [state, setState] = useState<Record<string, boolean>>({ ...allowed });
+  const [collapsed, toggleCollapse] = useCollapse("client-msg-perms");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -68,7 +70,11 @@ export default function MessagingPermsCard({
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-800">הרשאות דיוור (מה הלקוח רשאי)</h3>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="text-base font-bold text-slate-800">הרשאות דיוור (מה הלקוח רשאי)</h3>
+        <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+      </div>
+      {collapsed ? null : (<>
       <p className="mb-4 text-xs text-slate-500">
         אתה מגדיר מה מותר; הלקוח בוחר להפעיל בהגדרות שלו. אפקטיבי = מותר + הופעל.
       </p>
@@ -111,6 +117,7 @@ export default function MessagingPermsCard({
         </Button>
         {msg ? <span className="text-xs text-slate-400">{msg}</span> : null}
       </div>
+      </>)}
     </Card>
   );
 }

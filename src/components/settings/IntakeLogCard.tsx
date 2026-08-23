@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 interface IntakeLogRow {
   id: string;
@@ -26,6 +27,7 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 // יומן הקליטה — כל מה שניסה להיכנס דרך ה-webhooks, כולל מה שנכשל ולמה.
 export default function IntakeLogCard({ clientId }: { clientId: string }) {
   const [logs, setLogs] = useState<IntakeLogRow[]>([]);
+  const [collapsed, toggleCollapse] = useCollapse("client-intake-log");
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
@@ -95,18 +97,22 @@ export default function IntakeLogCard({ clientId }: { clientId: string }) {
             כל בקשה שהגיעה ל-webhooks של הלקוח — כולל דחיות, כפולים ושגיאות.
           </p>
         </div>
-        <div className="w-40">
-          <Field label="סינון">
-            <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-              <option value="">הכול ({total})</option>
-              {Object.entries(STATUS_META).map(([v, m]) => (
-                <option key={v} value={v}>{m.label}</option>
-              ))}
-            </Select>
-          </Field>
+        <div className="flex items-center gap-1">
+          <div className="w-40">
+            <Field label="סינון">
+              <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+                <option value="">הכול ({total})</option>
+                {Object.entries(STATUS_META).map(([v, m]) => (
+                  <option key={v} value={v}>{m.label}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
         </div>
       </div>
 
+      {collapsed ? null : (<>
       {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
 
       {logs.length === 0 ? (
@@ -153,6 +159,7 @@ export default function IntakeLogCard({ clientId }: { clientId: string }) {
           <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>הבא</Button>
         </div>
       ) : null}
+      </>)}
     </Card>
   );
 }

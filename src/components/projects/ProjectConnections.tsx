@@ -310,4 +310,4 @@ export default function ProjectConnections({
 }
 
 // עורך ניתוב הטפסים המלא עבר לכרטיס הפייסבוק בהגדרות הלקוח
-// (components/settings/ClientMetaConnections.tsx) — העמוד שייך ללקוח.
+// (components/settings/ClientConnectionsHub.tsx) — העמוד שייך ללקוח.

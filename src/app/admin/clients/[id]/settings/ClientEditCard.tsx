@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import { ClientFormModal } from "@/components/clients/ClientsGrid";
 import { UploadModal } from "@/components/documents/DocumentsView";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 export default function ClientEditCard({
   client,
@@ -30,6 +31,7 @@ export default function ClientEditCard({
   };
 }) {
   const router = useRouter();
+  const [collapsed, toggleCollapse] = useCollapse("client-edit");
   const [showEdit, setShowEdit] = useState(false);
   const [showLogoUpload, setShowLogoUpload] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -106,6 +108,7 @@ export default function ClientEditCard({
           >
             {client.active ? "השבתת לקוח" : "הפעלת לקוח"}
           </Button>
+          <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
         </div>
       </div>
 
@@ -126,6 +129,7 @@ export default function ClientEditCard({
       ) : null}
 
       {/* Round-robin auto-assignment toggle */}
+      {collapsed ? null : (<>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
         <div>
           <p className="text-sm font-medium text-slate-700">שיוך לידים אוטומטי לסוכנים</p>
@@ -161,6 +165,7 @@ export default function ClientEditCard({
           </button>
         </div>
       </div>
+      </>)}
 
       {showEdit ? (
         <ClientFormModal

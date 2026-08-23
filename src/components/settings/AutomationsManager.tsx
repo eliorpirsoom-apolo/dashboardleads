@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { Button, Card, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 import Modal from "@/components/Modal";
 
 interface Automation {
@@ -39,6 +40,7 @@ const RECIPIENT_LABELS: Record<string, string> = {
 export default function AutomationsManager({ clientId }: { clientId: string }) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [statuses, setStatuses] = useState<StatusOpt[]>([]);
+  const [collapsed, toggleCollapse] = useCollapse("client-automations");
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState("");
 
@@ -80,12 +82,16 @@ export default function AutomationsManager({ clientId }: { clientId: string }) {
             SMS/וואטסאפ נשלחים בפועל אחרי חיבור ספק (עד אז נרשמים ביומן).
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Icon name="plus" className="h-4 w-4" />
-          אוטומציה
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Icon name="plus" className="h-4 w-4" />
+            אוטומציה
+          </Button>
+          <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+        </div>
       </div>
 
+      {collapsed ? null : (<>
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
       <div className="flex flex-col gap-2">
@@ -114,6 +120,7 @@ export default function AutomationsManager({ clientId }: { clientId: string }) {
           </p>
         ) : null}
       </div>
+      </>)}
 
       {showCreate ? (
         <AutomationModal

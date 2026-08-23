@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { Button, Card, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 interface FieldDef {
   id: string;
@@ -23,6 +24,7 @@ const TYPES = [
 
 export default function CustomFieldsEditor({ clientId }: { clientId: string }) {
   const [fields, setFields] = useState<FieldDef[]>([]);
+  const [collapsed, toggleCollapse] = useCollapse("client-fields");
   const [label, setLabel] = useState("");
   const [fieldType, setFieldType] = useState("text");
   const [options, setOptions] = useState("");
@@ -76,7 +78,11 @@ export default function CustomFieldsEditor({ clientId }: { clientId: string }) {
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-800">שדות חופשיים</h3>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="text-base font-bold text-slate-800">שדות חופשיים</h3>
+        <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+      </div>
+      {collapsed ? null : (<>
       <p className="mb-4 text-xs text-slate-500">
         שדות שמתווספים לכרטיס הליד, לטבלה ולייצוא — בלי לגעת בקוד.
       </p>
@@ -129,6 +135,7 @@ export default function CustomFieldsEditor({ clientId }: { clientId: string }) {
           הוספה
         </Button>
       </form>
+      </>)}
     </Card>
   );
 }

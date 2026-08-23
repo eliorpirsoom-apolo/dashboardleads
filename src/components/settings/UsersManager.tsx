@@ -7,6 +7,7 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 export interface ClientUser {
   id: string;
@@ -29,6 +30,7 @@ export default function UsersManager({
   users: ClientUser[];
 }) {
   const router = useRouter();
+  const [collapsed, toggleCollapse] = useCollapse("client-users");
   const [showCreate, setShowCreate] = useState(false);
   const [resetUser, setResetUser] = useState<ClientUser | null>(null);
   const [waUser, setWaUser] = useState<ClientUser | null>(null);
@@ -81,12 +83,16 @@ export default function UsersManager({
             בעלים וסוכני מכירות — כולם רואים רק את הלקוח הזה.
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Icon name="plus" className="h-4 w-4" />
-          משתמש חדש
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Icon name="plus" className="h-4 w-4" />
+            משתמש חדש
+          </Button>
+          <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+        </div>
       </div>
 
+      {collapsed ? null : (
       <div className="flex flex-col gap-2">
         {users.map((u) => (
           <div key={u.id} className={`flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 ${u.active ? "" : "opacity-50"}`}>
@@ -140,6 +146,7 @@ export default function UsersManager({
           <p className="text-xs text-slate-600">אין משתמשים עדיין — צרו את הראשון.</p>
         ) : null}
       </div>
+      )}
 
       {showCreate ? (
         <CreateUserModal

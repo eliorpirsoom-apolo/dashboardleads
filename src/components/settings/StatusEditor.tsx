@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { SYSTEM_KINDS } from "@/lib/defaults";
 import { Button, Card, Chip, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 interface Status {
   id: string;
@@ -18,6 +19,7 @@ interface Status {
 
 export default function StatusEditor({ clientId }: { clientId: string }) {
   const [statuses, setStatuses] = useState<Status[]>([]);
+  const [collapsed, toggleCollapse] = useCollapse("client-statuses");
   const [name, setName] = useState("");
   const [color, setColor] = useState("#38bdf8");
   const [systemKind, setSystemKind] = useState("in_progress");
@@ -87,7 +89,11 @@ export default function StatusEditor({ clientId }: { clientId: string }) {
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-800">סטטוסים ללידים</h3>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="text-base font-bold text-slate-800">סטטוסים ללידים</h3>
+        <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+      </div>
+      {collapsed ? null : (<>
       <p className="mb-4 text-xs text-slate-500">
         שם, צבע וסדר — בהגדרתכם. הסוג המערכתי קובע התנהגות: סטטוס מסוג
         &quot;עסקה&quot; מוריד דירה מהמלאי בפרויקטי נדל&quot;ן.
@@ -155,6 +161,7 @@ export default function StatusEditor({ clientId }: { clientId: string }) {
           הוספה
         </Button>
       </form>
+      </>)}
     </Card>
   );
 }

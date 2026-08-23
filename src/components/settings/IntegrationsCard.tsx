@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 
 interface IntegrationRow {
   id: string;
@@ -24,6 +25,7 @@ export default function IntegrationsCard({
   clientType: string;
 }) {
   const [rows, setRows] = useState<IntegrationRow[]>([]);
+  const [collapsed, toggleCollapse] = useCollapse("client-integrations");
   const [meta, setMeta] = useState({ adAccountId: "", accessToken: "" });
   const [wa, setWa] = useState({ idInstance: "", apiToken: "" });
   const [gscSite, setGscSite] = useState("");
@@ -123,7 +125,11 @@ export default function IntegrationsCard({
 
   return (
     <Card>
-      <h3 className="mb-1 text-base font-bold text-slate-800">אינטגרציות הלקוח</h3>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="text-base font-bold text-slate-800">אינטגרציות הלקוח</h3>
+        <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
+      </div>
+      {collapsed ? null : (<>
       <p className="mb-4 text-xs text-slate-500">
         חיבורים חיצוניים ללקוח הזה — הוראות מפורטות בקובץ CONNECTIONS.md.
       </p>
@@ -250,6 +256,7 @@ export default function IntegrationsCard({
           </p>
         </div>
       </div>
+      </>)}
     </Card>
   );
 }
