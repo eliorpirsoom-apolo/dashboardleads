@@ -182,6 +182,82 @@ export async function unsubscribePage(pageId: string, pageToken: string): Promis
   ).catch(() => {});
 }
 
+// --- ניתוב לפי טופס ----------------------------------------------------------
+// כל טופס Lead Ads יכול להיות מנותב לפרויקט משלו (MetaPage.routing).
+// טופס ללא כלל → המקור של החיבור (הפרויקט שאליו חובר העמוד).
+
+export interface FormRoute {
+  formId: string;
+  formName?: string;
+  projectId: string;
+}
+
+export function parseRouting(raw: string | null): FormRoute[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr)
+      ? arr.filter((r: any) => r && typeof r.formId === "string" && typeof r.projectId === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** רשימת הטפסים של העמוד (לעורך הניתוב). */
+export async function listPageForms(
+  metaPageDbId: string
+): Promise<{ id: string; name: string; status: string }[]> {
+  const page = await prisma.metaPage.findUnique({ where: { id: metaPageDbId } });
+  if (!page) throw new Error("החיבור לא נמצא");
+  const res = await fetch(
+    `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=100&access_token=${encodeURIComponent(page.pageToken)}`
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`שליפת טפסים נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
+  }
+  return (data.data ?? []).map((f: any) => ({
+    id: String(f.id),
+    name: String(f.name ?? f.id),
+    status: String(f.status ?? ""),
+  }));
+}
+
+/** טוקן הקליטה לליד לפי הטופס שלו: כלל ניתוב → מקור פייסבוק של פרויקט היעד
+ *  (נוצר אוטומטית בפעם הראשונה); בלי כלל → המקור של החיבור. */
+async function resolveTokenForForm(
+  page: { id: string; clientId: string; pageName: string; routing: string | null },
+  formId: string | null | undefined,
+  fallbackToken: string
+): Promise<string> {
+  if (!formId) return fallbackToken;
+  const rule = parseRouting(page.routing).find((r) => r.formId === String(formId));
+  if (!rule) return fallbackToken;
+  const existing = await prisma.leadSource.findFirst({
+    where: { projectId: rule.projectId, channel: "facebook", kind: "form", active: true },
+    select: { token: true },
+  });
+  if (existing) return existing.token;
+  const project = await prisma.project.findUnique({
+    where: { id: rule.projectId },
+    select: { id: true, clientId: true },
+  });
+  // פרויקט נמחק/של לקוח אחר — נפילה בטוחה למקור של החיבור.
+  if (!project || project.clientId !== page.clientId) return fallbackToken;
+  const created = await prisma.leadSource.create({
+    data: {
+      clientId: page.clientId,
+      projectId: rule.projectId,
+      name: `פייסבוק — ${page.pageName}`,
+      token: `src_${crypto.randomBytes(18).toString("hex")}`,
+      kind: "form",
+      channel: "facebook",
+    },
+  });
+  return created.token;
+}
+
 // --- עיבוד ליד נכנס -----------------------------------------------------------
 
 /** משיכת ליד מלא מ-Graph לפי מזהה. */
@@ -243,6 +319,8 @@ export async function pullRecentLeads(
 
   for (const form of formsData.data ?? []) {
     out.forms++;
+    // ניתוב: לידים של הטופס הזה נשלחים למקור של פרויקט היעד (אם הוגדר כלל).
+    const formToken = await resolveTokenForForm(page, form.id, page.source.token);
     let url =
       `${GRAPH}/${form.id}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_name,campaign_name,platform&limit=100&access_token=${encodeURIComponent(page.pageToken)}`;
     for (let i = 0; i < 3 && url; i++) {
@@ -261,7 +339,7 @@ export async function pullRecentLeads(
         }
         try {
           const payload = mapToIntakePayload(lead);
-          const r = await fetch(`${base.replace(/\/$/, "")}/api/intake/${page.source.token}`, {
+          const r = await fetch(`${base.replace(/\/$/, "")}/api/intake/${formToken}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -299,8 +377,10 @@ export async function processLeadgenEvent(
   try {
     const lead = await fetchLeadgen(leadgenId, page.pageToken);
     const payload = mapToIntakePayload(lead);
+    // ניתוב לפי הטופס שממנו הגיע הליד (form_id מהמשיכה).
+    const token = await resolveTokenForForm(page, lead.form_id, page.source.token);
     const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
-    const res = await fetch(`${base.replace(/\/$/, "")}/api/intake/${page.source.token}`, {
+    const res = await fetch(`${base.replace(/\/$/, "")}/api/intake/${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

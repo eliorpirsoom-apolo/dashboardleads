@@ -485,6 +485,9 @@ model MetaPage {
   active        Boolean    @default(true)
   lastLeadAt    DateTime?
   lastError     String?
+  // ניתוב לפי טופס: JSON [{formId, formName, projectId}] — כל טופס Lead Ads
+  // מנותב לפרויקט משלו; טופס ללא כלל נופל לפרויקט של החיבור.
+  routing       String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
