@@ -77,23 +77,39 @@ export default function StudioBoard({
   // עובד גם בטבלאות ענק שבהן עדכון state איטי מתנועת העכבר.
   const dragFromHandle = useRef<string | null>(null);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [moveMenuId, setMoveMenuId] = useState<string | null>(null); // תפריט "העברה אל…" פתוח
+  useEffect(() => {
+    if (!moveMenuId) return;
+    const close = () => setMoveMenuId(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [moveMenuId]);
   useEffect(() => {
     const clear = () => { dragFromHandle.current = null; };
     window.addEventListener("mouseup", clear);
     return () => window.removeEventListener("mouseup", clear);
   }, []);
-  // גלילה אוטומטית של החלון בזמן גרירה (כרום לא עושה זאת לבד) — כשגוררים
-  // מהטבלה התחתונה, התקרבות לשולי המסך גוללת אל היעדים שלמעלה.
+  // גלילה אוטומטית רציפה בזמן גרירה (כרום לא גולל לבד): dragover רק מעדכן את
+  // מיקום הסמן, ולולאת rAF גוללת ברציפות — גם כשהעכבר עומד במקום על השוליים.
   useEffect(() => {
     if (!dragId && !dragGroupId) return;
-    const onDragOver = (e: DragEvent) => {
-      const margin = 90;
-      const speed = 22;
-      if (e.clientY < margin) window.scrollBy(0, -speed);
-      else if (window.innerHeight - e.clientY < margin) window.scrollBy(0, speed);
+    let y = -1;
+    let raf = 0;
+    const onDragOver = (e: DragEvent) => { y = e.clientY; };
+    const tick = () => {
+      const margin = 110;
+      if (y >= 0) {
+        if (y < margin) window.scrollBy(0, -Math.ceil((margin - y) / 4));
+        else if (window.innerHeight - y < margin) window.scrollBy(0, Math.ceil((margin - (window.innerHeight - y)) / 4));
+      }
+      raf = requestAnimationFrame(tick);
     };
     document.addEventListener("dragover", onDragOver);
-    return () => document.removeEventListener("dragover", onDragOver);
+    raf = requestAnimationFrame(tick);
+    return () => {
+      document.removeEventListener("dragover", onDragOver);
+      cancelAnimationFrame(raf);
+    };
   }, [dragId, dragGroupId]);
   const [createGroupId, setCreateGroupId] = useState<string | null>(null); // קבוצה מוגדרת-מראש בבריף חדש
 
@@ -198,11 +214,9 @@ export default function StudioBoard({
     setShowCreate(true);
   }
 
-  async function handleDrop(targetGroupId: string | null, beforeTaskId: string | null) {
-    const id = dragId;
-    setDragId(null);
-    setDragOver(null);
-    if (!id || !dndEnabled) return;
+  // הזזת משימה לקבוצה (לפני משימה מסוימת, או null=לסוף). משמש גם את הגרירה
+  // וגם את תפריט "העברה אל…" — שעובד תמיד, בלי תלות במנגנון הגרירה של הדפדפן.
+  async function moveTask(id: string, targetGroupId: string | null, beforeTaskId: string | null) {
     const current = tasks.filter((t) => effGroup(t) === targetGroupId).sort(byOrder);
     const without = current.filter((t) => t.id !== id);
     const foundIdx = beforeTaskId ? without.findIndex((t) => t.id === beforeTaskId) : -1;
@@ -213,6 +227,14 @@ export default function StudioBoard({
     } finally {
       load();
     }
+  }
+
+  async function handleDrop(targetGroupId: string | null, beforeTaskId: string | null) {
+    const id = dragId;
+    setDragId(null);
+    setDragOver(null);
+    if (!id || !dndEnabled) return;
+    await moveTask(id, targetGroupId, beforeTaskId);
   }
   function toLocalInput(iso: string | null): string {
     if (!iso) return "";
@@ -467,9 +489,38 @@ export default function StudioBoard({
       </td>
       <td className="truncate px-2 py-2 text-xs text-slate-600">{briefTypeLabel(t.briefType)}</td>
       <td className="px-3 py-2 text-left">
-        <button onClick={() => del(t.id)} title="מחיקה" className="text-slate-600 transition hover:text-rose-400">
-          <Icon name="trash" className="h-4 w-4" />
-        </button>
+        <span className="relative inline-flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); setMoveMenuId(moveMenuId === t.id ? null : t.id); }}
+            title="העברה לקבוצה אחרת"
+            className="select-none text-slate-500 transition hover:text-[#3a5bd9]"
+          >
+            ⇄
+          </button>
+          <button onClick={() => del(t.id)} title="מחיקה" className="text-slate-600 transition hover:text-rose-400">
+            <Icon name="trash" className="h-4 w-4" />
+          </button>
+          {moveMenuId === t.id ? (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute left-0 top-6 z-[60] min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+            >
+              <p className="px-3 py-1 text-[10px] font-bold text-slate-400">העברה אל…</p>
+              {sections
+                .filter((s) => s.key !== groupKey)
+                .map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => { setMoveMenuId(null); moveTask(t.id, gidOf(s.key), s.items[0]?.id ?? null); }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-right text-xs text-slate-700 transition hover:bg-[#3a5bd9]/10 hover:text-[#3a5bd9]"
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                    {s.group ? s.group.name : "ללא קבוצה"}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+        </span>
       </td>
       <td className="px-0 py-2"></td>
     </tr>
