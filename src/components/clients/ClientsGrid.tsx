@@ -34,13 +34,22 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
   const [q, setQ] = useState("");
   // תצוגה: כרטיסים (ברירת מחדל) או רשימה — ההעדפה נשמרת בדפדפן.
   const [view, setView] = useState<"grid" | "list">("grid");
+  // מיון: חדשים קודם (ברירת המחדל של השרת) או אלפביתי א-ב — נשמר בדפדפן.
+  const [sortAz, setSortAz] = useState(false);
   useEffect(() => {
     const v = localStorage.getItem("clientsView");
     if (v === "list") setView("list");
+    if (localStorage.getItem("clientsSortAz") === "1") setSortAz(true);
   }, []);
   function switchView(v: "grid" | "list") {
     setView(v);
     try { localStorage.setItem("clientsView", v); } catch {}
+  }
+  function toggleSort() {
+    setSortAz((v) => {
+      try { localStorage.setItem("clientsSortAz", v ? "0" : "1"); } catch {}
+      return !v;
+    });
   }
 
   const filtered = clients.filter(
@@ -49,6 +58,12 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
       (c.company ?? "").includes(q) ||
       (c.contactName ?? "").includes(q)
   );
+  // מיון א-ב: פעילים תחילה, ובתוך כל קבוצה לפי שם בעברית.
+  const sorted = sortAz
+    ? [...filtered].sort(
+        (a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, "he")
+      )
+    : filtered;
 
   const viewBtn = (v: "grid" | "list", label: string) => (
     <button
@@ -72,6 +87,18 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
           {viewBtn("grid", "▦ כרטיסים")}
           {viewBtn("list", "☰ רשימה")}
         </div>
+        <button
+          type="button"
+          onClick={toggleSort}
+          title={sortAz ? "חזרה למיון לפי חדשים" : "מיון אלפביתי א-ב"}
+          className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${
+            sortAz
+              ? "border-[#3a5bd9] bg-[#3a5bd9]/10 text-[#3a5bd9]"
+              : "border-slate-300 bg-white text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          {sortAz ? "א-ב ✓" : "מיון א-ב"}
+        </button>
         <Button onClick={() => setShowCreate(true)}>
           <Icon name="plus" className="h-4 w-4" />
           לקוח חדש
@@ -94,7 +121,7 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {sorted.map((c) => (
                 <tr
                   key={c.id}
                   onClick={() => router.push(`/admin/clients/${c.id}`)}
@@ -130,7 +157,7 @@ export default function ClientsGrid({ clients }: { clients: ClientCard[] }) {
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((c) => (
+          {sorted.map((c) => (
             <Link
               key={c.id}
               href={`/admin/clients/${c.id}`}
