@@ -17,7 +17,7 @@ export const GET = handle(async (req) => {
   const clientId = scopeClientId(user, p.get("clientId"));
 
   const page = Math.max(1, Number(p.get("page") || 1));
-  const pageSize = Math.min(100, Math.max(10, Number(p.get("pageSize") || 25)));
+  const pageSize = Math.min(200, Math.max(10, Number(p.get("pageSize") || 20)));
   const where = buildLeadWhere(clientId, p, user.id, await allowedProjectIds(user));
 
   const [total, rows] = await Promise.all([

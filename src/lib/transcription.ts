@@ -409,10 +409,13 @@ export async function processPendingCallTranscriptions(
 
   // שיחות חדשות (שטרם נוסו) תמיד ראשונות — כדי שכשל ישן שחוזר על עצמו לא
   // "יתפוס" את כל הסלוטים וירעיב את השיחות האחרונות. ניסיונות חוזרים לכשלים
-  // מ-7 הימים האחרונים ממלאים את הסלוטים שנותרו, עם הפוגה של 30 דק' בין
-  // ניסיונות (updatedAt מתעדכן בכל סימון failed/pending).
+  // מ-7 הימים האחרונים ממלאים את הסלוטים שנותרו. הפוגה בין ניסיונות: שיחה
+  // טרייה (<3 שעות) כל 10 דק' — קולאינדקס בדרך כלל מעלה את ההקלטה באיחור
+  // של דקות; שיחה ישנה כל 30 דק' (updatedAt מתעדכן בכל סימון failed/pending).
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const halfHourAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+  const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const sel = {
     id: true,
     createdAt: true,
@@ -439,7 +442,10 @@ export async function processPendingCallTranscriptions(
             callRecordingUrl: { startsWith: "http" },
             callTranscriptStatus: { in: ["failed", "pending"] },
             createdAt: { gte: weekAgo },
-            updatedAt: { lt: halfHourAgo },
+            OR: [
+              { createdAt: { gte: threeHoursAgo }, updatedAt: { lt: tenMinAgo } },
+              { createdAt: { lt: threeHoursAgo }, updatedAt: { lt: halfHourAgo } },
+            ],
           },
           orderBy: { updatedAt: "asc" },
           take: limit - fresh.length,

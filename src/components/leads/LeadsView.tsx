@@ -97,7 +97,12 @@ export default function LeadsView({
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 25;
+  const PAGE_SIZES = [20, 50, 100, 200];
+  const [pageSize, setPageSize] = useState<number>(() => {
+    if (typeof window === "undefined") return 20;
+    const v = Number(localStorage.getItem("leadsPageSize"));
+    return PAGE_SIZES.includes(v) ? v : 20;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -123,7 +128,7 @@ export default function LeadsView({
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const params = useMemo(() => {
-    const p = new URLSearchParams({ clientId, page: String(page) });
+    const p = new URLSearchParams({ clientId, page: String(page), pageSize: String(pageSize) });
     if (q) p.set("q", q);
     if (statusId) p.set("statusId", statusId);
     if (channel) p.set("channel", channel);
@@ -134,7 +139,7 @@ export default function LeadsView({
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     return p;
-  }, [clientId, page, q, statusId, channel, campaignId, assigneeId, projectId, showArchived, from, to]);
+  }, [clientId, page, pageSize, q, statusId, channel, campaignId, assigneeId, projectId, showArchived, from, to]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -586,17 +591,38 @@ export default function LeadsView({
         )}
 
         {/* Pagination */}
-        {pages > 1 ? (
-          <div className="flex items-center justify-between border-t border-slate-200/60 px-4 py-3 text-xs text-slate-400">
-            <span>
+        {total > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/60 px-4 py-3 text-xs text-slate-400">
+            <span className="flex items-center gap-2">
               {total} לידים · עמוד {page} מתוך {pages}
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setPageSize(v);
+                  setPage(1);
+                  try { localStorage.setItem("leadsPageSize", String(v)); } catch {}
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600 focus:border-[#3a5bd9] focus:outline-none"
+                title="כמה לידים בעמוד"
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>{n} בעמוד</option>
+                ))}
+              </select>
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(1)} title="לעמוד הראשון">
+                « ראשון
+              </Button>
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 הקודם
               </Button>
               <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
                 הבא
+              </Button>
+              <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage(pages)} title="לעמוד האחרון">
+                אחרון »
               </Button>
             </div>
           </div>

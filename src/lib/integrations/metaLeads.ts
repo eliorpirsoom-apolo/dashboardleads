@@ -364,6 +364,13 @@ export async function pullRecentLeads(
           reachedOld = true;
           continue;
         }
+        // ליד שכבר נקלט (externalId) — דילוג זול לפני קריאת intake, כדי
+        // שהמשיכה המחזורית (cron) לא תייצר עשרות קריאות-עצמיות מיותרות.
+        const exists = await prisma.lead.findFirst({
+          where: { clientId: page.clientId, externalId: String(lead.id) },
+          select: { id: true },
+        });
+        if (exists) continue;
         try {
           const payload = mapToIntakePayload(lead);
           const r = await fetch(`${base.replace(/\/$/, "")}/api/intake/${formToken}`, {
