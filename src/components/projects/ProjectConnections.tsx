@@ -19,14 +19,14 @@ interface Source {
   _count: { leads: number };
 }
 
-interface MetaPageRow {
-  id: string;
-  pageId: string;
+// תצוגת טפסי פייסבוק של הפרויקט: העמודים מחוברים ברמת הלקוח (הגדרות הלקוח),
+// וכאן כל פרויקט רואה ומנהל רק את הטפסים שמנותבים אליו.
+interface MetaFormsPage {
+  id: string; // metaPage db id
   pageName: string;
-  active: boolean;
-  lastLeadAt: string | null;
-  lastError: string | null;
-  source: { name: string; _count: { leads: number } } | null;
+  defaultProjectId: string | null;
+  routing: { formId: string; formName?: string; projectId: string }[];
+  forms: { id: string; name: string; status: string }[];
 }
 
 // קבוצות התצוגה: טלפונים / טפסים ואתרים / וואטסאפ.
@@ -47,8 +47,8 @@ export default function ProjectConnections({
   projectId: string;
 }) {
   const [sources, setSources] = useState<Source[]>([]);
-  const [metaPages, setMetaPages] = useState<MetaPageRow[]>([]);
-  const [metaEnabled, setMetaEnabled] = useState(true);
+  const [metaPages, setMetaPages] = useState<MetaFormsPage[]>([]);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("form");
   const [channel, setChannel] = useState("");
@@ -66,45 +66,39 @@ export default function ProjectConnections({
       setError(e.message);
     }
     try {
-      const m = await api<{ enabled: boolean; pages: MetaPageRow[] }>(
-        `/api/integrations/meta/pages?projectId=${projectId}`
+      const m = await api<{ pages: MetaFormsPage[] }>(
+        `/api/integrations/meta/forms?projectId=${projectId}`
       );
       setMetaPages(m.pages);
-      setMetaEnabled(m.enabled);
     } catch {
-      /* אינטגרציית Meta לא זמינה — הכרטיס יציג חיבור בלבד */
+      /* אין חיבור פייסבוק ללקוח / אין הרשאה — הפאנל פשוט לא יוצג */
+    } finally {
+      setMetaLoading(false);
     }
   }, [clientId, projectId]);
   useEffect(() => {
     load();
   }, [load]);
 
-  async function disconnectMeta(p: MetaPageRow) {
-    if (!confirm(`לנתק את העמוד "${p.pageName}"? לידים חדשים מפייסבוק יפסיקו להיכנס. הלידים הקיימים נשארים.`)) return;
-    try {
-      await api(`/api/integrations/meta/pages?id=${p.id}`, { method: "DELETE" });
-      await load();
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-
-  const [pulling, setPulling] = useState("");
-  const [routingFor, setRoutingFor] = useState<string | null>(null); // עורך ניתוב טפסים פתוח
-  async function pullMeta(p: MetaPageRow) {
-    setPulling(p.id);
+  // צירוף/שחרור טופס: עדכון ניתוב העמוד בלי לגעת בברירת המחדל שלו.
+  const [formBusy, setFormBusy] = useState("");
+  async function setFormRouting(page: MetaFormsPage, formId: string, target: string | null) {
+    setFormBusy(formId);
     setError("");
     try {
-      const r = await api<{ forms: number; scanned: number; sent: number }>(
-        "/api/integrations/meta/pull",
-        { method: "POST", json: { id: p.id, days: 30 } }
-      );
-      alert(`נמשכו ${r.sent} לידים (נסרקו ${r.scanned} מ-${r.forms} טפסים, 30 יום אחורה). כפילויות סוננו אוטומטית.`);
+      const form = page.forms.find((f) => f.id === formId);
+      const routing = page.routing
+        .filter((r) => r.formId !== formId)
+        .concat(target ? [{ formId, formName: form?.name, projectId: target }] : []);
+      await api("/api/integrations/meta/forms", {
+        method: "POST",
+        json: { id: page.id, routing },
+      });
       await load();
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setPulling("");
+      setFormBusy("");
     }
   }
 
@@ -152,55 +146,81 @@ export default function ProjectConnections({
 
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
-      {/* חיבור ישיר לפייסבוק (Meta Lead Ads) — לידים בזמן אמת, בלי גשר באמצע */}
-      <div className="mb-4">
-        <p className="mb-1.5 text-sm font-bold text-slate-700">📘 פייסבוק — חיבור ישיר</p>
-        {metaPages.length === 0 ? (
-          <p className="mb-2 text-xs text-slate-400">
-            חיבור עמוד פייסבוק מזרים את הלידים מטפסי הפייסבוק ישירות לפרויקט תוך שניות — בלי מנהל לידים באמצע.
-          </p>
-        ) : (
-          <div className="mb-2 flex flex-col gap-2">
-            {metaPages.map((p) => (
-              <div key={p.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700">📘 {p.pageName}</span>
-                  {!p.active ? <Chip color="#f87171">כבוי</Chip> : p.lastError ? <Chip color="#f59e0b">שגיאה</Chip> : <Chip color="#34d399">מחובר</Chip>}
-                  <span className="text-xs text-slate-500">
-                    {p.source?._count.leads ?? 0} לידים
-                    {p.lastLeadAt ? ` · ליד אחרון ${formatDateTime(p.lastLeadAt)}` : " · טרם התקבלו לידים"}
-                  </span>
-                  <div className="mr-auto flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setRoutingFor(routingFor === p.id ? null : p.id)} title="ניתוב כל טופס פייסבוק לפרויקט משלו">
-                      🗂 ניתוב טפסים
-                    </Button>
-                    <Button variant="ghost" size="sm" disabled={pulling === p.id} onClick={() => pullMeta(p)} title="משיכת הלידים מ-30 הימים האחרונים מהטפסים של העמוד (כפילויות מסוננות)">
-                      {pulling === p.id ? "מושך…" : "משיכת לידים אחרונים"}
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => disconnectMeta(p)}>ניתוק</Button>
-                  </div>
-                </div>
-                {p.lastError ? (
-                  <p className="mt-1 text-[11px] text-amber-700">{p.lastError}</p>
-                ) : null}
-                {routingFor === p.id ? <FormRoutingEditor metaPageId={p.id} onClose={() => setRoutingFor(null)} /> : null}
-              </div>
-            ))}
+      {/* טפסי פייסבוק של הפרויקט — העמוד מחובר ברמת הלקוח; כאן רק הטפסים
+          שמנותבים לפרויקט הזה + צירוף טפסים פנויים. */}
+      {!metaLoading && metaPages.length > 0 ? (
+        <div className="mb-4">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <p className="text-sm font-bold text-slate-700">📘 טפסי פייסבוק</p>
+            <a
+              href={`/admin/clients/${clientId}/settings`}
+              className="text-xs font-medium text-[#3a5bd9] hover:underline"
+            >
+              ניהול חיבור העמודים — בהגדרות הלקוח ←
+            </a>
           </div>
-        )}
-        {metaEnabled ? (
-          <a
-            href={`/api/integrations/meta/connect?projectId=${projectId}`}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#1877f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0f66d8]"
-          >
-            + חיבור עמוד פייסבוק
-          </a>
-        ) : (
-          <p className="text-xs text-amber-700">
-            חיבור Meta טרם הוגדר בסביבה (META_APP_ID/SECRET) — פנו למנהל המערכת.
-          </p>
-        )}
-      </div>
+          {(() => {
+            const mine: { page: MetaFormsPage; form: MetaFormsPage["forms"][number]; viaDefault: boolean }[] = [];
+            const free: { page: MetaFormsPage; form: MetaFormsPage["forms"][number] }[] = [];
+            for (const page of metaPages) {
+              for (const form of page.forms) {
+                const rule = page.routing.find((r) => r.formId === form.id);
+                if (rule?.projectId === projectId) mine.push({ page, form, viaDefault: false });
+                else if (!rule && page.defaultProjectId === projectId) mine.push({ page, form, viaDefault: true });
+                else if (!rule && !page.defaultProjectId) free.push({ page, form });
+              }
+            }
+            return (
+              <>
+                {mine.length === 0 ? (
+                  <p className="mb-2 text-xs text-slate-400">אין טפסים משויכים לפרויקט הזה עדיין.</p>
+                ) : (
+                  <div className="mb-2 flex flex-col gap-1.5">
+                    {mine.map(({ page, form, viaDefault }) => (
+                      <div key={form.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <span className="font-medium text-slate-700">📝 {form.name}</span>
+                        <span className="text-[11px] text-slate-400">{page.pageName}</span>
+                        {viaDefault ? <Chip color="#94a3b8">דרך ברירת המחדל</Chip> : null}
+                        {!viaDefault ? (
+                          <div className="mr-auto">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={formBusy === form.id}
+                              onClick={() => setFormRouting(page, form.id, null)}
+                              title="שחרור — הטופס חוזר לברירת המחדל של החיבור (בהגדרות הלקוח)"
+                            >
+                              {formBusy === form.id ? "…" : "שחרור"}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {free.length > 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-2">
+                    <p className="mb-1 text-[11px] font-medium text-slate-500">טפסים פנויים (ללא שיוך) — לחיצה מצרפת לפרויקט הזה:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {free.map(({ page, form }) => (
+                        <button
+                          key={form.id}
+                          disabled={formBusy === form.id}
+                          onClick={() => setFormRouting(page, form.id, projectId)}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9]"
+                          title={`צירוף הטופס לפרויקט (עמוד: ${page.pageName})`}
+                        >
+                          {formBusy === form.id ? "מצרף…" : `+ ${form.name}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            );
+          })()}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-4">
         {GROUPS.map((g) => {
@@ -289,91 +309,5 @@ export default function ProjectConnections({
   );
 }
 
-// עורך ניתוב טפסים: כל טופס Lead Ads של העמוד → פרויקט יעד משלו.
-// טופס בלי בחירה נופל לפרויקט של החיבור (ברירת המחדל).
-function FormRoutingEditor({ metaPageId, onClose }: { metaPageId: string; onClose: () => void }) {
-  const [data, setData] = useState<{
-    forms: { id: string; name: string; status: string }[];
-    routing: { formId: string; formName?: string; projectId: string }[];
-    projects: { id: string; name: string }[];
-    defaultProjectId: string | null;
-  } | null>(null);
-  const [map, setMap] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  useEffect(() => {
-    api<typeof data & object>(`/api/integrations/meta/forms?id=${metaPageId}`)
-      .then((d: any) => {
-        setData(d);
-        const m: Record<string, string> = {};
-        for (const r of d.routing) m[r.formId] = r.projectId;
-        setMap(m);
-      })
-      .catch((e) => setMsg("שגיאה: " + e.message));
-  }, [metaPageId]);
-
-  async function save() {
-    if (!data) return;
-    setBusy(true);
-    setMsg("");
-    try {
-      const routing = Object.entries(map)
-        .filter(([, projectId]) => projectId)
-        .map(([formId, projectId]) => ({
-          formId,
-          formName: data.forms.find((f) => f.id === formId)?.name,
-          projectId,
-        }));
-      await api("/api/integrations/meta/forms", { method: "POST", json: { id: metaPageId, routing } });
-      setMsg("הניתוב נשמר ✓ — לידים חדשים ינותבו לפי הטבלה");
-    } catch (e: any) {
-      setMsg("שגיאה: " + e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (msg.startsWith("שגיאה") && !data) return <p className="mt-2 text-xs text-red-600">{msg}</p>;
-  if (!data) return <p className="mt-2 text-xs text-slate-500">טוען את טפסי העמוד מפייסבוק…</p>;
-
-  const defaultName = data.projects.find((p) => p.id === data.defaultProjectId)?.name;
-
-  return (
-    <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-      <p className="mb-2 text-xs font-bold text-slate-700">
-        ניתוב טפסים — כל טופס נשלח לפרויקט שנבחר לו
-        {defaultName ? <span className="font-normal text-slate-400"> · ללא בחירה = {defaultName}</span> : null}
-      </p>
-      {data.forms.length === 0 ? (
-        <p className="text-xs text-slate-500">לא נמצאו טפסי Lead Ads בעמוד.</p>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {data.forms.map((f) => (
-            <div key={f.id} className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="min-w-48 flex-1 truncate font-medium text-slate-700" title={f.name}>
-                📝 {f.name}
-                {f.status && f.status !== "ACTIVE" ? <span className="mr-1 text-slate-400">({f.status.toLowerCase()})</span> : null}
-              </span>
-              <select
-                value={map[f.id] ?? ""}
-                onChange={(e) => setMap((m) => ({ ...m, [f.id]: e.target.value }))}
-                className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
-              >
-                <option value="">ברירת מחדל{defaultName ? ` (${defaultName})` : ""}</option>
-                {data.projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mt-3 flex items-center gap-2">
-        <Button size="sm" disabled={busy} onClick={save}>{busy ? "שומר…" : "שמירת ניתוב"}</Button>
-        <Button size="sm" variant="ghost" onClick={onClose}>סגירה</Button>
-        {msg ? <span className={`text-[11px] ${msg.startsWith("שגיאה") ? "text-red-600" : "text-emerald-600"}`}>{msg}</span> : null}
-      </div>
-    </div>
-  );
-}
+// עורך ניתוב הטפסים המלא עבר לכרטיס הפייסבוק בהגדרות הלקוח
+// (components/settings/ClientMetaConnections.tsx) — העמוד שייך ללקוח.

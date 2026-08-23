@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import UsersManager from "@/components/settings/UsersManager";
 import ClientConnectionsOverview from "@/components/settings/ClientConnectionsOverview";
+import ClientMetaConnections from "@/components/settings/ClientMetaConnections";
 import StatusEditor from "@/components/settings/StatusEditor";
 import CustomFieldsEditor from "@/components/settings/CustomFieldsEditor";
 import AutomationsManager from "@/components/settings/AutomationsManager";
@@ -59,6 +60,7 @@ export default async function ClientSettingsPage({
       />
 
       <UsersManager clientId={client.id} users={client.users} />
+      <ClientMetaConnections clientId={client.id} />
       <ClientConnectionsOverview clientId={client.id} />
       <IntakeLogCard clientId={client.id} />
       <StatusEditor clientId={client.id} />

@@ -28,11 +28,22 @@ export async function GET(req: Request) {
   if (!code || !state) {
     return NextResponse.redirect(new URL("/admin?meta_error=state", req.url));
   }
-  const project = await prisma.project.findUnique({
-    where: { id: state.projectId },
-    select: { id: true, name: true, clientId: true },
+  // חיבור חדש חי ברמת הלקוח (projectId ריק ב-state); projectId מלא = תאימות
+  // לאחור, והפרויקט יהיה ברירת המחדל לטפסים לא-משויכים.
+  const project = state.projectId
+    ? await prisma.project.findUnique({
+        where: { id: state.projectId },
+        select: { id: true, name: true, clientId: true },
+      })
+    : null;
+  if (state.projectId && (!project || project.clientId !== state.clientId)) {
+    return NextResponse.redirect(new URL("/admin?meta_error=project", req.url));
+  }
+  const client = await prisma.client.findUnique({
+    where: { id: state.clientId },
+    select: { id: true, name: true },
   });
-  if (!project || project.clientId !== state.clientId) {
+  if (!client) {
     return NextResponse.redirect(new URL("/admin?meta_error=project", req.url));
   }
 
@@ -75,12 +86,16 @@ export async function GET(req: Request) {
   .empty{padding:16px;text-align:center;color:#94a3b8;font-size:13px}
 </style></head><body>
 <div class="card">
-  <h1>חיבור עמוד פייסבוק — ${esc(project.name)}</h1>
-  <p>בחרו את העמוד שהלידים שלו ייכנסו לפרויקט הזה. מרגע החיבור כל ליד חדש מטפסי הפייסבוק של העמוד ייקלט אוטומטית תוך שניות.</p>
+  <h1>חיבור עמוד פייסבוק — ${esc(project ? project.name : client.name)}</h1>
+  <p>${
+    project
+      ? "בחרו את העמוד שהלידים שלו ייכנסו לפרויקט הזה. מרגע החיבור כל ליד חדש מטפסי הפייסבוק של העמוד ייקלט אוטומטית תוך שניות."
+      : "העמוד מתחבר ברמת הלקוח — אחרי החיבור מנתבים כל טופס פייסבוק לפרויקט שלו (🗂 ניתוב טפסים). ליד מטופס שטרם שויך נשמר אצל הלקוח וממתין לשיוך."
+  }</p>
   <form method="POST" action="/api/integrations/meta/attach" onsubmit="var c=document.querySelector('input[name=pageId]:checked'); if(c) document.getElementById('pn').value=c.dataset.name;">
     ${rows || '<div class="empty">לא נמצאו עמודים שאתם מנהלים בחשבון הזה.</div>'}
-    <input type="hidden" name="projectId" value="${esc(project.id)}">
-    <input type="hidden" name="clientId" value="${esc(project.clientId)}">
+    <input type="hidden" name="projectId" value="${esc(project?.id ?? "")}">
+    <input type="hidden" name="clientId" value="${esc(client.id)}">
     <input type="hidden" name="blob" value="${esc(blob)}">
     <input type="hidden" name="pageName" id="pn" value="">
     ${pages.length ? '<button type="submit">חיבור העמוד הנבחר ←</button>' : ""}

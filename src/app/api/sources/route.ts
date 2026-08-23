@@ -21,6 +21,9 @@ export const GET = handle(async (req) => {
     include: {
       _count: { select: { leads: true } },
       project: { select: { id: true, name: true } },
+      // מקור של חיבור פייסבוק מנוהל מכרטיס הפייסבוק בהגדרות הלקוח —
+      // מבט-העל לא מציג עליו אזהרת "ללא פרויקט".
+      metaPage: { select: { id: true } },
     },
   });
   return NextResponse.json({ sources });

@@ -15,6 +15,7 @@ interface Source {
   lastSeenAt: string | null;
   _count: { leads: number };
   project: { id: string; name: string } | null;
+  metaPage: { id: string } | null;
 }
 
 interface ProjectOpt {
@@ -78,7 +79,8 @@ export default function ClientConnectionsOverview({ clientId }: { clientId: stri
     }
   }
 
-  const unassigned = sources.filter((s) => !s.project);
+  // מקור של חיבור פייסבוק חי ברמת הלקוח בכוונה — מנוהל בכרטיס הפייסבוק למעלה.
+  const unassigned = sources.filter((s) => !s.project && !s.metaPage);
   const byProject = projects
     .map((p) => ({ project: p, list: sources.filter((s) => s.project?.id === p.id) }))
     .filter((g) => g.list.length > 0);

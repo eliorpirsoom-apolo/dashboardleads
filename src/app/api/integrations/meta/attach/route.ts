@@ -23,15 +23,25 @@ export const POST = handle(async (req) => {
   const clientId = String(form.get("clientId") ?? "");
   const blob = String(form.get("blob") ?? "");
 
-  if (!pageId || !projectId || !clientId) throw new ApiError(400, "חסרים פרטים");
+  if (!pageId || !clientId) throw new ApiError(400, "חסרים פרטים");
   const userToken = verifyUserToken(blob);
-  if (!userToken) throw new ApiError(403, "החיבור פג — התחילו שוב מהפרויקט");
+  if (!userToken) throw new ApiError(403, "החיבור פג — התחילו שוב");
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { id: true, name: true, clientId: true },
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true },
   });
-  if (!project || project.clientId !== clientId) throw new ApiError(404, "פרויקט לא נמצא");
+  if (!client) throw new ApiError(404, "לקוח לא נמצא");
+  // חיבור ברמת הלקוח: projectId ריק. מלא = פרויקט ברירת מחדל (תאימות לאחור).
+  const project = projectId
+    ? await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { id: true, name: true, clientId: true },
+      })
+    : null;
+  if (projectId && (!project || project.clientId !== clientId)) {
+    throw new ApiError(404, "פרויקט לא נמצא");
+  }
 
   const existing = await prisma.metaPage.findUnique({ where: { pageId } });
   if (existing) throw new ApiError(409, "העמוד כבר מחובר");
@@ -42,10 +52,11 @@ export const POST = handle(async (req) => {
   await subscribePageToLeadgen(pageId, page.token);
 
   // מקור קליטה ייעודי לעמוד — הלידים נכנסים דרך צינור הקליטה הרגיל.
+  // בלי פרויקט: לידים מטפסים לא-משויכים נשמרים ברמת הלקוח וממתינים לשיוך.
   const source = await prisma.leadSource.create({
     data: {
       clientId,
-      projectId,
+      projectId: project?.id ?? null,
       name: `פייסבוק — ${pageName}`.slice(0, 120),
       token: `src_${crypto.randomBytes(18).toString("hex")}`,
       kind: "form",
@@ -56,7 +67,7 @@ export const POST = handle(async (req) => {
   await prisma.metaPage.create({
     data: {
       clientId,
-      projectId,
+      projectId: project?.id ?? null,
       sourceId: source.id,
       pageId,
       pageName,
@@ -67,7 +78,9 @@ export const POST = handle(async (req) => {
 
   const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
   return NextResponse.redirect(
-    `${base}/admin/clients/${clientId}/projects/${projectId}?meta=connected`,
+    project
+      ? `${base}/admin/clients/${clientId}/projects/${project.id}?meta=connected`
+      : `${base}/admin/clients/${clientId}/settings?meta=connected`,
     { status: 303 }
   );
 });

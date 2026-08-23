@@ -6,14 +6,16 @@ import { metaEnabled, metaVerifyToken, unsubscribePage } from "@/lib/integration
 
 export const dynamic = "force-dynamic";
 
-// GET /api/integrations/meta/pages?projectId= — העמודים המחוברים לפרויקט
-// + פרטי ההגדרה למנהל (כתובת וובהוק וטוקן אימות לקונסולת Meta).
+// GET /api/integrations/meta/pages?clientId= — העמודים המחוברים של הלקוח
+// (?projectId= נתמך לתאימות לאחור) + פרטי ההגדרה למנהל (וובהוק לקונסולת Meta).
 export const GET = handle(async (req) => {
   const user = await requireAdmin();
-  const projectId = new URL(req.url).searchParams.get("projectId");
-  if (!projectId) throw new ApiError(400, "חסר projectId");
+  const sp = new URL(req.url).searchParams;
+  const clientId = sp.get("clientId");
+  const projectId = sp.get("projectId");
+  if (!clientId && !projectId) throw new ApiError(400, "חסר clientId");
   const pages = await prisma.metaPage.findMany({
-    where: { projectId },
+    where: clientId ? { clientId } : { projectId },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -23,6 +25,8 @@ export const GET = handle(async (req) => {
       lastLeadAt: true,
       lastError: true,
       createdAt: true,
+      projectId: true,
+      project: { select: { name: true } },
       source: { select: { name: true, _count: { select: { leads: true } } } },
     },
   });
