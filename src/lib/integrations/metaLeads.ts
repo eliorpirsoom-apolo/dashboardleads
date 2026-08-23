@@ -130,7 +130,7 @@ export async function exchangeCodeForUserToken(code: string): Promise<string> {
 export async function listUserPages(
   userToken: string
 ): Promise<{ id: string; name: string }[]> {
-  const out: { id: string; name: string }[] = [];
+  const out = new Map<string, string>();
   let url = `${GRAPH}/me/accounts?fields=id,name&limit=100&access_token=${encodeURIComponent(userToken)}`;
   for (let i = 0; i < 5 && url; i++) {
     const res = await fetch(url);
@@ -138,10 +138,35 @@ export async function listUserPages(
     if (!res.ok) {
       throw new Error(`שליפת עמודים נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
     }
-    out.push(...(data.data ?? []).map((p: any) => ({ id: p.id, name: p.name })));
+    for (const p of data.data ?? []) out.set(String(p.id), String(p.name ?? p.id));
     url = data.paging?.next ?? "";
   }
-  return out;
+  // דפים בגישה עסקית (שיתוף שותף מתיק של לקוח) לא חוזרים מ-/me/accounts —
+  // נאספים דרך התיקים העסקיים. דורש business_management; בהיעדרה — כשל שקט.
+  try {
+    const bizRes = await fetch(
+      `${GRAPH}/me/businesses?fields=id&limit=50&access_token=${encodeURIComponent(userToken)}`
+    );
+    const bizData = await bizRes.json();
+    if (bizRes.ok) {
+      for (const b of bizData.data ?? []) {
+        for (const edge of ["owned_pages", "client_pages"]) {
+          let purl = `${GRAPH}/${b.id}/${edge}?fields=id,name&limit=100&access_token=${encodeURIComponent(userToken)}`;
+          for (let i = 0; i < 5 && purl; i++) {
+            const res = await fetch(purl);
+            const data = await res.json();
+            if (!res.ok) break;
+            for (const p of data.data ?? []) {
+              const id = String(p.id);
+              if (!out.has(id)) out.set(id, String(p.name ?? id));
+            }
+            purl = data.paging?.next ?? "";
+          }
+        }
+      }
+    }
+  } catch {}
+  return [...out].map(([id, name]) => ({ id, name }));
 }
 
 /** טוקן עמוד (Page Access Token) — לא פג כשנגזר מטוקן משתמש ארוך-טווח. */

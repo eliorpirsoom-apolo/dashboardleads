@@ -26,7 +26,9 @@ export const GET = handle(async (req) => {
     redirect_uri: metaRedirectUri(),
     state: packMetaState(project.clientId, project.id),
     // pages_manage_ads — נדרש לקריאת רשימת טפסי הלידים (משיכת לידים אחורה).
-    scope: "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads,leads_retrieval",
+    // business_management — דפים ששותפו לתיק העסקי (שיתוף שותף מלקוח) לא חוזרים
+    // מ-/me/accounts; ההרשאה הזו מאפשרת לאסוף אותם דרך התיקים העסקיים.
+    scope: "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads,leads_retrieval,business_management",
     response_type: "code",
   });
   return NextResponse.redirect(`https://www.facebook.com/v21.0/dialog/oauth?${params}`);
