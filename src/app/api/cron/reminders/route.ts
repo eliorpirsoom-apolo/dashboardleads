@@ -15,6 +15,7 @@ import { sweepStudioCalendar } from "@/lib/studioGcal";
 import { runWhatsappBroadcast } from "@/lib/whatsappBroadcast";
 import { runLeadSlaChecks } from "@/lib/leadSla";
 import { processBillingAlerts } from "@/lib/billingAlerts";
+import { touchCronHeartbeat } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  await touchCronHeartbeat("reminders");
 
   const due = await prisma.reminder.findMany({
     where: {

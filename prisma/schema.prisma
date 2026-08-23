@@ -1078,6 +1078,43 @@ model TopAd {
 // a provider is connected). Every outgoing message is logged here.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// בריאות מערכת — בדיקת QA אוטומטית פעמיים ביום: ריצות, תקלות פתוחות (עם
+// dedup להתראות וואטסאפ/מייל) ודופק קרונים ("קרון שמת בשקט" מתגלה מיד).
+// ---------------------------------------------------------------------------
+
+model HealthRun {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  ok         Int       @default(0)
+  warn       Int       @default(0)
+  fail       Int       @default(0)
+  results    String? // JSON: [{key,label,status,detail,ms}]
+
+  @@index([startedAt])
+}
+
+model HealthIssue {
+  id         String    @id @default(cuid())
+  key        String    @unique // מזהה הבדיקה: "greenapi" / "meta-page:<pageId>" / ...
+  label      String
+  detail     String?
+  severity   String    @default("fail") // "fail" | "warn"
+  openedAt   DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  resolvedAt DateTime?
+  notifiedAt DateTime? // ההתראה האחרונה שנשלחה על התקלה (dedup + תזכורת יומית)
+
+  @@index([resolvedAt])
+}
+
+model CronHeartbeat {
+  id        String   @id // "reminders" | "meta-pull" | "sumit" | "health" | "seo-sync"
+  lastRunAt DateTime @default(now())
+  note      String?
+}
+
 model Message {
   id          String     @id @default(cuid())
   client      Client?    @relation(fields: [clientId], references: [id], onDelete: Cascade)

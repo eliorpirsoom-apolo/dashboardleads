@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { metaEnabled, pullRecentLeads } from "@/lib/integrations/metaLeads";
+import { touchCronHeartbeat } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  await touchCronHeartbeat("meta-pull");
   if (!metaEnabled()) return NextResponse.json({ skipped: "meta not configured" });
 
   const pages = await prisma.metaPage.findMany({

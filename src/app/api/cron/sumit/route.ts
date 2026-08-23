@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sumitConfigured } from "@/lib/integrations/sumit";
 import { syncSumit } from "@/lib/integrations/sumitSync";
+import { touchCronHeartbeat } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,6 +23,7 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  await touchCronHeartbeat("sumit");
   if (!sumitConfigured()) return NextResponse.json({ skipped: "not-configured" });
   try {
     const result = await syncSumit();
