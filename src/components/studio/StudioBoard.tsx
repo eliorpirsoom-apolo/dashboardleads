@@ -82,6 +82,19 @@ export default function StudioBoard({
     window.addEventListener("mouseup", clear);
     return () => window.removeEventListener("mouseup", clear);
   }, []);
+  // גלילה אוטומטית של החלון בזמן גרירה (כרום לא עושה זאת לבד) — כשגוררים
+  // מהטבלה התחתונה, התקרבות לשולי המסך גוללת אל היעדים שלמעלה.
+  useEffect(() => {
+    if (!dragId && !dragGroupId) return;
+    const onDragOver = (e: DragEvent) => {
+      const margin = 90;
+      const speed = 22;
+      if (e.clientY < margin) window.scrollBy(0, -speed);
+      else if (window.innerHeight - e.clientY < margin) window.scrollBy(0, speed);
+    };
+    document.addEventListener("dragover", onDragOver);
+    return () => document.removeEventListener("dragover", onDragOver);
+  }, [dragId, dragGroupId]);
   const [createGroupId, setCreateGroupId] = useState<string | null>(null); // קבוצה מוגדרת-מראש בבריף חדש
 
   const load = useCallback(async () => {
@@ -641,6 +654,30 @@ export default function StudioBoard({
               <p className="py-8 text-center text-sm text-slate-600">אין משימות עיצוב עדיין. לחצו על ״בריף חדש״ או ״קבוצה חדשה״.</p>
             </Card>
           ) : null}
+          {/* סרגל העברה צף: מופיע בזמן גרירת משימה — כל הקבוצות כיעדי שחרור,
+              כך שגם מהטבלה התחתונה לא צריך לגלול כדי להגיע ליעד. */}
+          {dragId ? (
+            <div className="pointer-events-none fixed inset-x-0 top-2 z-[80] flex justify-center">
+              <div className="pointer-events-auto flex max-w-[90vw] flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-[#3a5bd9]/30 bg-white/95 px-3 py-2 shadow-xl backdrop-blur">
+                <span className="text-[11px] font-medium text-slate-500">שחררו כאן להעברה אל:</span>
+                {sections.map((sec) => (
+                  <span
+                    key={sec.key}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(`bar:${sec.key}`); }}
+                    onDragLeave={() => setDragOver((v) => (v === `bar:${sec.key}` ? null : v))}
+                    onDrop={(e) => { e.preventDefault(); handleDrop(gidOf(sec.key), sec.items[0]?.id ?? null); }}
+                    className={`cursor-copy rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                      dragOver === `bar:${sec.key}` ? "scale-110 bg-[#3a5bd9] text-white" : "bg-white text-slate-700"
+                    }`}
+                    style={{ borderColor: sec.color }}
+                  >
+                    {sec.group ? sec.group.name : "ללא קבוצה"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {/* מיכל גלילה אחד לכל הבלוקים — כל הקבוצות מיושרות לאותו גריד עמודות.
               הרוחב המינימלי גדל עם הרחבת עמודות (כמו באקסל) כדי שעמודת המשימה לא תימחץ. */}
           <div className="overflow-x-auto pb-1">
