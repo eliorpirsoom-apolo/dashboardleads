@@ -151,6 +151,24 @@ function FormRoutingEditor({
   const [defaultProject, setDefaultProject] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [testing, setTesting] = useState("");
+
+  // ליד בדיקה לטופס — נכנס ל-CRM דרך הוובהוק/המשיכה המחזורית ומוכיח את הצינור.
+  async function sendTestLead(formId: string) {
+    setTesting(formId);
+    setMsg("");
+    try {
+      await api("/api/integrations/meta/test-lead", {
+        method: "POST",
+        json: { id: metaPageId, formId },
+      });
+      setMsg("ליד בדיקה נשלח ✓ — ייכנס ל-CRM תוך עד 5 דקות, לפרויקט של הטופס");
+    } catch (e: any) {
+      setMsg("שגיאה: " + e.message);
+    } finally {
+      setTesting("");
+    }
+  }
 
   useEffect(() => {
     api<typeof data & object>(`/api/integrations/meta/forms?id=${metaPageId}`)
@@ -217,6 +235,14 @@ function FormRoutingEditor({
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+              <button
+                disabled={testing === f.id}
+                onClick={() => sendTestLead(f.id)}
+                className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-500 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9] disabled:opacity-50"
+                title="שליחת ליד בדיקה לטופס הזה — לבדיקת כל הצינור עד ה-CRM"
+              >
+                {testing === f.id ? "שולח…" : "🧪 ליד בדיקה"}
+              </button>
             </div>
           ))}
         </div>
