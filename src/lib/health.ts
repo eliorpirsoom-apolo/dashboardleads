@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { sendMessage, emailConfigured } from "./messaging";
+import { sendMessage, emailConfigured, smsConfigured } from "./messaging";
 import { whatsappConfigured } from "./whatsapp";
 import { r2Configured, putObject, getObject, deleteObject } from "./storage";
 import crypto from "crypto";
@@ -159,8 +159,8 @@ async function checkEmail(): Promise<Omit<HealthResult, "key" | "label" | "ms">>
 }
 
 async function checkSms(): Promise<Omit<HealthResult, "key" | "label" | "ms">> {
-  if (!process.env.SMS_API_URL || !process.env.SMS_API_TOKEN) {
-    return { status: "warn", detail: "SMS לא מוגדר (SMS_API_URL/TOKEN)" };
+  if (!smsConfigured()) {
+    return { status: "warn", detail: "SMS לא מוגדר (MULTISEND_USER/PASSWORD)" };
   }
   const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
   const failed = await prisma.message.count({

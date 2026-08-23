@@ -373,6 +373,11 @@ export async function pullRecentLeads(
         if (exists) continue;
         try {
           const payload = mapToIntakePayload(lead);
+          // ליד בלי שם/טלפון/אימייל (למשל ליד בדיקה ישן שפג) — הקליטה תדחה
+          // אותו ממילא, ובלי הדילוג הוא היה נדחה מחדש בכל ריצת cron.
+          if (!payload.full_name && !payload.phone && !payload.phone_number && !payload.email) {
+            continue;
+          }
           const r = await fetch(`${base.replace(/\/$/, "")}/api/intake/${formToken}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
