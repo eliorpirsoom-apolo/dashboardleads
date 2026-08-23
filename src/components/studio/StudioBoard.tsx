@@ -73,11 +73,12 @@ export default function StudioBoard({
   const [dragOver, setDragOver] = useState<string | null>(null); // `${groupKey}:${taskId|"end"}`
   const [dragGroupId, setDragGroupId] = useState<string | null>(null); // גרירת בלוק-קבוצה
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
-  // גרירת שורה נחמשת רק מהידית ⠿ (mousedown עליה) — שלא תתנגש עם שדות בשורה.
-  const [dragArmed, setDragArmed] = useState<string | null>(null);
+  // גרירת שורה מתחילה רק מהידית ⠿: ref סינכרוני (בלי רינדור-מחדש) — כך זה
+  // עובד גם בטבלאות ענק שבהן עדכון state איטי מתנועת העכבר.
+  const dragFromHandle = useRef<string | null>(null);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   useEffect(() => {
-    const clear = () => setDragArmed((v) => (v ? null : v));
+    const clear = () => { dragFromHandle.current = null; };
     window.addEventListener("mouseup", clear);
     return () => window.removeEventListener("mouseup", clear);
   }, []);
@@ -298,10 +299,14 @@ export default function StudioBoard({
   const renderTaskRow = (t: DTask, groupKey: string) => (
     <tr
       key={t.id}
-      // גרירה נבנית מהידית ⠿ בלבד (dragArmed) — כך שדות הטקסט והבחירה בשורה לא מפריעים.
-      draggable={dndEnabled && dragArmed === t.id}
-      onDragStart={() => setDragId(t.id)}
-      onDragEnd={() => { setDragId(null); setDragOver(null); setDragArmed(null); }}
+      // השורה תמיד draggable, אבל dragstart מתקבל רק אם התחיל מהידית ⠿ —
+      // בדיקה סינכרונית מול ref, בלי מרוץ נגד רינדור של React.
+      draggable={dndEnabled}
+      onDragStart={(e) => {
+        if (dragFromHandle.current !== t.id) { e.preventDefault(); return; }
+        setDragId(t.id);
+      }}
+      onDragEnd={() => { setDragId(null); setDragOver(null); dragFromHandle.current = null; }}
       onDragOver={(e) => { if (!dndEnabled || !dragId) return; e.preventDefault(); setDragOver(`${groupKey}:${t.id}`); }}
       onDrop={(e) => { if (!dndEnabled || !dragId) return; e.preventDefault(); handleDrop(gidOf(groupKey), t.id); }}
       className={`border-b border-slate-100 align-middle hover:bg-slate-50 ${dragId === t.id ? "opacity-40" : ""} ${dragOver === `${groupKey}:${t.id}` ? "border-t-2 border-t-cyan-400" : ""}`}
@@ -310,7 +315,7 @@ export default function StudioBoard({
         <div className="group/title flex min-w-0 items-center gap-2">
           {dndEnabled ? (
             <span
-              onMouseDown={() => setDragArmed(t.id)}
+              onMouseDown={() => { dragFromHandle.current = t.id; }}
               className="shrink-0 cursor-grab select-none text-slate-400 transition hover:text-[#3a5bd9]"
               title="גרירה — בתוך הקבוצה או לקבוצה אחרת"
             >
