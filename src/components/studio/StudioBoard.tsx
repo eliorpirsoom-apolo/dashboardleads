@@ -73,6 +73,14 @@ export default function StudioBoard({
   const [dragOver, setDragOver] = useState<string | null>(null); // `${groupKey}:${taskId|"end"}`
   const [dragGroupId, setDragGroupId] = useState<string | null>(null); // גרירת בלוק-קבוצה
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  // גרירת שורה נחמשת רק מהידית ⠿ (mousedown עליה) — שלא תתנגש עם שדות בשורה.
+  const [dragArmed, setDragArmed] = useState<string | null>(null);
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  useEffect(() => {
+    const clear = () => setDragArmed((v) => (v ? null : v));
+    window.addEventListener("mouseup", clear);
+    return () => window.removeEventListener("mouseup", clear);
+  }, []);
   const [createGroupId, setCreateGroupId] = useState<string | null>(null); // קבוצה מוגדרת-מראש בבריף חדש
 
   const load = useCallback(async () => {
@@ -290,24 +298,60 @@ export default function StudioBoard({
   const renderTaskRow = (t: DTask, groupKey: string) => (
     <tr
       key={t.id}
-      draggable={dndEnabled}
+      // גרירה נבנית מהידית ⠿ בלבד (dragArmed) — כך שדות הטקסט והבחירה בשורה לא מפריעים.
+      draggable={dndEnabled && dragArmed === t.id}
       onDragStart={() => setDragId(t.id)}
-      onDragEnd={() => { setDragId(null); setDragOver(null); }}
-      onDragOver={(e) => { if (!dndEnabled) return; e.preventDefault(); setDragOver(`${groupKey}:${t.id}`); }}
-      onDrop={(e) => { if (!dndEnabled) return; e.preventDefault(); handleDrop(gidOf(groupKey), t.id); }}
+      onDragEnd={() => { setDragId(null); setDragOver(null); setDragArmed(null); }}
+      onDragOver={(e) => { if (!dndEnabled || !dragId) return; e.preventDefault(); setDragOver(`${groupKey}:${t.id}`); }}
+      onDrop={(e) => { if (!dndEnabled || !dragId) return; e.preventDefault(); handleDrop(gidOf(groupKey), t.id); }}
       className={`border-b border-slate-100 align-middle hover:bg-slate-50 ${dragId === t.id ? "opacity-40" : ""} ${dragOver === `${groupKey}:${t.id}` ? "border-t-2 border-t-cyan-400" : ""}`}
     >
       <td className="px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          {dndEnabled ? <span className="shrink-0 cursor-grab select-none text-slate-400" title="גרירה">⠿</span> : null}
-          <div className="min-w-0">
-            <button
-              onClick={() => setOpenId(t.id)}
-              title={t.title}
-              className="block max-w-full truncate text-right font-medium text-slate-800 hover:text-[#3a5bd9]"
+        <div className="group/title flex min-w-0 items-center gap-2">
+          {dndEnabled ? (
+            <span
+              onMouseDown={() => setDragArmed(t.id)}
+              className="shrink-0 cursor-grab select-none text-slate-400 transition hover:text-[#3a5bd9]"
+              title="גרירה — בתוך הקבוצה או לקבוצה אחרת"
             >
-              {t.title}
-            </button>
+              ⠿
+            </span>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            {editingTitleId === t.id ? (
+              <input
+                autoFocus
+                defaultValue={t.title}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  else if (e.key === "Escape") { setEditingTitleId(null); }
+                }}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  setEditingTitleId(null);
+                  if (v && v !== t.title) patch(t.id, { title: v });
+                }}
+                className="w-full rounded-lg border border-[#3a5bd9] bg-white px-2 py-1 text-sm font-medium text-slate-800 focus:outline-none"
+              />
+            ) : (
+              <span className="flex items-center gap-1">
+                <button
+                  onClick={() => setOpenId(t.id)}
+                  title={t.title}
+                  className="block max-w-full truncate text-right font-medium text-slate-800 hover:text-[#3a5bd9]"
+                >
+                  {t.title}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditingTitleId(t.id); }}
+                  title="שינוי שם מהיר"
+                  className="shrink-0 rounded p-0.5 text-slate-300 opacity-0 transition group-hover/title:opacity-100 hover:text-[#3a5bd9]"
+                >
+                  <Icon name="edit" className="h-3 w-3" />
+                </button>
+              </span>
+            )}
             {t.overdue || t.round > 1 ? (
               <div className="mt-1 flex gap-1">
                 {t.overdue ? <Chip color="#f87171">באיחור</Chip> : null}
@@ -463,9 +507,17 @@ export default function StudioBoard({
           draggable={isGroup && dndEnabled}
           onDragStart={isGroup ? () => setDragGroupId(sec.group!.id) : undefined}
           onDragEnd={() => { setDragGroupId(null); setDragOverGroupId(null); }}
-          onDragOver={(e) => { if (!dragGroupId || !isGroup) return; e.preventDefault(); setDragOverGroupId(sec.group!.id); }}
-          onDrop={(e) => { if (!dragGroupId || !isGroup) return; e.preventDefault(); handleGroupDrop(sec.group!.id); }}
-          className={`flex items-center gap-2 px-3 py-2.5 ${dragOverGroupId === sec.group?.id ? "bg-cyan-500/10" : ""} ${dragGroupId === sec.group?.id ? "opacity-40" : ""}`}
+          onDragOver={(e) => {
+            // כותרת קבוצה מקבלת גם גרירת קבוצות (סידור בלוקים) וגם גרירת משימות (העברה לראש הקבוצה).
+            if (dragGroupId && isGroup) { e.preventDefault(); setDragOverGroupId(sec.group!.id); }
+            else if (dragId) { e.preventDefault(); setDragOver(`${sec.key}:top`); }
+          }}
+          onDrop={(e) => {
+            if (dragGroupId && isGroup) { e.preventDefault(); handleGroupDrop(sec.group!.id); }
+            else if (dragId) { e.preventDefault(); handleDrop(gidOf(sec.key), sec.items[0]?.id ?? null); }
+          }}
+          onDragLeave={() => setDragOver((v) => (v === `${sec.key}:top` ? null : v))}
+          className={`flex items-center gap-2 px-3 py-2.5 ${dragOverGroupId === sec.group?.id || dragOver === `${sec.key}:top` ? "bg-cyan-500/10" : ""} ${dragGroupId === sec.group?.id ? "opacity-40" : ""}`}
           style={{ boxShadow: `inset 4px 0 0 ${sec.color}` }}
         >
           {isGroup && dndEnabled ? <span className="cursor-grab select-none text-slate-600" title="גרירת קבוצה">⠿</span> : null}
@@ -508,9 +560,12 @@ export default function StudioBoard({
                 ) : null}
                 <tr>
                   <td colSpan={COLS} className="border-t border-slate-100 px-3 py-1.5">
-                    <button onClick={() => openCreateInGroup(gidOf(sec.key))} className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#3a5bd9]">
-                      <Icon name="plus" className="h-3.5 w-3.5" /> הוספת משימה
-                    </button>
+                    <QuickAddTask
+                      groupId={gidOf(sec.key)}
+                      clients={clients}
+                      onAdded={load}
+                      onFullBrief={() => openCreateInGroup(gidOf(sec.key))}
+                    />
                   </td>
                 </tr>
               </tbody>
@@ -615,6 +670,82 @@ export default function StudioBoard({
       {openId ? (
         <StudioTaskDrawer taskId={openId} meId={meId} onClose={() => setOpenId(null)} onChanged={load} />
       ) : null}
+    </div>
+  );
+}
+
+// הוספת משימה מהירה בשורה (כמו במאנדיי): לקוח + כותרת + Enter — בלי לפתוח מודל.
+// הלקוח האחרון שנבחר נשמר בדפדפן; "בריף מלא" פותח את הטופס המלא כרגיל.
+function QuickAddTask({
+  groupId,
+  clients,
+  onAdded,
+  onFullBrief,
+}: {
+  groupId: string | null;
+  clients: Opt[];
+  onAdded: () => void;
+  onFullBrief: () => void;
+}) {
+  const [clientId, setClientId] = useState<string>(() =>
+    typeof window !== "undefined" ? localStorage.getItem("studio-quickadd-client") || "" : ""
+  );
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function add() {
+    if (!title.trim() || !clientId) return;
+    setBusy(true);
+    try {
+      await api("/api/design-tasks", {
+        method: "POST",
+        json: { clientId, title: title.trim(), briefType: "post", priority: "normal", groupId },
+      });
+      setTitle("");
+      onAdded();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputCls =
+    "rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#3a5bd9] focus:outline-none";
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Icon name="plus" className="h-3.5 w-3.5 text-slate-400" />
+      <select
+        value={clientId}
+        onChange={(e) => {
+          setClientId(e.target.value);
+          try { localStorage.setItem("studio-quickadd-client", e.target.value); } catch { /* לא קריטי */ }
+        }}
+        className={`${inputCls} w-36`}
+        title="לקוח"
+      >
+        <option value="">לקוח…</option>
+        {clients.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+      </select>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add()}
+        placeholder="משימה מהירה — Enter להוספה"
+        className={`${inputCls} min-w-48 flex-1`}
+        disabled={busy}
+      />
+      <button
+        onClick={add}
+        disabled={busy || !title.trim() || !clientId}
+        className="rounded-lg bg-[#3a5bd9]/10 px-2.5 py-1 text-[11px] font-medium text-[#3a5bd9] transition hover:bg-[#3a5bd9]/20 disabled:opacity-40"
+      >
+        הוספה
+      </button>
+      <button onClick={onFullBrief} className="text-[11px] text-slate-400 transition hover:text-[#3a5bd9]" title="פתיחת טופס הבריף המלא">
+        בריף מלא…
+      </button>
     </div>
   );
 }
