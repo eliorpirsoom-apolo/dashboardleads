@@ -312,8 +312,12 @@ async function fetchLeadgen(leadgenId: string, pageToken: string): Promise<Recor
   return data;
 }
 
-/** field_data של Meta → מפתחות שצינור הקליטה כבר מכיר (ALIASES). */
-function mapToIntakePayload(lead: Record<string, any>): Record<string, any> {
+/** field_data של Meta → מפתחות שצינור הקליטה כבר מכיר (ALIASES).
+ *  extra: שם הטופס והעמוד — נשמרים על הליד (data) ומוצגים בכרטיס. */
+function mapToIntakePayload(
+  lead: Record<string, any>,
+  extra?: { formName?: string; pageName?: string }
+): Record<string, any> {
   const out: Record<string, any> = {};
   for (const f of lead.field_data ?? []) {
     const key = String(f.name ?? "").toLowerCase();
@@ -325,6 +329,8 @@ function mapToIntakePayload(lead: Record<string, any>): Record<string, any> {
   if (lead.campaign_name) out.campaign_name = lead.campaign_name;
   if (lead.adset_name) out.adset_name = lead.adset_name;
   if (lead.ad_name) out.ad_name = lead.ad_name;
+  if (extra?.formName) out.facebook_form = extra.formName;
+  if (extra?.pageName) out.facebook_page = extra.pageName;
   out.platform = lead.platform === "ig" ? "instagram" : "facebook";
   out.channel = "facebook";
   return out;
@@ -394,7 +400,10 @@ export async function pullRecentLeads(
           reachedOld = true;
           continue;
         }
-        const payload = mapToIntakePayload(lead);
+        const payload = mapToIntakePayload(lead, {
+          formName: form.name,
+          pageName: page.pageName,
+        });
         // ליד בלי שם/טלפון/אימייל (למשל ליד בדיקה ישן שפג) — הקליטה תדחה
         // אותו ממילא, ובלי הדילוג הוא היה נדחה מחדש בכל ריצת cron.
         const hasIdentity = Boolean(
@@ -474,7 +483,10 @@ export async function processLeadgenEvent(
   }
   try {
     const lead = await fetchLeadgen(leadgenId, page.pageToken);
-    const payload = mapToIntakePayload(lead);
+    const formName = parseRouting(page.routing).find(
+      (r) => r.formId === String(lead.form_id)
+    )?.formName;
+    const payload = mapToIntakePayload(lead, { formName, pageName: page.pageName });
     // ניתוב לפי הטופס שממנו הגיע הליד (form_id מהמשיכה).
     const token = await resolveTokenForForm(page, lead.form_id, page.source.token);
     const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";

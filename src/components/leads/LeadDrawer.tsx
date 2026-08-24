@@ -798,6 +798,39 @@ export default function LeadDrawer({
               </>
             ) : null}
 
+            {/* תשובות מהטופס — כל נתון שנקלט עם הליד ואין לו שדה מותאם מוגדר.
+                מציג אוטומטית תשובות לשאלות של טפסי פייסבוק/דפי נחיתה. */}
+            {(() => {
+              const defKeys = new Set(fields.map((f) => f.key));
+              const EXTRA_LABELS: Record<string, string> = {
+                facebook_form: "טופס פייסבוק",
+                facebook_page: "עמוד פייסבוק",
+                form_name: "שם טופס",
+                page_url: "עמוד נחיתה",
+              };
+              const extras = Object.entries(data).filter(
+                ([k, v]) =>
+                  !defKeys.has(k) && v !== null && v !== "" && typeof v !== "object"
+              );
+              if (extras.length === 0) return null;
+              const pretty = (s: string) => String(s).replace(/_/g, " ").trim();
+              return (
+                <>
+                  <h3 className="mb-2 mt-5 text-sm font-bold text-slate-600">תשובות מהטופס</h3>
+                  <div className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    {extras.map(([k, v]) => (
+                      <div key={k} className="flex flex-wrap items-baseline gap-2 text-sm">
+                        <span className="font-medium text-slate-500">
+                          {EXTRA_LABELS[k] ?? pretty(k)}:
+                        </span>
+                        <span className="text-slate-800">{pretty(String(v))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+
             {dirty ? (
               <div className="sticky bottom-0 mt-4 flex justify-end gap-2 rounded-xl bg-white/95 py-2">
                 <Button variant="ghost" onClick={() => { setEdit({}); setCustomEdit({}); }}>ביטול</Button>

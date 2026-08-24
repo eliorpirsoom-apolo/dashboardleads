@@ -166,7 +166,8 @@ function pick(payload: Record<string, any>, target: string): any {
 function asBool(v: any): boolean {
   if (typeof v === "boolean") return v;
   const s = String(v ?? "").toLowerCase();
-  return ["true", "1", "yes", "on", "כן"].includes(s);
+  // פייסבוק שולח תשובות מוכנות עם קו תחתון ("כן_") — מספיק שמתחיל ב"כן".
+  return ["true", "1", "yes", "on", "כן"].includes(s) || s.startsWith("כן");
 }
 
 // סטטוס מענה של CheckCall/פייקול → עברית (עם נפילה חזרה לערך הגולמי).
