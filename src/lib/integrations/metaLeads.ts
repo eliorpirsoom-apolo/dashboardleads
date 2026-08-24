@@ -330,7 +330,7 @@ function mapToIntakePayload(lead: Record<string, any>): Record<string, any> {
 export async function pullRecentLeads(
   metaPageDbId: string,
   days = 30
-): Promise<{ forms: number; scanned: number; sent: number; errors: string[] }> {
+): Promise<{ forms: number; scanned: number; sent: number; errors: string[]; recentIds: string[] }> {
   const page = await prisma.metaPage.findUnique({
     where: { id: metaPageDbId },
     include: { source: { select: { token: true, active: true } } },
@@ -339,8 +339,11 @@ export async function pullRecentLeads(
     throw new Error("העמוד לא מחובר או שהמקור כבוי");
   }
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  // בקרת התאמה: לידים בני-זיהוי מהשעתיים האחרונות — הקרון מוודא אחרי המשיכה
+  // שכולם קיימים ב-CRM ומתריע מיד אם לא (גלאי חסימת-קליטה תוך 5 דקות).
+  const reconCutoff = Date.now() - 2 * 60 * 60 * 1000;
   const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
-  const out = { forms: 0, scanned: 0, sent: 0, errors: [] as string[] };
+  const out = { forms: 0, scanned: 0, sent: 0, errors: [] as string[], recentIds: [] as string[] };
 
   const formsRes = await gget(
     `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=50&access_token=${encodeURIComponent(page.pageToken)}`
@@ -380,14 +383,22 @@ export async function pullRecentLeads(
           reachedOld = true;
           continue;
         }
+        const payload = mapToIntakePayload(lead);
+        // ליד בלי שם/טלפון/אימייל (למשל ליד בדיקה ישן שפג) — הקליטה תדחה
+        // אותו ממילא, ובלי הדילוג הוא היה נדחה מחדש בכל ריצת cron.
+        const hasIdentity = Boolean(
+          payload.full_name || payload.phone || payload.phone_number || payload.email
+        );
+        if (
+          hasIdentity &&
+          lead.created_time &&
+          new Date(lead.created_time).getTime() >= reconCutoff
+        ) {
+          out.recentIds.push(String(lead.id));
+        }
         if (known.has(String(lead.id))) continue;
+        if (!hasIdentity) continue;
         try {
-          const payload = mapToIntakePayload(lead);
-          // ליד בלי שם/טלפון/אימייל (למשל ליד בדיקה ישן שפג) — הקליטה תדחה
-          // אותו ממילא, ובלי הדילוג הוא היה נדחה מחדש בכל ריצת cron.
-          if (!payload.full_name && !payload.phone && !payload.phone_number && !payload.email) {
-            continue;
-          }
           const r = await fetch(`${base.replace(/\/$/, "")}/api/intake/${formToken}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -409,6 +420,33 @@ export async function pullRecentLeads(
     });
   }
   return out;
+}
+
+/** אילו מזהי לידים של מטא חסרים ב-CRM — קיים כליד (externalId) או ביומן
+ *  הקליטה (כפול/נדחה עם הסבר). מה שלא נמצא באף אחד מהם = ליד שאבד. */
+export async function findMissingLeadIds(
+  clientId: string,
+  leadgenIds: string[]
+): Promise<string[]> {
+  if (leadgenIds.length === 0) return [];
+  const found = new Set(
+    (
+      await prisma.lead.findMany({
+        where: { clientId, externalId: { in: leadgenIds } },
+        select: { externalId: true },
+      })
+    ).map((l) => l.externalId)
+  );
+  const candidates = leadgenIds.filter((id) => !found.has(id));
+  const missing: string[] = [];
+  for (const id of candidates) {
+    const logged = await prisma.intakeLog.findFirst({
+      where: { clientId, payload: { contains: id } },
+      select: { id: true },
+    });
+    if (!logged) missing.push(id);
+  }
+  return missing;
 }
 
 /** אירוע leadgen מהוובהוק: עמוד + מזהה ליד → משיכה → הזרמה לקליטה. */

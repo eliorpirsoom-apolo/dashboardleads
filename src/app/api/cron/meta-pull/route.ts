@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { metaEnabled, pullRecentLeads } from "@/lib/integrations/metaLeads";
-import { touchCronHeartbeat } from "@/lib/health";
+import { metaEnabled, pullRecentLeads, findMissingLeadIds } from "@/lib/integrations/metaLeads";
+import { touchCronHeartbeat, reportExternalIssue, resolveExternalIssue } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
   // חיבורים חדשים קודם — שאם חס וחלילה נגמר הזמן, הפעילים ביותר כבר נסרקו.
   const pages = await prisma.metaPage.findMany({
     where: { active: true, source: { active: true } },
-    select: { id: true, pageName: true },
+    select: { id: true, clientId: true, pageName: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -41,10 +41,30 @@ export async function GET(req: Request) {
       // חלון 24 שעות: מכסה גם עיכובי אינדוקס של Graph וגם ליד שנמחק בטעות
       // (ייובא מחדש) — הדילוג לפי externalId שומר על זה זול.
       const r = await pullRecentLeads(p.id, 1);
+      // בקרת התאמה מהירה: כל ליד בן-זיהוי מהשעתיים האחרונות חייב להיות
+      // ב-CRM אחרי המשיכה. חסר → התראה מיידית (עם dedup יומי); נקי → סגירה.
+      let missing = 0;
+      try {
+        const gone = await findMissingLeadIds(p.clientId, r.recentIds);
+        missing = gone.length;
+        if (missing > 0) {
+          await reportExternalIssue(
+            `ext:meta-recon:${p.id}`,
+            `לידים מפייסבוק לא נקלטים — ${p.pageName}`,
+            `${missing} לידים מהשעתיים האחרונות קיימים אצל מטא אך לא נקלטו ב-CRM`
+          );
+        } else {
+          await resolveExternalIssue(`ext:meta-recon:${p.id}`);
+        }
+      } catch (err) {
+        console.error("[meta-pull:recon]", err);
+      }
       results[p.pageName] = {
         forms: r.forms,
         scanned: r.scanned,
         sent: r.sent,
+        recent: r.recentIds.length,
+        missing,
         ms: Date.now() - t0,
         ...(r.errors.length ? { errors: r.errors.slice(0, 2) } : {}),
       };

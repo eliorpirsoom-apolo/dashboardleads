@@ -351,6 +351,7 @@ export async function runHealthCheck(): Promise<{
   results.push(checkEnv());
   results.push(...(await checkCrons()));
   results.push(...(await checkMetaPages()));
+  results.push(...(await checkMetaReconciliation()));
   results.push(await run("intake-e2e", "קליטת לידים מקצה-לקצה", checkIntakeE2e));
 
   const ok = results.filter((r) => r.status === "ok").length;
@@ -409,9 +410,12 @@ async function reconcileIssues(results: HealthResult[]): Promise<void> {
     if (notify) toAlert.push(p);
   }
 
-  // תקלות פתוחות שנעלמו — נפתרו.
+  // תקלות פתוחות שנעלמו — נפתרו. תקלות "ext:" מנוהלות ע"י הקרונים שפתחו
+  // אותן (בקרת ההתאמה, השומר-לשומר) — ריצת הבריאות לא סוגרת אותן.
   const problemKeys = new Set(problems.map((p) => p.key));
-  const open = await prisma.healthIssue.findMany({ where: { resolvedAt: null } });
+  const open = await prisma.healthIssue.findMany({
+    where: { resolvedAt: null, NOT: { key: { startsWith: "ext:" } } },
+  });
   const resolved: string[] = [];
   for (const o of open) {
     if (!problemKeys.has(o.key)) {
@@ -451,4 +455,121 @@ async function sendHealthAlert(problems: HealthResult[], resolved: string[]): Pr
     : "🩺 Apollo CRM — התקלות נפתרו";
   await sendMessage({ channel: "whatsapp", to: ALERT_PHONE, body, kind: "system" });
   await sendMessage({ channel: "email", to: ALERT_EMAIL, subject, body, kind: "system" });
+}
+
+// --- בדיקת התאמה עמוקה: מטא מול ה-CRM (24 שעות) ------------------------------
+// סריקה עצמאית עם שובר-קאש (&_ts=) — מזהה גם רגרסיה של קאש שהמשיכה עצמה
+// עיוורת לה, כי היא קוראת דרך אותו צינור. עד 100 לידים אחרונים לכל טופס.
+async function checkMetaReconciliation(): Promise<HealthResult[]> {
+  const { findMissingLeadIds } = await import("./integrations/metaLeads");
+  const pages = await prisma.metaPage.findMany({
+    where: { active: true },
+    select: { id: true, clientId: true, pageId: true, pageName: true, pageToken: true },
+  });
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const out: HealthResult[] = [];
+  for (const p of pages) {
+    out.push(
+      await run(`meta-recon:${p.pageId}`, `התאמת לידים מול מטא — ${p.pageName}`, async () => {
+        const bust = `&_ts=${Date.now()}`;
+        const formsRes = await fetch(
+          `${GRAPH}/${p.pageId}/leadgen_forms?fields=id&limit=50&access_token=${encodeURIComponent(p.pageToken)}${bust}`,
+          { cache: "no-store" }
+        );
+        const formsData = await formsRes.json();
+        if (!formsRes.ok) {
+          return { status: "warn" as HealthStatus, detail: "שליפת הטפסים ממטא נכשלה — לא ניתן להשוות" };
+        }
+        const ids: string[] = [];
+        for (const form of formsData.data ?? []) {
+          const res = await fetch(
+            `${GRAPH}/${form.id}/leads?fields=id,created_time,field_data&limit=100&access_token=${encodeURIComponent(p.pageToken)}${bust}`,
+            { cache: "no-store" }
+          );
+          const data = await res.json();
+          if (!res.ok) continue;
+          for (const lead of data.data ?? []) {
+            if (!lead.created_time || new Date(lead.created_time).getTime() < dayAgo) continue;
+            const hasIdentity = (lead.field_data ?? []).some((f: any) =>
+              ["full_name", "phone", "phone_number", "email", "שם", "שם מלא", "טלפון"].includes(
+                String(f.name ?? "").toLowerCase()
+              ) && String(Array.isArray(f.values) ? f.values[0] : f.values ?? "").length > 0
+            );
+            if (hasIdentity) ids.push(String(lead.id));
+          }
+        }
+        const missing = await findMissingLeadIds(p.clientId, ids);
+        if (missing.length > 0) {
+          return {
+            status: "fail" as HealthStatus,
+            detail: `${missing.length} מתוך ${ids.length} לידים מ-24 השעות האחרונות קיימים אצל מטא אך חסרים ב-CRM!`,
+          };
+        }
+        return { status: "ok" as HealthStatus, detail: `${ids.length} לידים ב-24 שעות — כולם ב-CRM` };
+      })
+    );
+  }
+  return out;
+}
+
+// --- תקלות חיצוניות (מדווחות מקרונים, לא מריצת הבדיקה) -----------------------
+// key חייב להתחיל ב-"ext:" — כדי שריצת הבריאות לא תסגור אותן אוטומטית.
+
+export async function reportExternalIssue(
+  key: string,
+  label: string,
+  detail: string,
+  severity: "fail" | "warn" = "fail"
+): Promise<void> {
+  const now = new Date();
+  const existing = await prisma.healthIssue.findUnique({ where: { key } });
+  const isNew = !existing || existing.resolvedAt !== null;
+  const needReminder =
+    existing && !existing.resolvedAt &&
+    (!existing.notifiedAt || now.getTime() - existing.notifiedAt.getTime() > DAILY_REMINDER_MS);
+  await prisma.healthIssue.upsert({
+    where: { key },
+    update: {
+      label,
+      detail,
+      severity,
+      lastSeenAt: now,
+      ...(isNew ? { openedAt: now, resolvedAt: null } : {}),
+      ...(isNew || needReminder ? { notifiedAt: now } : {}),
+    },
+    create: { key, label, detail, severity, notifiedAt: now },
+  });
+  if (isNew || needReminder) {
+    await sendHealthAlert([{ key, label, status: severity, detail }], []).catch((err) =>
+      console.error("[health:ext-alert]", err)
+    );
+  }
+}
+
+export async function resolveExternalIssue(key: string): Promise<void> {
+  const open = await prisma.healthIssue.findFirst({ where: { key, resolvedAt: null } });
+  if (!open) return;
+  await prisma.healthIssue.update({ where: { id: open.id }, data: { resolvedAt: new Date() } });
+  await sendHealthAlert([], [open.label]).catch(() => {});
+}
+
+// --- שומר לשומר: קרון התזכורות מוודא שקרון הבריאות עצמו רץ -------------------
+export async function watchdogHealthCron(): Promise<void> {
+  try {
+    const beat = await prisma.cronHeartbeat.findUnique({ where: { id: "health" } });
+    if (!beat) return; // טרם רץ אף פעם — ייתפס אחרי הריצה הראשונה
+    const ageH = (Date.now() - beat.lastRunAt.getTime()) / 3600_000;
+    if (ageH > 26) {
+      await reportExternalIssue(
+        "ext:health-cron",
+        "קרון בדיקת הבריאות לא רץ",
+        `הבדיקה האוטומטית לא רצה כבר ${Math.round(ageH)} שעות — המערכת ללא ניטור!`,
+        "fail"
+      );
+    } else {
+      await resolveExternalIssue("ext:health-cron");
+    }
+  } catch (err) {
+    console.error("[health:watchdog]", err);
+  }
 }
