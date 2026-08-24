@@ -120,6 +120,39 @@ export default function LeadsView({
   const [showArchived, setShowArchived] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // פילטר תקופה מהיר (כמו בליד מנג'ר): בחירה מציבה from/to; "טווח תאריכים"
+  // חושף את שני שדות התאריך לבחירה חופשית.
+  const [datePreset, setDatePreset] = useState("all");
+
+  function applyDatePreset(preset: string) {
+    setDatePreset(preset);
+    setPage(1);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const now = new Date();
+    const day = (n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n);
+    switch (preset) {
+      case "today":
+        setFrom(fmt(now)); setTo(fmt(now)); break;
+      case "yesterday":
+        setFrom(fmt(day(-1))); setTo(fmt(day(-1))); break;
+      case "last7":
+        setFrom(fmt(day(-6))); setTo(fmt(now)); break;
+      case "thisMonth":
+        setFrom(fmt(new Date(now.getFullYear(), now.getMonth(), 1))); setTo(fmt(now)); break;
+      case "lastMonth":
+        setFrom(fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
+        setTo(fmt(new Date(now.getFullYear(), now.getMonth(), 0))); break;
+      case "last30":
+        setFrom(fmt(day(-29))); setTo(fmt(now)); break;
+      case "lastYear":
+        setFrom(fmt(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()))); setTo(fmt(now)); break;
+      case "all":
+        setFrom(""); setTo(""); break;
+      case "custom":
+        break; // שדות התאריך נחשפים — הערכים הקיימים נשארים
+    }
+  }
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
@@ -304,16 +337,35 @@ export default function LeadsView({
             </Field>
           </div>
         ) : null}
-        <div className="w-32">
-          <Field label="מתאריך">
-            <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+        <div className="w-40">
+          <Field label="תקופה">
+            <Select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)}>
+              <option value="today">היום</option>
+              <option value="yesterday">אתמול</option>
+              <option value="last7">7 ימים אחרונים</option>
+              <option value="thisMonth">חודש נוכחי</option>
+              <option value="lastMonth">חודש קודם</option>
+              <option value="last30">30 ימים אחרונים</option>
+              <option value="lastYear">שנה אחרונה</option>
+              <option value="all">כל התקופה</option>
+              <option value="custom">טווח תאריכים</option>
+            </Select>
           </Field>
         </div>
-        <div className="w-32">
-          <Field label="עד תאריך">
-            <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
-          </Field>
-        </div>
+        {datePreset === "custom" ? (
+          <>
+            <div className="w-32">
+              <Field label="מתאריך">
+                <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+              </Field>
+            </div>
+            <div className="w-32">
+              <Field label="עד תאריך">
+                <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+              </Field>
+            </div>
+          </>
+        ) : null}
         <div className="mr-auto flex flex-wrap gap-2">
           <Button
             variant="ghost"
