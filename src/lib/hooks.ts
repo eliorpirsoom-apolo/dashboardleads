@@ -89,6 +89,38 @@ export async function sendLeadToMarketer(leadId: string): Promise<void> {
   }).catch(() => {});
 }
 
+// התראת "פנייה חוזרת" למשווק: ליד קיים שפנה שוב (כפילות 24ש') הוא ליד חם.
+// אותם כללים כמו התראת ליד חדש — אין וואטסאפ מוגדר → לא נשלח.
+export async function notifyRepeatInquiry(leadId: string, viaSource: string): Promise<void> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    include: {
+      assignee: { select: { name: true, whatsappPhone: true, active: true } },
+      project: { select: { name: true } },
+    },
+  });
+  if (!lead?.assignee?.whatsappPhone || !lead.assignee.active) return;
+
+  const details: (string | null)[] = [
+    lead.fullName ? `שם: ${lead.fullName}` : null,
+    lead.phone ? `טלפון: ${lead.phone}` : null,
+    lead.project?.name ? `פרויקט: ${lead.project.name}` : null,
+    `פנה שוב דרך: ${viaSource}`,
+  ];
+  const body =
+    `🔁 ליד חם! ליד קיים פנה שוב 🔥\n\n` +
+    details.filter(Boolean).join("\n") +
+    `\n\n☎️ מתעניין שחוזר פעמיים = כוונה אמיתית. שווה לחייג עכשיו.`;
+  await sendMessage({
+    channel: "whatsapp",
+    to: lead.assignee.whatsappPhone,
+    body,
+    kind: "automation",
+    clientId: lead.clientId,
+    leadId: lead.id,
+  }).catch(() => {});
+}
+
 // ---------------------------------------------------------------------------
 // Domain hooks — fired on lead lifecycle events.
 //

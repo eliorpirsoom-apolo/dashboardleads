@@ -10,7 +10,8 @@ export type ActivityKind =
   | "restore"
   | "consent"
   | "merge"
-  | "import";
+  | "import"
+  | "repeat"; // הליד פנה שוב (כפילות בחלון 24 שעות)
 
 export async function recordActivity(
   leadId: string,

@@ -36,6 +36,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   consent: "הסרה מדיוור",
   merge: "מיזוג כפילות",
   import: "יובא מקובץ",
+  repeat: "🔁 פנייה חוזרת",
 };
 
 interface CustomField {

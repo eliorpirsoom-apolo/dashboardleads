@@ -7,7 +7,7 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "@/lib/leads";
-import { onLeadCreated } from "@/lib/hooks";
+import { onLeadCreated, notifyRepeatInquiry } from "@/lib/hooks";
 import { rateLimit } from "@/lib/rateLimit";
 import { recordActivity, pickAutoAssignee } from "@/lib/leadActivity";
 import { sendMessage } from "@/lib/messaging";
@@ -366,6 +366,11 @@ export async function POST(
         where: { id: source.id },
         data: { lastSeenAt: new Date() },
       });
+      // פנייה חוזרת = ליד חם: נרשם בציר הפעילות של הליד הקיים + וואטסאפ למשווק.
+      await recordActivity(dup.id, "מערכת", "repeat", {
+        note: `הליד פנה שוב דרך ${source.name}`,
+      });
+      await notifyRepeatInquiry(dup.id, source.name).catch(() => {});
       return NextResponse.json({ ok: true, duplicate: true, leadId: dup.id });
     }
 
