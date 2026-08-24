@@ -99,17 +99,27 @@ async function checkSite(): Promise<Omit<HealthResult, "key" | "label" | "ms">> 
 }
 
 async function checkCrons(): Promise<HealthResult[]> {
-  const rules: { id: string; label: string; maxMin: number; sev: HealthStatus }[] = [
+  const rules: { id: string; label: string; maxMin: number; sev: HealthStatus; quietUntilFirstRun?: boolean }[] = [
     { id: "reminders", label: "קרון תזכורות", maxMin: 15, sev: "fail" },
     { id: "meta-pull", label: "קרון משיכת לידים מפייסבוק", maxMin: 15, sev: "fail" },
     { id: "transcribe", label: "קרון הקלטות ותמלול", maxMin: 15, sev: "fail" },
     { id: "sumit", label: "קרון סנכרון SUMIT", maxMin: 45, sev: "warn" },
+    // גיבוי שבועי (ראשון 05:00) — התראה אם עברו 8 ימים בלי גיבוי מוצלח.
+    { id: "backup", label: "גיבוי שבועי ל-R2", maxMin: 8 * 24 * 60, sev: "warn", quietUntilFirstRun: true },
   ];
   const beats = await prisma.cronHeartbeat.findMany();
   const byId = new Map(beats.map((b) => [b.id, b]));
   return rules.map((r) => {
     const beat = byId.get(r.id);
     if (!beat) {
+      if (r.quietUntilFirstRun) {
+        return {
+          key: `cron:${r.id}`,
+          label: r.label,
+          status: "ok" as HealthStatus,
+          detail: "טרם רץ — הריצה הראשונה מתוזמנת",
+        };
+      }
       return {
         key: `cron:${r.id}`,
         label: r.label,

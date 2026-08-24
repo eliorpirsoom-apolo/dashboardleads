@@ -56,6 +56,7 @@ const CRON_LABELS: Record<string, string> = {
   sumit: "סנכרון SUMIT (כל 15 דק')",
   health: "בדיקת בריאות (פעמיים ביום)",
   "seo-sync": "סנכרון SEO (יומי)",
+  backup: "גיבוי שבועי ל-R2 (ראשון 05:00)",
 };
 
 export default function HealthView() {
