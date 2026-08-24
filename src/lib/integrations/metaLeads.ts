@@ -358,19 +358,23 @@ export async function pullRecentLeads(
         break;
       }
       let reachedOld = false;
+      // דילוג זול על לידים שכבר נקלטו: שאילתה אחת לעמוד־תוצאות במקום אחת לליד.
+      const batchIds = (data.data ?? []).map((l: any) => String(l.id));
+      const known = new Set(
+        (
+          await prisma.lead.findMany({
+            where: { clientId: page.clientId, externalId: { in: batchIds } },
+            select: { externalId: true },
+          })
+        ).map((l) => l.externalId)
+      );
       for (const lead of data.data ?? []) {
         out.scanned++;
         if (lead.created_time && new Date(lead.created_time).getTime() < cutoff) {
           reachedOld = true;
           continue;
         }
-        // ליד שכבר נקלט (externalId) — דילוג זול לפני קריאת intake, כדי
-        // שהמשיכה המחזורית (cron) לא תייצר עשרות קריאות-עצמיות מיותרות.
-        const exists = await prisma.lead.findFirst({
-          where: { clientId: page.clientId, externalId: String(lead.id) },
-          select: { id: true },
-        });
-        if (exists) continue;
+        if (known.has(String(lead.id))) continue;
         try {
           const payload = mapToIntakePayload(lead);
           // ליד בלי שם/טלפון/אימייל (למשל ליד בדיקה ישן שפג) — הקליטה תדחה
