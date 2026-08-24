@@ -237,24 +237,30 @@ export function parseRouting(raw: string | null): FormRoute[] {
   }
 }
 
-/** רשימת הטפסים של העמוד (לעורך הניתוב). */
+/** רשימת הטפסים של העמוד (לעורך הניתוב) — עם עימוד, ששום טופס לא ייחתך. */
 export async function listPageForms(
   metaPageDbId: string
 ): Promise<{ id: string; name: string; status: string }[]> {
   const page = await prisma.metaPage.findUnique({ where: { id: metaPageDbId } });
   if (!page) throw new Error("החיבור לא נמצא");
-  const res = await gget(
-    `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=100&access_token=${encodeURIComponent(page.pageToken)}`
-  );
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(`שליפת טפסים נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
+  const out: { id: string; name: string; status: string }[] = [];
+  let url = `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=100&access_token=${encodeURIComponent(page.pageToken)}`;
+  for (let i = 0; i < 5 && url; i++) {
+    const res = await gget(url);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`שליפת טפסים נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
+    }
+    out.push(
+      ...(data.data ?? []).map((f: any) => ({
+        id: String(f.id),
+        name: String(f.name ?? f.id),
+        status: String(f.status ?? ""),
+      }))
+    );
+    url = data.paging?.next ?? "";
   }
-  return (data.data ?? []).map((f: any) => ({
-    id: String(f.id),
-    name: String(f.name ?? f.id),
-    status: String(f.status ?? ""),
-  }));
+  return out;
 }
 
 /** טוקן הקליטה לליד לפי הטופס שלו: כלל ניתוב → מקור פייסבוק של פרויקט היעד
@@ -345,15 +351,20 @@ export async function pullRecentLeads(
   const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
   const out = { forms: 0, scanned: 0, sent: 0, errors: [] as string[], recentIds: [] as string[] };
 
-  const formsRes = await gget(
-    `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=50&access_token=${encodeURIComponent(page.pageToken)}`
-  );
-  const formsData = await formsRes.json();
-  if (!formsRes.ok) {
-    throw new Error(`שליפת טפסים נכשלה: ${JSON.stringify(formsData.error ?? formsData).slice(0, 200)}`);
+  // כל הטפסים של העמוד — עם עימוד (עמוד עם 50+ טפסים לא יקטע את הסריקה).
+  const allForms: any[] = [];
+  let formsUrl = `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=100&access_token=${encodeURIComponent(page.pageToken)}`;
+  for (let i = 0; i < 5 && formsUrl; i++) {
+    const formsRes = await gget(formsUrl);
+    const formsData = await formsRes.json();
+    if (!formsRes.ok) {
+      throw new Error(`שליפת טפסים נכשלה: ${JSON.stringify(formsData.error ?? formsData).slice(0, 200)}`);
+    }
+    allForms.push(...(formsData.data ?? []));
+    formsUrl = formsData.paging?.next ?? "";
   }
 
-  for (const form of formsData.data ?? []) {
+  for (const form of allForms) {
     out.forms++;
     // ניתוב: לידים של הטופס הזה נשלחים למקור של פרויקט היעד (אם הוגדר כלל).
     const formToken = await resolveTokenForForm(page, form.id, page.source.token);

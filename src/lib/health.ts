@@ -353,6 +353,7 @@ export async function runHealthCheck(): Promise<{
   results.push(...(await checkCrons()));
   results.push(...(await checkMetaPages()));
   results.push(...(await checkMetaReconciliation()));
+  results.push(...(await checkUnroutedForms()));
   results.push(await run("intake-e2e", "קליטת לידים מקצה-לקצה", checkIntakeE2e));
 
   const ok = results.filter((r) => r.status === "ok").length;
@@ -510,6 +511,60 @@ async function checkMetaReconciliation(): Promise<HealthResult[]> {
       })
     );
   }
+  return out;
+}
+
+// --- טפסים חדשים ללא ניתוב + לידים לא משויכים --------------------------------
+// טופס פייסבוק חדש נסרק אוטומטית (החיבור ברמת העמוד), אבל בלי כלל ניתוב
+// הלידים שלו נשמרים אצל הלקוח "ללא פרויקט" — בלי משווק. כאן מוודאים שזה
+// לא קורה בשקט: התראה גם על הטופס וגם על לידים שכבר ממתינים לשיוך.
+async function checkUnroutedForms(): Promise<HealthResult[]> {
+  const { listPageForms, parseRouting } = await import("./integrations/metaLeads");
+  const pages = await prisma.metaPage.findMany({
+    where: { active: true },
+    select: { id: true, clientId: true, pageId: true, pageName: true, projectId: true, routing: true },
+  });
+  const out: HealthResult[] = [];
+  for (const p of pages) {
+    out.push(
+      await run(`meta-forms:${p.pageId}`, `כיסוי טפסים — ${p.pageName}`, async () => {
+        const forms = await listPageForms(p.id);
+        const routed = new Set(parseRouting(p.routing).map((r) => r.formId));
+        const active = forms.filter((f) => f.status === "ACTIVE");
+        const unrouted = active.filter((f) => !routed.has(f.id));
+        // יש ברירת מחדל (פרויקט) → טופס לא-מנותב עדיין מגיע לפרויקט; תקין.
+        if (p.projectId || unrouted.length === 0) {
+          return {
+            status: "ok" as HealthStatus,
+            detail: `${active.length} טפסים פעילים — כולם מכוסים`,
+          };
+        }
+        return {
+          status: "warn" as HealthStatus,
+          detail: `${unrouted.length} טפסים פעילים ללא ניתוב (הלידים ייכנסו ללא פרויקט): ${unrouted
+            .map((f) => f.name)
+            .slice(0, 3)
+            .join(" · ")}`,
+        };
+      })
+    );
+  }
+  // לידים מפייסבוק שכבר ממתינים לשיוך (שבוע אחרון) — שלא יישכחו בלי משווק.
+  out.push(
+    await run("unassigned-fb-leads", "לידים ללא פרויקט (פייסבוק)", async () => {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const count = await prisma.lead.count({
+        where: { projectId: null, channel: "facebook", archived: false, receivedAt: { gte: weekAgo } },
+      });
+      if (count > 0) {
+        return {
+          status: "warn" as HealthStatus,
+          detail: `${count} לידים מפייסבוק ללא פרויקט (טופס חדש שטרם נותב?) — יש לשייך בניתוב הטפסים`,
+        };
+      }
+      return { status: "ok" as HealthStatus };
+    })
+  );
   return out;
 }
 
