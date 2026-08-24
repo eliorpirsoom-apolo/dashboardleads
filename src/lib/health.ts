@@ -100,8 +100,9 @@ async function checkSite(): Promise<Omit<HealthResult, "key" | "label" | "ms">> 
 
 async function checkCrons(): Promise<HealthResult[]> {
   const rules: { id: string; label: string; maxMin: number; sev: HealthStatus }[] = [
-    { id: "reminders", label: "קרון תזכורות/תמלול", maxMin: 15, sev: "fail" },
+    { id: "reminders", label: "קרון תזכורות", maxMin: 15, sev: "fail" },
     { id: "meta-pull", label: "קרון משיכת לידים מפייסבוק", maxMin: 15, sev: "fail" },
+    { id: "transcribe", label: "קרון הקלטות ותמלול", maxMin: 15, sev: "fail" },
     { id: "sumit", label: "קרון סנכרון SUMIT", maxMin: 45, sev: "warn" },
   ];
   const beats = await prisma.cronHeartbeat.findMany();

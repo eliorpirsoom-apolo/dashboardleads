@@ -50,8 +50,9 @@ const STATUS_META: Record<string, { label: string; color: string; icon: string }
 };
 
 const CRON_LABELS: Record<string, string> = {
-  reminders: "תזכורות + תמלול (כל 5 דק')",
+  reminders: "תזכורות (כל 5 דק')",
   "meta-pull": "משיכת לידים מפייסבוק (כל 5 דק')",
+  transcribe: "הקלטות ותמלול (כל 5 דק')",
   sumit: "סנכרון SUMIT (כל 15 דק')",
   health: "בדיקת בריאות (פעמיים ביום)",
   "seo-sync": "סנכרון SEO (יומי)",

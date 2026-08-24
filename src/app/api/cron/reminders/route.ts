@@ -5,10 +5,6 @@ import { formatDateTime } from "@/lib/format";
 import { maybeSendMorningDigest } from "@/lib/digest";
 import { sendDueMaterialReminders } from "@/lib/materials";
 import { maybeAutoSyncSumit } from "@/lib/integrations/sumitSync";
-import {
-  processPendingCallTranscriptions,
-  downloadPendingRecordings,
-} from "@/lib/transcription";
 import { sendDueBirthdayGreetings } from "@/lib/birthday";
 import { sendDueDesignApprovalReminders, markOverdueDesignTasks } from "@/lib/studioReminders";
 import { sweepStudioCalendar } from "@/lib/studioGcal";
@@ -163,21 +159,8 @@ export async function GET(req: Request) {
     console.error("[birthday]", err);
   }
 
-  // 🎙️ הקלטות: קודם שומרים כל הקלטה חדשה ל-R2 (ללא תלות במפתח תמלול),
-  // ואז — אם מוגדר OpenAI — מתמללים ומסכמים. רץ לפני SUMIT כדי שסנכרון
-  // ארוך לא יאכל את תקציב ה-60 שניות של ההקלטות.
-  let recordings: unknown = null;
-  try {
-    recordings = await downloadPendingRecordings();
-  } catch (err) {
-    console.error("[recording-download]", err);
-  }
-  let transcriptions: unknown = null;
-  try {
-    transcriptions = await processPendingCallTranscriptions();
-  } catch (err) {
-    console.error("[transcription]", err);
-  }
+  // 🎙️ הקלטות ותמלול עברו לקרון עצמאי (/api/cron/transcribe, כל 5 דק') —
+  // תקציב זמן ייעודי וקיבולת גדולה יותר לבקרים עמוסי-שיחות.
 
   // 📄 סנכרון SUMIT עבר לקרון עצמאי (/api/cron/sumit, כל 15 דק') — כדי שלא
   // יתחרה על תקציב הזמן עם ההקלטות/תמלולים. ?sumit=force עדיין עובד לבדיקה.
@@ -239,8 +222,6 @@ export async function GET(req: Request) {
     materialReminders,
     birthdays,
     sumitSync,
-    recordings,
-    transcriptions,
     studio,
     leadSla,
     billing,

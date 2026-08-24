@@ -4,6 +4,7 @@
   "crons": [
     { "path": "/api/cron/reminders", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/meta-pull", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/transcribe", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/sumit", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/seo-sync", "schedule": "0 4 * * *" },
     { "path": "/api/cron/health", "schedule": "0 5,13 * * *" }
