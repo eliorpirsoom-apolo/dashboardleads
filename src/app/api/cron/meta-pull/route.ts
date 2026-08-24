@@ -36,7 +36,9 @@ export async function GET(req: Request) {
   const results: Record<string, unknown> = {};
   for (const p of pages) {
     try {
-      const r = await pullRecentLeads(p.id, 0.25); // 6 שעות אחורה
+      // חלון 24 שעות: מכסה גם עיכובי אינדוקס של Graph וגם ליד שנמחק בטעות
+      // (ייובא מחדש) — הדילוג לפי externalId שומר על זה זול.
+      const r = await pullRecentLeads(p.id, 1);
       results[p.pageName] = {
         forms: r.forms,
         sent: r.sent,
