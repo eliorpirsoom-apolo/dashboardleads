@@ -134,7 +134,7 @@ async function checkGreenApi(): Promise<Omit<HealthResult, "key" | "label" | "ms
   const id = process.env.GREENAPI_ID_INSTANCE!;
   const token = process.env.GREENAPI_API_TOKEN!;
   const base = (process.env.GREENAPI_API_URL || "https://api.green-api.com").replace(/\/$/, "");
-  const res = await withTimeout(fetch(`${base}/waInstance${id}/getStateInstance/${token}`), 10000, "Green API");
+  const res = await withTimeout(fetch(`${base}/waInstance${id}/getStateInstance/${token}`, { cache: "no-store" }), 10000, "Green API");
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return { status: "fail", detail: `Green API HTTP ${res.status}` };
   if (data.stateInstance !== "authorized") {
@@ -174,6 +174,7 @@ async function checkOpenAi(): Promise<Omit<HealthResult, "key" | "label" | "ms">
   if (!process.env.OPENAI_API_KEY) return { status: "fail", detail: "OPENAI_API_KEY חסר — אין תמלול/סוכן" };
   const res = await withTimeout(
     fetch("https://api.openai.com/v1/models?limit=1", {
+      cache: "no-store",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
     }),
     10000,
@@ -232,7 +233,7 @@ async function checkMetaPages(): Promise<HealthResult[]> {
     out.push(
       await run(`meta-page:${p.pageId}`, `פייסבוק — ${p.pageName}`, async () => {
         const res = await withTimeout(
-          fetch(`${GRAPH}/${p.pageId}?fields=id&access_token=${encodeURIComponent(p.pageToken)}`),
+          fetch(`${GRAPH}/${p.pageId}?fields=id&access_token=${encodeURIComponent(p.pageToken)}`, { cache: "no-store" }),
           10000,
           "Graph API"
         );
@@ -246,7 +247,8 @@ async function checkMetaPages(): Promise<HealthResult[]> {
         // תוקף הטוקן — התראה 10 ימים מראש (0 = ללא תפוגה).
         if (process.env.META_APP_ID && process.env.META_APP_SECRET) {
           const dbg = await fetch(
-            `${GRAPH}/debug_token?input_token=${encodeURIComponent(p.pageToken)}&access_token=${encodeURIComponent(`${process.env.META_APP_ID}|${process.env.META_APP_SECRET}`)}`
+            `${GRAPH}/debug_token?input_token=${encodeURIComponent(p.pageToken)}&access_token=${encodeURIComponent(`${process.env.META_APP_ID}|${process.env.META_APP_SECRET}`)}`,
+            { cache: "no-store" }
           ).then((r) => r.json()).catch(() => null);
           const exp = dbg?.data?.expires_at;
           if (exp && exp > 0) {

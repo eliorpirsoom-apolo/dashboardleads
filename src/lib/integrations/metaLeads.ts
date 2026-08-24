@@ -14,6 +14,12 @@ import { prisma } from "@/lib/prisma";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
+// קריאת GET ל-Graph בלי קאש — Next שומר תשובות fetch כברירת מחדל (Data Cache),
+// והקרון קרא רשימות לידים ישנות שוב ושוב בלי לראות לידים חדשים.
+function gget(url: string): Promise<Response> {
+  return fetch(url, { cache: "no-store" });
+}
+
 const SECRET =
   process.env.AUTH_SECRET || "dev-insecure-secret-change-me-in-production";
 
@@ -112,7 +118,7 @@ export async function exchangeCodeForUserToken(code: string): Promise<string> {
     redirect_uri: metaRedirectUri(),
     code,
   });
-  const r1 = await fetch(`${GRAPH}/oauth/access_token?${p1}`);
+  const r1 = await gget(`${GRAPH}/oauth/access_token?${p1}`);
   const d1 = await r1.json();
   if (!r1.ok || !d1.access_token) {
     throw new Error(`החלפת קוד נכשלה: ${JSON.stringify(d1.error ?? d1).slice(0, 200)}`);
@@ -123,7 +129,7 @@ export async function exchangeCodeForUserToken(code: string): Promise<string> {
     client_secret: process.env.META_APP_SECRET!,
     fb_exchange_token: d1.access_token,
   });
-  const r2 = await fetch(`${GRAPH}/oauth/access_token?${p2}`);
+  const r2 = await gget(`${GRAPH}/oauth/access_token?${p2}`);
   const d2 = await r2.json();
   return d2.access_token ?? d1.access_token;
 }
@@ -135,7 +141,7 @@ export async function listUserPages(
   const out = new Map<string, string>();
   let url = `${GRAPH}/me/accounts?fields=id,name&limit=100&access_token=${encodeURIComponent(userToken)}`;
   for (let i = 0; i < 5 && url; i++) {
-    const res = await fetch(url);
+    const res = await gget(url);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(`שליפת עמודים נכשלה: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
@@ -146,7 +152,7 @@ export async function listUserPages(
   // דפים בגישה עסקית (שיתוף שותף מתיק של לקוח) לא חוזרים מ-/me/accounts —
   // נאספים דרך התיקים העסקיים. דורש business_management; בהיעדרה — כשל שקט.
   try {
-    const bizRes = await fetch(
+    const bizRes = await gget(
       `${GRAPH}/me/businesses?fields=id&limit=50&access_token=${encodeURIComponent(userToken)}`
     );
     const bizData = await bizRes.json();
@@ -155,7 +161,7 @@ export async function listUserPages(
         for (const edge of ["owned_pages", "client_pages"]) {
           let purl = `${GRAPH}/${b.id}/${edge}?fields=id,name&limit=100&access_token=${encodeURIComponent(userToken)}`;
           for (let i = 0; i < 5 && purl; i++) {
-            const res = await fetch(purl);
+            const res = await gget(purl);
             const data = await res.json();
             if (!res.ok) break;
             for (const p of data.data ?? []) {
@@ -176,7 +182,7 @@ export async function getPageToken(
   pageId: string,
   userToken: string
 ): Promise<{ token: string; name: string }> {
-  const res = await fetch(
+  const res = await gget(
     `${GRAPH}/${pageId}?fields=access_token,name&access_token=${encodeURIComponent(userToken)}`
   );
   const data = await res.json();
@@ -237,7 +243,7 @@ export async function listPageForms(
 ): Promise<{ id: string; name: string; status: string }[]> {
   const page = await prisma.metaPage.findUnique({ where: { id: metaPageDbId } });
   if (!page) throw new Error("החיבור לא נמצא");
-  const res = await fetch(
+  const res = await gget(
     `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=100&access_token=${encodeURIComponent(page.pageToken)}`
   );
   const data = await res.json();
@@ -290,7 +296,7 @@ async function resolveTokenForForm(
 /** משיכת ליד מלא מ-Graph לפי מזהה. */
 async function fetchLeadgen(leadgenId: string, pageToken: string): Promise<Record<string, any>> {
   const fields = "id,created_time,field_data,ad_id,ad_name,adset_name,campaign_name,form_id,platform";
-  const res = await fetch(
+  const res = await gget(
     `${GRAPH}/${leadgenId}?fields=${fields}&access_token=${encodeURIComponent(pageToken)}`
   );
   const data = await res.json();
@@ -336,7 +342,7 @@ export async function pullRecentLeads(
   const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
   const out = { forms: 0, scanned: 0, sent: 0, errors: [] as string[] };
 
-  const formsRes = await fetch(
+  const formsRes = await gget(
     `${GRAPH}/${page.pageId}/leadgen_forms?fields=id,name,status&limit=50&access_token=${encodeURIComponent(page.pageToken)}`
   );
   const formsData = await formsRes.json();
@@ -351,7 +357,7 @@ export async function pullRecentLeads(
     let url =
       `${GRAPH}/${form.id}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_name,campaign_name,platform&limit=100&access_token=${encodeURIComponent(page.pageToken)}`;
     for (let i = 0; i < 3 && url; i++) {
-      const res = await fetch(url);
+      const res = await gget(url);
       const data = await res.json();
       if (!res.ok) {
         out.errors.push(`${form.name}: ${JSON.stringify(data.error ?? data).slice(0, 150)}`);
