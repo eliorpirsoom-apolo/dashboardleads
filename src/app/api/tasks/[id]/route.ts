@@ -21,6 +21,7 @@ async function scopedTask(id: string) {
 const UpdateTask = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
+  clientId: z.string().nullable().optional(), // תיקון שיוך לקוח (משרד בלבד; null = פנימי)
   dueAt: z.string().optional(),
   durationMin: z.number().int().min(5).max(720).nullable().optional(),
   location: z.string().max(300).nullable().optional(),
@@ -37,16 +38,32 @@ const UpdateTask = z.object({
 });
 
 export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
-  const { task } = await scopedTask(params.id);
+  const { user, task } = await scopedTask(params.id);
   const body = UpdateTask.parse(await readJson(req));
 
   const dueAt = body.dueAt ? new Date(body.dueAt) : undefined;
   if (dueAt && isNaN(dueAt.getTime())) throw new ApiError(400, "מועד לא תקין");
 
+  // תיקון שיוך לקוח — צד משרד בלבד; ליד מקושר שלא שייך ללקוח החדש מנותק.
+  let clientChange: { clientId: string | null; leadId?: null } | undefined;
+  if (body.clientId !== undefined && body.clientId !== task.clientId) {
+    if (user.role !== "ADMIN") throw new ApiError(403, "שינוי שיוך לקוח — צד משרד בלבד");
+    if (body.clientId) {
+      const client = await prisma.client.findUnique({ where: { id: body.clientId }, select: { id: true } });
+      if (!client) throw new ApiError(400, "לקוח לא נמצא");
+    }
+    clientChange = { clientId: body.clientId };
+    if (task.leadId) {
+      const lead = await prisma.lead.findUnique({ where: { id: task.leadId }, select: { clientId: true } });
+      if (!lead || lead.clientId !== body.clientId) clientChange.leadId = null;
+    }
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
     const t = await tx.task.update({
       where: { id: task.id },
       data: {
+        ...(clientChange ?? {}),
         title: body.title,
         description: body.description,
         dueAt,

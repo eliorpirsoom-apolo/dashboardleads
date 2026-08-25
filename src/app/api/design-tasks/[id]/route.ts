@@ -107,11 +107,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     throw new ApiError(403, "רק יוצר/ת הבריף יכול/ה לערוך אותו");
   }
 
-  // אישור סופי (QC) — מנהל בלבד.
-  if (b.status === "approved" && user.adminRole === "staff") {
-    throw new ApiError(403, "אישור סופי מותר למנהל המשרד בלבד");
-  }
-
+  // אישור סופי פתוח לכל צוות המשרד (החלטת הבעלים 2026-08-25).
   const data: Record<string, unknown> = {};
   // שינוי שיוך לקוח: מאמתים שהלקוח קיים ומאפסים את הפרויקט (שייך ללקוח הישן).
   if (b.clientId !== undefined && b.clientId !== cur.clientId) {
