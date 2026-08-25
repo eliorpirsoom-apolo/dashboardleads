@@ -57,11 +57,23 @@ export async function gcalAccessToken(
     }),
   });
   if (!res.ok) {
+    // 400/401 = הטוקן בוטל או פג (invalid_grant) — לא יתוקן מעצמו: מנטרלים את
+    // החיבור כדי שהמערכת תדווח "צריך לחבר מחדש" במקום להיתקע על ניסיונות שווא.
+    const dead = res.status === 400 || res.status === 401;
     await prisma.calendarConnection.update({
       where: { id: conn.id },
-      data: { lastError: `token refresh ${res.status}` },
+      data: {
+        lastError: dead
+          ? `token refresh ${res.status} — החיבור פג, נדרש חיבור מחדש`
+          : `token refresh ${res.status}`,
+        ...(dead ? { active: false } : {}),
+      },
     });
-    throw new Error(`רענון טוקן יומן נכשל (${res.status})`);
+    throw new Error(
+      dead
+        ? `חיבור היומן פג (רענון טוקן ${res.status}) — יש להתחבר מחדש ליומן Google`
+        : `רענון טוקן יומן נכשל (${res.status})`
+    );
   }
   const data = (await res.json()) as { access_token: string; expires_in: number };
   await prisma.calendarConnection.update({
@@ -212,7 +224,8 @@ export async function connectionForTask(task: {
   return null;
 }
 
-/** Create the Google event for a task. Best-effort: returns null on failure. */
+/** Create the Google event for a task. Best-effort: never throws — the returned
+ *  error (אם יש) מאפשר לקורא להציג את הסיבה האמיתית (למשל "החיבור פג"). */
 export async function createTaskEvent(task: {
   id: string;
   title: string;
@@ -223,10 +236,10 @@ export async function createTaskEvent(task: {
   type: string;
   assigneeId?: string | null;
   createdById?: string | null;
-}): Promise<void> {
+}): Promise<{ ok: boolean; error?: string }> {
   try {
     const conn = await connectionForTask(task);
-    if (!conn) return;
+    if (!conn) return { ok: false, error: "אין יומן Google מחובר" };
     const token = await gcalAccessToken(conn);
     const res = await fetch(`${CAL_API}/calendars/primary/events`, {
       method: "POST",
@@ -236,14 +249,16 @@ export async function createTaskEvent(task: {
       },
       body: JSON.stringify(taskEventBody(task)),
     });
-    if (!res.ok) throw new Error(`create event ${res.status}`);
+    if (!res.ok) throw new Error(`יצירת אירוע נכשלה (Google ${res.status})`);
     const event = (await res.json()) as { id: string };
     await prisma.task.update({
       where: { id: task.id },
       data: { googleEventId: event.id, googleEventOwnerId: conn.userId },
     });
-  } catch (err) {
+    return { ok: true };
+  } catch (err: any) {
     console.error("[gcal create]", err);
+    return { ok: false, error: String(err?.message || err).slice(0, 300) };
   }
 }
 

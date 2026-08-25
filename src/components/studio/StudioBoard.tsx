@@ -481,7 +481,7 @@ export default function StudioBoard({
         ) : t.gcalState === "blocked" ? (
           <span title={t.gcalError ?? "לא ניתן לתזמן ביומן"}>🔴</span>
         ) : (
-          <span title="ממתין לסנכרון ליומן — ינוסה שוב אוטומטית תוך דקות">🟡</span>
+          <span title={t.gcalError ?? "ממתין לסנכרון ליומן — ינוסה שוב אוטומטית תוך דקות"}>🟡</span>
         )}
       </td>
       <td className="px-2 py-2">

@@ -66,6 +66,7 @@ export async function syncDesignTaskCalendar(
 
   const title = `🎨 עיצוב — ${task.title}`;
   let calTaskId = task.calendarTaskId;
+  let lastError: string | null = null; // הסיבה האמיתית לכשל — מוצגת על הסטטוס הצהוב
 
   if (calTaskId) {
     const existing = await prisma.task.findUnique({ where: { id: calTaskId } });
@@ -96,8 +97,9 @@ export async function syncDesignTaskCalendar(
       if (fresh?.googleEventId) {
         await syncTaskEvent(calTaskId).catch(() => {});
       } else if (fresh) {
-        // האירוע מעולם לא נוצר (כשל קודם) — מנסים שוב.
-        await createTaskEvent({ ...fresh, createdById: actorId ?? null }).catch(() => {});
+        // האירוע מעולם לא נוצר (כשל קודם) — מנסים שוב, ושומרים את הסיבה אם נכשל.
+        const created = await createTaskEvent({ ...fresh, createdById: actorId ?? null });
+        if (!created.ok && created.error) lastError = created.error;
       }
     }
   }
@@ -121,7 +123,8 @@ export async function syncDesignTaskCalendar(
       where: { id: task.id },
       data: { calendarTaskId: calTaskId },
     });
-    await createTaskEvent({ ...calTask, createdById: actorId ?? null }).catch(() => {});
+    const created = await createTaskEvent({ ...calTask, createdById: actorId ?? null });
+    if (!created.ok && created.error) lastError = created.error;
 
     // התראה למעצב/ת — רק בשיבוץ הראשון.
     const designer = await prisma.user.findUnique({ where: { id: task.designerId } });
@@ -146,11 +149,26 @@ export async function syncDesignTaskCalendar(
     await setGcal(task.id, "synced", null, true);
     return "synced";
   }
-  await setGcal(task.id, "pending", "יצירת האירוע ביומן טרם הצליחה — ננסה שוב אוטומטית", true);
+  // הכשל ניטרל את חיבור היומן (טוקן פג/בוטל)? — זה לא יתוקן מעצמו: blocked
+  // עם הסבר ברור, והסריקה תתריע למנהלים (במקום צהוב אילם לנצח).
+  const connNow = await prisma.calendarConnection.findUnique({
+    where: { userId: task.designerId },
+    select: { active: true },
+  });
+  if (!connNow?.active) {
+    await setGcal(task.id, "blocked", "חיבור היומן של המעצב/ת פג — יש להתחבר מחדש ליומן Google", true);
+    return "blocked";
+  }
+  await setGcal(
+    task.id,
+    "pending",
+    lastError
+      ? `היומן לא הסתנכרן: ${lastError} — ננסה שוב אוטומטית`
+      : "יצירת האירוע ביומן טרם הצליחה — ננסה שוב אוטומטית",
+    true
+  );
   return "pending";
 }
-
-const H = 60 * 60 * 1000;
 
 /** סריקת ריפוי-עצמי (רץ מהקרון כל 5 דק'):
  *  pending/blocked → ניסיון חוזר; synced → בדיקת מצב האירוע ביומן כל ~10 דק':
@@ -169,7 +187,9 @@ export async function sweepStudioCalendar(): Promise<{
     where: {
       status: { not: "approved" },
       designerId: { not: null },
-      scheduledAt: { gte: new Date(Date.now() - 7 * 24 * H) },
+      // בלי חלון זמן: גם משימה שתוזמנה מזמן חייבת להירפא או להתריע —
+      // חלון 7 הימים הישן השאיר משימות ישנות תקועות ב"ממתין לסנכרון" לנצח.
+      scheduledAt: { not: null },
       // מגן כפילות: משימה שעודכנה ממש עכשיו מטופלת ע"י העדכון עצמו —
       // דילוג מונע מרוץ בין הסריקה לעריכה ידנית באותו רגע.
       updatedAt: { lt: new Date(Date.now() - 60_000) },
@@ -246,10 +266,15 @@ export async function sweepStudioCalendar(): Promise<{
       if (state === "blocked") {
         result.blocked++;
         if (prev !== "blocked") {
+          // הסיבה האמיתית (חיבור פג / לא חובר יומן) נשמרה על המשימה הרגע.
+          const freshT = await prisma.designTask.findUnique({
+            where: { id: t.id },
+            select: { gcalError: true },
+          });
           newlyBlocked.push({
             title: t.title,
             designer: t.designer?.name ?? "לא ידוע",
-            error: "לא חיברה יומן Google",
+            error: freshT?.gcalError ?? "לא חיברה יומן Google",
           });
         }
       }

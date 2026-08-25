@@ -223,6 +223,42 @@ async function checkTranscription(): Promise<Omit<HealthResult, "key" | "label" 
   return { status: "ok" };
 }
 
+// סנכרון יומן סטודיו: משימות מתוזמנות שתקועות ב"ממתין לסנכרון"/"חסום" מעל
+// חצי שעה, וחיבורי יומן שנוטרלו (טוקן פג) — כדי שצהוב אילם לא יישאר אילם.
+async function checkStudioGcal(): Promise<Omit<HealthResult, "key" | "label" | "ms">> {
+  const halfHourAgo = new Date(Date.now() - 30 * 60_000);
+  const [stuck, deadConns] = await Promise.all([
+    prisma.designTask.findMany({
+      where: {
+        status: { not: "approved" },
+        designerId: { not: null },
+        scheduledAt: { not: null },
+        gcalState: { in: ["pending", "blocked"] },
+        gcalCheckedAt: { lt: halfHourAgo },
+      },
+      select: { title: true, gcalState: true, gcalError: true, designer: { select: { name: true } } },
+      take: 10,
+    }),
+    prisma.calendarConnection.findMany({
+      where: { active: false, lastError: { not: null } },
+      select: { user: { select: { name: true } }, lastError: true },
+      take: 5,
+    }),
+  ]);
+  if (stuck.length === 0 && deadConns.length === 0) return { status: "ok" };
+  const parts: string[] = [];
+  if (stuck.length > 0) {
+    parts.push(
+      `${stuck.length} משימות סטודיו לא ביומן: ` +
+        stuck.map((t) => `"${t.title}" (${t.designer?.name ?? "?"}${t.gcalError ? ` — ${t.gcalError}` : ""})`).join("; ")
+    );
+  }
+  for (const c of deadConns) {
+    parts.push(`חיבור היומן של ${c.user?.name ?? "?"} נותק (${c.lastError}) — נדרש חיבור מחדש`);
+  }
+  return { status: stuck.length > 0 || deadConns.length > 0 ? "warn" : "ok", detail: parts.join(" · ").slice(0, 500) };
+}
+
 async function checkIntakeLog(): Promise<Omit<HealthResult, "key" | "label" | "ms">> {
   const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
   const [errors, rejected] = await Promise.all([
@@ -359,6 +395,7 @@ export async function runHealthCheck(): Promise<{
     run("intake-log", "יומן הקליטה", checkIntakeLog),
   ]);
   results.push(db, site, greenapi, email, sms, openai, r2, transcription, intake);
+  results.push(await run("studio-gcal", "סנכרון יומן סטודיו", checkStudioGcal));
   results.push(checkEnv());
   results.push(...(await checkCrons()));
   results.push(...(await checkMetaPages()));
