@@ -5,7 +5,8 @@ import { api } from "@/lib/fetcher";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { CHANNELS, LEAD_DOC_CATEGORIES, documentCategoryLabel } from "@/lib/defaults";
 import { fireConfetti } from "@/lib/confetti";
-import { Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
+import { Button, Chip, Field, Input, Select, Textarea, inputCls } from "@/components/ui";
+import { DateTimeQuarter } from "@/components/DateTimeQuarter";
 import { Icon } from "@/components/Icon";
 import type { StatusOpt, UserOpt } from "./LeadsView";
 
@@ -862,13 +863,10 @@ export default function LeadDrawer({
                   </button>
                 ))}
               </div>
-              <Input
-                type="datetime-local"
-                dir="ltr"
-                step={900}
+              <DateTimeQuarter
                 value={sched.dueAt}
-                onChange={(e) => setSched({ ...sched, dueAt: e.target.value })}
-                className="!py-1.5 text-sm"
+                onChange={(v) => setSched({ ...sched, dueAt: v })}
+                className={`${inputCls} !py-1.5 text-sm`}
               />
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
                 <span>תזכורת ב־</span>

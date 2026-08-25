@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { Button, Card } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { TaskFormModal, type TaskRow } from "@/components/tasks/TasksView";
+import { DateTimeQuarter } from "@/components/DateTimeQuarter";
 
 // ---------------------------------------------------------------------------
 // לוח צוות (כמו מאנדיי): בלוק לכל עובד/ת משרד עם המשימות שלו/ה.
@@ -171,14 +172,10 @@ export default function TasksBoards({
           {t.lead ? `#${t.lead.number} ${t.lead.fullName ?? ""}` : "—"}
         </td>
         <td className="px-2 py-1.5">
-          <input
-            type="datetime-local"
-            dir="ltr"
-            step={900}
-            defaultValue={toLocal(t.dueAt)}
-            onBlur={(e) => e.target.value && new Date(e.target.value).toISOString() !== t.dueAt && patch(t.id, { dueAt: new Date(e.target.value).toISOString() })}
+          <DateTimeQuarter
+            value={toLocal(t.dueAt)}
+            onChange={(v) => v && new Date(v).toISOString() !== t.dueAt && patch(t.id, { dueAt: new Date(v).toISOString() })}
             className={`${inputCls} ${overdue ? "!border-rose-300 !text-rose-600" : ""}`}
-            title={overdue ? "באיחור" : undefined}
           />
         </td>
         <td className="px-2 py-1.5">

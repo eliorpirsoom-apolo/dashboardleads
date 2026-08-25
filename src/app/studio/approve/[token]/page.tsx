@@ -115,7 +115,9 @@ export default function ApprovePage({ params }: { params: { token: string } }) {
   }
 
   const waiting = task.status === "sent_to_client";
-  const approved = task.status === "final_review" || task.status === "approved" || task.status === "qc";
+  const approved =
+    task.status === "final_review" || task.status === "approved" ||
+    task.status === "qc" || task.status === "ready_to_publish";
   const generalMsgs = task.messages.filter((m) => !m.assetId);
   const assetMsgs = (id: string) => task.messages.filter((m) => m.assetId === id);
 

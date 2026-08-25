@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime, formatDayHeader } from "@/lib/format";
 import { Button, Chip, EmptyState, Field, Input, Select, Textarea } from "@/components/ui";
+import { DateTimeQuarter } from "@/components/DateTimeQuarter";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import TaskInboxPanel from "@/components/tasks/TaskInboxPanel";
@@ -416,11 +417,9 @@ export function TaskFormModal({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="מועד">
-            <Input
-              type="datetime-local"
-              step={900}
+            <DateTimeQuarter
               value={form.dueAt}
-              onChange={(e) => setForm({ ...form, dueAt: e.target.value })}
+              onChange={(v) => setForm({ ...form, dueAt: v })}
               required
             />
           </Field>

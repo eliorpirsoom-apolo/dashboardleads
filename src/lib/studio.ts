@@ -7,6 +7,7 @@ export const DESIGN_STATUSES = [
   "client_feedback",
   "final_review",
   "qc",
+  "ready_to_publish",
   "approved",
 ] as const;
 export type DesignStatus = (typeof DESIGN_STATUSES)[number];
@@ -18,6 +19,7 @@ export const DESIGN_STATUS_LABELS: Record<string, string> = {
   client_feedback: "חזר מאישור (פידבק)",
   final_review: "נשלח לאישור סופי",
   qc: "בקרת איכות",
+  ready_to_publish: "מאושר לעלות לאוויר",
   approved: "אושר / הושלם",
 };
 
@@ -28,6 +30,7 @@ export const DESIGN_STATUS_COLORS: Record<string, string> = {
   client_feedback: "#f97316",
   final_review: "#a78bfa",
   qc: "#eab308",
+  ready_to_publish: "#2dd4bf",
   approved: "#34d399",
 };
 

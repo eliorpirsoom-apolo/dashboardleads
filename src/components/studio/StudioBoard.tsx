@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
+import { DateTimeQuarter } from "@/components/DateTimeQuarter";
 import StudioTaskDrawer from "@/components/studio/StudioTaskDrawer";
 import {
   DESIGN_STATUSES,
@@ -457,8 +458,8 @@ export default function StudioBoard({
         </select>
       </td>
       <td className="px-2 py-2">
-        <input type="datetime-local" dir="ltr" step={900} value={toLocalInput(t.scheduledAt)}
-          onChange={(e) => patch(t.id, { scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+        <DateTimeQuarter value={toLocalInput(t.scheduledAt)}
+          onChange={(v) => patch(t.id, { scheduledAt: v ? new Date(v).toISOString() : null })}
           className={selCls} />
       </td>
       <td className="px-2 py-2">
@@ -483,9 +484,9 @@ export default function StudioBoard({
         )}
       </td>
       <td className="px-2 py-2">
-        <input type="datetime-local" dir="ltr" step={900} value={toLocalInput(t.dueAt)}
-          onChange={(e) => patch(t.id, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
-          className={selCls} title="דדליין ללקוח — ניתן לשינוי" />
+        <DateTimeQuarter value={toLocalInput(t.dueAt)}
+          onChange={(v) => patch(t.id, { dueAt: v ? new Date(v).toISOString() : null })}
+          className={selCls} />
       </td>
       <td className="truncate px-2 py-2 text-xs text-slate-600">{briefTypeLabel(t.briefType)}</td>
       <td className="px-3 py-2 text-left">
@@ -1156,7 +1157,7 @@ function CreateBriefModal({
             </Select>
           </Field>
           <Field label="תזמון בלו״ז">
-            <Input type="datetime-local" dir="ltr" step={900} value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
+            <DateTimeQuarter value={form.scheduledAt} onChange={(v) => setForm({ ...form, scheduledAt: v })} />
           </Field>
           <Field label="משך העבודה" hint="קובע את אורך האירוע ביומן המעצב/ת">
             <Select value={form.durationMin} onChange={(e) => setForm({ ...form, durationMin: e.target.value })}>
@@ -1172,7 +1173,7 @@ function CreateBriefModal({
             </Select>
           </Field>
           <Field label="דדליין ללקוח">
-            <Input type="datetime-local" dir="ltr" step={900} value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} />
+            <DateTimeQuarter value={form.dueAt} onChange={(v) => setForm({ ...form, dueAt: v })} />
           </Field>
         </div>
         <div className="flex justify-end gap-2">
