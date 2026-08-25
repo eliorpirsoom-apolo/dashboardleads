@@ -35,11 +35,14 @@ export interface GoogleEvent {
   link: string | null;
 }
 
-/** Fresh access token for a connection (cached until expiry). */
+/** Fresh access token for a connection (cached until expiry).
+ *  force=true מדלג על המטמון — לניסיון חוזר אחרי שגוגל דחה טוקן "תקף". */
 export async function gcalAccessToken(
-  conn: CalendarConnection
+  conn: CalendarConnection,
+  force = false
 ): Promise<string> {
   if (
+    !force &&
     conn.accessToken &&
     conn.expiresAt &&
     conn.expiresAt.getTime() > Date.now() + 60_000
@@ -241,14 +244,35 @@ export async function createTaskEvent(task: {
     const conn = await connectionForTask(task);
     if (!conn) return { ok: false, error: "אין יומן Google מחובר" };
     const token = await gcalAccessToken(conn);
-    const res = await fetch(`${CAL_API}/calendars/primary/events`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(taskEventBody(task)),
-    });
+    const attempt = (tok: string) =>
+      fetch(`${CAL_API}/calendars/primary/events`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tok}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(taskEventBody(task)),
+      });
+    let res = await attempt(token);
+    if (res.status === 401 || res.status === 403) {
+      // גוגל דחה טוקן שנראה תקף — רענון כפוי וניסיון אחד נוסף.
+      res = await attempt(await gcalAccessToken(conn, true));
+      if (res.status === 401 || res.status === 403) {
+        // גם טוקן טרי נדחה ⇒ להרשאה אין גישת יומן (בוטלה או לא אושרה בהתחברות).
+        // לא יתוקן מעצמו — מנטרלים את החיבור כדי שהמערכת תדרוש חיבור מחדש ותתריע.
+        await prisma.calendarConnection.update({
+          where: { id: conn.id },
+          data: {
+            active: false,
+            lastError: `Google ${res.status} — אין גישת יומן, נדרש חיבור מחדש`,
+          },
+        });
+        return {
+          ok: false,
+          error: `גוגל דוחה את הרשאת היומן (${res.status}) — יש להתחבר מחדש ליומן Google ולאשר גישת יומן`,
+        };
+      }
+    }
     if (!res.ok) throw new Error(`יצירת אירוע נכשלה (Google ${res.status})`);
     const event = (await res.json()) as { id: string };
     await prisma.task.update({
