@@ -60,7 +60,15 @@ export async function syncDesignTaskCalendar(
     where: { userId: task.designerId },
   });
   if (!conn?.active) {
-    await setGcal(task.id, "blocked", "המעצב/ת לא חיברה יומן Google", true);
+    // חיבור שנוטרל בגלל טוקן שנדחה ≠ מעולם לא חובר — מנסחים לפי המצב האמיתי.
+    await setGcal(
+      task.id,
+      "blocked",
+      conn && conn.lastError
+        ? "חיבור היומן של המעצב/ת פג — יש להתחבר מחדש ליומן Google"
+        : "המעצב/ת לא חיברה יומן Google",
+      true
+    );
     return "blocked";
   }
 
