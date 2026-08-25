@@ -248,9 +248,16 @@ async function fireAutomations(
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    include: { status: true, campaign: true, client: true, assignee: true },
+    include: {
+      status: true,
+      campaign: true,
+      client: true,
+      assignee: true,
+      source: { select: { kind: true } },
+    },
   });
   if (!lead) return;
+  const isCallLead = lead.source?.kind === "call";
 
   const vars = {
     name: lead.fullName ?? "",
@@ -265,24 +272,43 @@ async function fireAutomations(
   };
 
   for (const auto of automations) {
-    // "assignee" — ההודעה הולכת למטפל בליד עצמו.
+    // סינון לפי סוג הליד (לאוטומציות "ליד חדש"): רק שיחות / רק טפסים / הכל.
+    if (auto.leadKind === "call" && !isCallLead) continue;
+    if (auto.leadKind === "form" && isCallLead) continue;
+
+    // "assignee" — למטפל בליד; "lead" — ללקוח הפונה עצמו (מי שהתקשר/השאיר פרטים).
     const recipients =
-      auto.recipientType === "assignee"
-        ? lead.assignee
-          ? [
-              auto.channel === "email"
-                ? lead.assignee.email
-                : lead.assignee.phone ?? "",
-            ].filter(Boolean)
-          : []
-        : await resolveRecipients(
-            clientId,
-            auto.recipientType,
-            auto.customRecipients,
-            auto.channel as Channel
-          );
+      auto.recipientType === "lead"
+        ? [auto.channel === "email" ? lead.email ?? "" : lead.phone ?? ""].filter(Boolean)
+        : auto.recipientType === "assignee"
+          ? lead.assignee
+            ? [
+                auto.channel === "email"
+                  ? lead.assignee.email
+                  : lead.assignee.phone ?? "",
+              ].filter(Boolean)
+            : []
+          : await resolveRecipients(
+              clientId,
+              auto.recipientType,
+              auto.customRecipients,
+              auto.channel as Channel
+            );
     const body = renderTemplate(auto.template, vars);
     for (const to of recipients) {
+      // קירור: אם האוטומציה הזו כבר שלחה לאותו נמען בחלון — מדלגים (מתקשר חוזר).
+      if (auto.cooldownHours && auto.cooldownHours > 0) {
+        const recent = await prisma.message.findFirst({
+          where: {
+            automationId: auto.id,
+            to,
+            status: { in: ["sent", "pending"] },
+            createdAt: { gte: new Date(Date.now() - auto.cooldownHours * 3600_000) },
+          },
+          select: { id: true },
+        });
+        if (recent) continue;
+      }
       await sendMessage({
         channel: auto.channel as Channel,
         to,
@@ -291,6 +317,11 @@ async function fireAutomations(
         kind: "automation",
         clientId,
         leadId,
+        automationId: auto.id,
+        mediaKey: auto.channel === "whatsapp" ? auto.mediaKey : null,
+        mediaName: auto.channel === "whatsapp" ? auto.mediaName : null,
+        // הודעה ללקוח הפונה עצמו — יוצאת מהמופע הייעודי של הלקוח, לא של הסוכנות.
+        viaClientWa: auto.recipientType === "lead",
       });
     }
   }

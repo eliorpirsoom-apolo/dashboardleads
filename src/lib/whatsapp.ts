@@ -108,15 +108,17 @@ export async function sendWhatsappToChat(
 }
 
 // שליחת קובץ/מדיה בוואטסאפ דרך Green API (sendFileByUrl). urlFile חייב להיות נגיש לגרין-API.
+// creds אופציונלי — מופע ייעודי (פר לקוח); ברירת מחדל: מופע הסוכנות ממשתני הסביבה.
 export async function sendWhatsappFile(
   to: string,
   urlFile: string,
   fileName: string,
-  caption?: string
+  caption?: string,
+  creds?: WaCreds | null
 ): Promise<{ ok: boolean; idMessage?: string; error?: string }> {
-  if (!whatsappConfigured()) return { ok: false, error: "וואטסאפ אינו מוגדר" };
-  const id = process.env.GREENAPI_ID_INSTANCE!;
-  const token = process.env.GREENAPI_API_TOKEN!;
+  if (!creds && !whatsappConfigured()) return { ok: false, error: "וואטסאפ אינו מוגדר" };
+  const id = creds?.id || process.env.GREENAPI_ID_INSTANCE!;
+  const token = creds?.token || process.env.GREENAPI_API_TOKEN!;
   const intl = waIntl(to);
   if (!intl) return { ok: false, error: "מספר לא תקין" };
   try {

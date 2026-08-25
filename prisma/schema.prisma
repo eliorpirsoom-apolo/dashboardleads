@@ -1130,12 +1130,16 @@ model Message {
   leadId      String?
   broadcast   Broadcast? @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
   broadcastId String?
+  automationId String? // האוטומציה ששלחה (לבדיקת cooldown פר-אוטומציה)
+  mediaKey    String? // מדיה שצורפה (וואטסאפ)
+  mediaName   String?
   sentAt      DateTime?
   createdAt   DateTime   @default(now())
 
   @@index([clientId, createdAt])
   @@index([broadcastId])
   @@index([status])
+  @@index([automationId, to, createdAt])
 }
 
 // A broadcast (הודעת תפוצה) to a filtered set of leads. Consent enforced.
@@ -1170,9 +1174,14 @@ model Automation {
   status           LeadStatus? @relation(fields: [statusId], references: [id], onDelete: Cascade)
   statusId         String? // for "status_changed": which status fires it
   channel          String      @default("email") // "email" | "sms" | "whatsapp"
-  recipientType    String      @default("client_users") // "client_users" | "agents" | "custom"
+  recipientType    String      @default("client_users") // "client_users" | "agents" | "assignee" | "custom" | "lead" (הלקוח שפנה)
   customRecipients String? // JSON array of emails/phones
   template         String // body with {{placeholders}}
+  leadKind         String? // ל-lead_created: null=כל הלידים | "call"=רק שיחות | "form"=רק טפסים/דפי נחיתה
+  mediaKey         String? // מדיה (וידאו/תמונה) ב-R2 שתצורף להודעת וואטסאפ כקובץ+כיתוב
+  mediaName        String?
+  mediaMime        String?
+  cooldownHours    Int? // לא לשלוח שוב לאותו נמען בתוך X שעות (מתקשר חוזר לא יוצף)
   active           Boolean     @default(true)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt

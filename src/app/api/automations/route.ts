@@ -25,9 +25,14 @@ const CreateAutomation = z.object({
   trigger: z.enum(["lead_created", "status_changed"]),
   statusId: z.string().nullable().optional(),
   channel: z.enum(["email", "sms", "whatsapp"]),
-  recipientType: z.enum(["client_users", "agents", "assignee", "custom"]),
+  recipientType: z.enum(["client_users", "agents", "assignee", "custom", "lead"]),
   customRecipients: z.array(z.string().min(1)).max(20).optional(),
   template: z.string().min(1, "חסרה תבנית הודעה").max(2000),
+  leadKind: z.enum(["call", "form"]).nullable().optional(),
+  mediaKey: z.string().max(400).nullable().optional(),
+  mediaName: z.string().max(200).nullable().optional(),
+  mediaMime: z.string().max(100).nullable().optional(),
+  cooldownHours: z.number().int().min(1).max(720).nullable().optional(),
 });
 
 // POST /api/automations — e.g. "ליד חדש ⟵ וואטסאפ לסוכנים".
@@ -42,6 +47,13 @@ export const POST = handle(async (req) => {
     const st = await prisma.leadStatus.findUnique({ where: { id: body.statusId } });
     if (!st || st.clientId !== clientId) throw new ApiError(400, "סטטוס לא תקין");
   }
+  if (body.mediaKey && body.channel !== "whatsapp") {
+    throw new ApiError(400, "צירוף מדיה נתמך רק בערוץ וואטסאפ");
+  }
+  // מדיה שהועלתה חייבת לשבת בתיקיית הלקוח באחסון (מפתח ה-presign כולל אותה).
+  if (body.mediaKey && !body.mediaKey.includes(clientId)) {
+    throw new ApiError(403, "קובץ מדיה לא מורשה");
+  }
 
   const automation = await prisma.automation.create({
     data: {
@@ -55,6 +67,11 @@ export const POST = handle(async (req) => {
         ? JSON.stringify(body.customRecipients)
         : null,
       template: body.template,
+      leadKind: body.trigger === "lead_created" ? body.leadKind ?? null : null,
+      mediaKey: body.mediaKey ?? null,
+      mediaName: body.mediaName ?? null,
+      mediaMime: body.mediaMime ?? null,
+      cooldownHours: body.cooldownHours ?? null,
     },
   });
   return NextResponse.json({ automation }, { status: 201 });

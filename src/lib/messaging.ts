@@ -22,6 +22,13 @@ export interface OutgoingMessage {
   clientId?: string | null;
   leadId?: string | null;
   broadcastId?: string | null;
+  automationId?: string | null;
+  // מדיה מצורפת (וואטסאפ בלבד): מפתח R2 — נשלח כקובץ עם ה-body ככיתוב.
+  mediaKey?: string | null;
+  mediaName?: string | null;
+  // וואטסאפ מהמופע הייעודי של הלקוח (Green API של הלקוח) — ללא נפילה חזרה
+  // למופע הסוכנות: אם ללקוח אין מופע מחובר, ההודעה נכשלת עם שגיאה ברורה.
+  viaClientWa?: boolean;
 }
 
 export function emailConfigured(): boolean {
@@ -135,6 +142,29 @@ async function sendWhatsapp(to: string, body: string) {
   return { skipped: false as const };
 }
 
+// וואטסאפ עם קובץ מדיה (וידאו/תמונה) מ-R2: מפיקים קישור חתום זמני ושולחים
+// דרך sendFileByUrl של Green API — ההודעה מגיעה כקובץ אחד עם כיתוב.
+async function sendWhatsappMedia(
+  to: string,
+  mediaKey: string,
+  mediaName: string | null | undefined,
+  caption: string,
+  creds: { id: string; token: string } | null
+) {
+  if (!creds && !whatsappConfigured()) {
+    console.log(`[whatsapp:not-configured] to=${to} media=${mediaKey}`);
+    return { skipped: true as const };
+  }
+  const { presignDownload } = await import("./storage");
+  const { sendWhatsappFile } = await import("./whatsapp");
+  const name = mediaName || mediaKey.split("/").pop() || "file";
+  const url = await presignDownload(mediaKey, name);
+  if (!url) throw new Error("לא ניתן להפיק קישור למדיה מהאחסון");
+  const sent = await sendWhatsappFile(to, url, name, caption, creds);
+  if (!sent.ok) throw new Error(sent.error || "שליחת המדיה נכשלה");
+  return { skipped: false as const };
+}
+
 // --- The single entry point ---------------------------------------------------
 
 export async function sendMessage(msg: OutgoingMessage): Promise<{
@@ -151,6 +181,9 @@ export async function sendMessage(msg: OutgoingMessage): Promise<{
       clientId: msg.clientId ?? null,
       leadId: msg.leadId ?? null,
       broadcastId: msg.broadcastId ?? null,
+      automationId: msg.automationId ?? null,
+      mediaKey: msg.mediaKey ?? null,
+      mediaName: msg.mediaName ?? null,
       status: "pending",
     },
   });
@@ -163,6 +196,26 @@ export async function sendMessage(msg: OutgoingMessage): Promise<{
       return sendEmail(msg.to, msg.subject ?? "עדכון מהמערכת", msg.body);
     }
     if (msg.channel === "sms") return sendSms(msg.to, msg.body);
+    // וואטסאפ: הודעות ללקוח הפונה יוצאות מהמופע של הלקוח בלבד (viaClientWa).
+    let creds: { id: string; token: string } | null = null;
+    if (msg.viaClientWa) {
+      if (!msg.clientId) throw new Error("חסר לקוח לשליחה מהמופע הייעודי");
+      const { clientWaCreds } = await import("./whatsapp");
+      creds = await clientWaCreds(msg.clientId);
+      if (!creds) {
+        throw new Error(
+          "ללקוח אין מופע וואטסאפ מחובר (הגדרות לקוח ⟵ אינטגרציות ⟵ וואטסאפ ייעודי) — ההודעה לא נשלחה"
+        );
+      }
+    }
+    // וואטסאפ עם מדיה: הקובץ נשלח מ-R2 בקישור חתום, וה-body הופך לכיתוב.
+    if (msg.mediaKey) return sendWhatsappMedia(msg.to, msg.mediaKey, msg.mediaName, msg.body, creds);
+    if (creds) {
+      const { sendWhatsappRaw } = await import("./whatsapp");
+      const sent = await sendWhatsappRaw(msg.to, msg.body, creds);
+      if (!sent.ok) throw new Error(sent.error || "שליחת הוואטסאפ נכשלה");
+      return { skipped: false as const };
+    }
     return sendWhatsapp(msg.to, msg.body);
   };
 

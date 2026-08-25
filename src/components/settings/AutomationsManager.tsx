@@ -15,6 +15,10 @@ interface Automation {
   recipientType: string;
   customRecipients: string | null;
   template: string;
+  leadKind: string | null;
+  mediaKey: string | null;
+  mediaName: string | null;
+  cooldownHours: number | null;
   active: boolean;
   status: { id: string; name: string; color: string } | null;
 }
@@ -35,6 +39,11 @@ const RECIPIENT_LABELS: Record<string, string> = {
   agents: "סוכני מכירות",
   assignee: "המטפל בליד",
   custom: "רשימה מותאמת",
+  lead: "הלקוח שפנה (הליד)",
+};
+const LEAD_KIND_LABELS: Record<string, string> = {
+  call: "רק שיחות",
+  form: "רק טפסים ודפי נחיתה",
 };
 
 export default function AutomationsManager({ clientId }: { clientId: string }) {
@@ -78,8 +87,8 @@ export default function AutomationsManager({ clientId }: { clientId: string }) {
         <div>
           <h3 className="text-base font-bold text-slate-800">הודעות אוטומטיות</h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            ליד חדש או שינוי סטטוס ⟵ הודעה אוטומטית ללקוח או לסוכני המכירות.
-            SMS/וואטסאפ נשלחים בפועל אחרי חיבור ספק (עד אז נרשמים ביומן).
+            ליד חדש (כולל שיחת טלפון) או שינוי סטטוס ⟵ הודעה אוטומטית — לצוות, או
+            ללקוח הפונה עצמו (וואטסאפ עם וידאו/תמונה מהמופע הייעודי של הלקוח).
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -104,6 +113,15 @@ export default function AutomationsManager({ clientId }: { clientId: string }) {
             </Chip>
             <Chip color="#22d3ee">{CHANNEL_LABELS[a.channel]}</Chip>
             <span className="text-xs text-slate-500">{RECIPIENT_LABELS[a.recipientType]}</span>
+            {a.leadKind ? <Chip color="#f59e0b">{LEAD_KIND_LABELS[a.leadKind]}</Chip> : null}
+            {a.mediaKey ? (
+              <Chip color="#a78bfa">🎬 {a.mediaName ?? "מדיה מצורפת"}</Chip>
+            ) : null}
+            {a.cooldownHours ? (
+              <span className="text-[11px] text-slate-400" title="לא נשלח שוב לאותו נמען בתוך החלון">
+                קירור {a.cooldownHours} שע׳
+              </span>
+            ) : null}
             <div className="mr-auto flex gap-1">
               <button onClick={() => toggle(a)} className="rounded p-1.5 text-slate-500 hover:text-amber-700" title={a.active ? "כיבוי" : "הפעלה"}>
                 <Icon name={a.active ? "x" : "check"} className="h-4 w-4" />
@@ -156,9 +174,54 @@ function AutomationModal({
     recipientType: "client_users",
     customRecipients: "",
     template: "ליד חדש: {{name}} · {{phone}}\nקמפיין: {{campaign}}",
+    leadKind: "",
+    cooldownHours: "",
   });
+  const [media, setMedia] = useState<{ key: string; name: string; mime: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // העלאת מדיה (וידאו/תמונה) לצירוף להודעת הוואטסאפ: קטן דרך ה-API,
+  // גדול (וידאו, עד 100MB) ישירות ל-R2 עם presign — עוקף את מגבלת Vercel.
+  async function uploadMedia(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      if (file.size > 3_500_000) {
+        const pres = await api<{ target: { url: string; headers: Record<string, string> }; key: string }>(
+          "/api/uploads/presign",
+          {
+            method: "POST",
+            json: {
+              clientId,
+              category: "automation",
+              fileName: file.name,
+              mimeType: file.type || "application/octet-stream",
+              size: file.size,
+            },
+          }
+        );
+        const put = await fetch(pres.target.url, { method: "PUT", headers: pres.target.headers, body: file });
+        if (!put.ok) throw new Error(`העלאת "${file.name}" נכשלה`);
+        setMedia({ key: pres.key, name: file.name, mime: file.type || "application/octet-stream" });
+      } else {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("category", "automation");
+        fd.append("clientId", clientId);
+        const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+        const uj = await up.json();
+        if (!up.ok) throw new Error(uj.error || `העלאת "${file.name}" נכשלה`);
+        setMedia({ key: uj.key, name: uj.fileName || file.name, mime: uj.mimeType || file.type });
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUploading(false);
+    }
+  }
   const [savedTemplates, setSavedTemplates] = useState<
     { id: string; name: string; body: string }[]
   >([]);
@@ -190,6 +253,11 @@ function AutomationModal({
               ? form.customRecipients.split(",").map((s) => s.trim()).filter(Boolean)
               : undefined,
           template: form.template,
+          leadKind: form.trigger === "lead_created" && form.leadKind ? form.leadKind : null,
+          mediaKey: form.channel === "whatsapp" && media ? media.key : null,
+          mediaName: form.channel === "whatsapp" && media ? media.name : null,
+          mediaMime: form.channel === "whatsapp" && media ? media.mime : null,
+          cooldownHours: form.cooldownHours ? Number(form.cooldownHours) : null,
         },
       });
       onSaved();
@@ -240,10 +308,69 @@ function AutomationModal({
               <option value="client_users">כל משתמשי הלקוח</option>
               <option value="agents">סוכני מכירות בלבד</option>
               <option value="assignee">המטפל בליד</option>
+              <option value="lead">הלקוח שפנה (הליד עצמו)</option>
               <option value="custom">רשימה מותאמת</option>
             </Select>
           </Field>
         </div>
+        {form.trigger === "lead_created" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="אילו לידים?">
+              <Select value={form.leadKind} onChange={(e) => setForm({ ...form, leadKind: e.target.value })}>
+                <option value="">כל הלידים</option>
+                <option value="call">רק שיחות טלפון</option>
+                <option value="form">רק טפסים ודפי נחיתה</option>
+              </Select>
+            </Field>
+            {form.recipientType === "lead" ? (
+              <Field label="קירור (שעות)" hint="לא לשלוח שוב לאותו מספר בתוך X שעות. מומלץ: 72">
+                <Input
+                  type="number"
+                  min={1}
+                  max={720}
+                  dir="ltr"
+                  value={form.cooldownHours}
+                  onChange={(e) => setForm({ ...form, cooldownHours: e.target.value })}
+                  placeholder="72"
+                />
+              </Field>
+            ) : (
+              <div />
+            )}
+          </div>
+        ) : null}
+        {form.recipientType === "lead" && form.channel === "whatsapp" ? (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            הודעות ללקוח הפונה נשלחות מהמופע הייעודי של הלקוח (הגדרות לקוח ⟵ אינטגרציות ⟵
+            וואטסאפ ייעודי) — לא מהמספר של הסוכנות. אם לא חובר מופע, ההודעה לא תישלח.
+          </p>
+        ) : null}
+        {form.channel === "whatsapp" ? (
+          <Field label="מדיה מצורפת (וידאו/תמונה)" hint="נשלח כקובץ אחד עם תוכן ההודעה ככיתוב. עד 100MB.">
+            {media ? (
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                <span>🎬</span>
+                <span className="truncate text-slate-700">{media.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setMedia(null)}
+                  className="mr-auto text-xs text-red-500 hover:underline"
+                >
+                  הסרה
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="video/*,image/*"
+                disabled={uploading}
+                onChange={(e) => uploadMedia(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-[#3a5bd9] file:px-3 file:py-1.5 file:text-sm file:text-white"
+              />
+            )}
+            {uploading ? <p className="mt-1 text-xs text-slate-500">מעלה… נא להמתין</p> : null}
+          </Field>
+        ) : null}
         {form.recipientType === "custom" ? (
           <Field label="נמענים (מופרדים בפסיק)" hint="אימיילים לערוץ אימייל, טלפונים ל-SMS/וואטסאפ">
             <Input dir="ltr" value={form.customRecipients} onChange={(e) => setForm({ ...form, customRecipients: e.target.value })} />
@@ -274,7 +401,7 @@ function AutomationModal({
         </Field>
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
-          <Button type="submit" disabled={busy}>{busy ? "שומר…" : "יצירה"}</Button>
+          <Button type="submit" disabled={busy || uploading}>{busy ? "שומר…" : "יצירה"}</Button>
         </div>
       </form>
     </Modal>
