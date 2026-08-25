@@ -182,7 +182,6 @@ export async function sweepStudioCalendar(): Promise<{
 
   const newlyBlocked: { title: string; designer: string; error: string }[] = [];
   const recreatedTitles: { title: string; designer: string }[] = [];
-  const adoptedTitles: { title: string; designer: string; when: Date }[] = [];
   let eventChecks = 0; // תקרת קריאות ל-Google בסריקה אחת
 
   for (const t of tasks) {
@@ -221,7 +220,6 @@ export async function sweepStudioCalendar(): Promise<{
                 .catch(() => {});
             }
             result.adopted++;
-            adoptedTitles.push({ title: t.title, designer: t.designer?.name ?? "", when: ev.start });
           }
           await setGcal(t.id, "synced", null, true);
           result.synced++;
@@ -261,7 +259,8 @@ export async function sweepStudioCalendar(): Promise<{
   }
 
   // התראות למנהלים — רק על שינויים (בלי ספאם על מצב קיים).
-  if (newlyBlocked.length > 0 || recreatedTitles.length > 0 || adoptedTitles.length > 0) {
+  // הזזת אירוע ביומן מאומצת בשקט, בלי התראה (החלטת הבעלים).
+  if (newlyBlocked.length > 0 || recreatedTitles.length > 0) {
     const managers = await prisma.user.findMany({
       where: { role: "ADMIN", adminRole: "manager", active: true },
       select: { whatsappPhone: true, phone: true },
@@ -277,12 +276,6 @@ export async function sweepStudioCalendar(): Promise<{
     if (recreatedTitles.length > 0) {
       lines.push("🎨🔁 אירועים שנמחקו מהיומן ונוצרו מחדש:");
       for (const r of recreatedTitles) lines.push(`• "${r.title}" — ${r.designer}`);
-    }
-    if (adoptedTitles.length > 0) {
-      lines.push("🎨🕐 משימות שהוזזו ביומן Google — המועד עודכן במערכת:");
-      for (const a of adoptedTitles) {
-        lines.push(`• "${a.title}" — ${a.designer} ← ${formatDateTime(a.when)}`);
-      }
     }
     for (const to of targets) {
       await sendMessage({

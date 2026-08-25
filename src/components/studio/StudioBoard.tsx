@@ -457,7 +457,7 @@ export default function StudioBoard({
         </select>
       </td>
       <td className="px-2 py-2">
-        <input type="datetime-local" dir="ltr" value={toLocalInput(t.scheduledAt)}
+        <input type="datetime-local" dir="ltr" step={900} value={toLocalInput(t.scheduledAt)}
           onChange={(e) => patch(t.id, { scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} />
       </td>
@@ -483,7 +483,7 @@ export default function StudioBoard({
         )}
       </td>
       <td className="px-2 py-2">
-        <input type="datetime-local" dir="ltr" value={toLocalInput(t.dueAt)}
+        <input type="datetime-local" dir="ltr" step={900} value={toLocalInput(t.dueAt)}
           onChange={(e) => patch(t.id, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
           className={selCls} title="דדליין ללקוח — ניתן לשינוי" />
       </td>
@@ -1156,7 +1156,7 @@ function CreateBriefModal({
             </Select>
           </Field>
           <Field label="תזמון בלו״ז">
-            <Input type="datetime-local" dir="ltr" value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
+            <Input type="datetime-local" dir="ltr" step={900} value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
           </Field>
           <Field label="משך העבודה" hint="קובע את אורך האירוע ביומן המעצב/ת">
             <Select value={form.durationMin} onChange={(e) => setForm({ ...form, durationMin: e.target.value })}>
@@ -1172,7 +1172,7 @@ function CreateBriefModal({
             </Select>
           </Field>
           <Field label="דדליין ללקוח">
-            <Input type="datetime-local" dir="ltr" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} />
+            <Input type="datetime-local" dir="ltr" step={900} value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} />
           </Field>
         </div>
         <div className="flex justify-end gap-2">

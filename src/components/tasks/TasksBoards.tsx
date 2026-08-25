@@ -174,6 +174,7 @@ export default function TasksBoards({
           <input
             type="datetime-local"
             dir="ltr"
+            step={900}
             defaultValue={toLocal(t.dueAt)}
             onBlur={(e) => e.target.value && new Date(e.target.value).toISOString() !== t.dueAt && patch(t.id, { dueAt: new Date(e.target.value).toISOString() })}
             className={`${inputCls} ${overdue ? "!border-rose-300 !text-rose-600" : ""}`}

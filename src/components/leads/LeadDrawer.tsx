@@ -865,6 +865,7 @@ export default function LeadDrawer({
               <Input
                 type="datetime-local"
                 dir="ltr"
+                step={900}
                 value={sched.dueAt}
                 onChange={(e) => setSched({ ...sched, dueAt: e.target.value })}
                 className="!py-1.5 text-sm"

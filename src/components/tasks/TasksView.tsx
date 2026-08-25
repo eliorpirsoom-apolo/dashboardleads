@@ -418,6 +418,7 @@ export function TaskFormModal({
           <Field label="מועד">
             <Input
               type="datetime-local"
+              step={900}
               value={form.dueAt}
               onChange={(e) => setForm({ ...form, dueAt: e.target.value })}
               required
