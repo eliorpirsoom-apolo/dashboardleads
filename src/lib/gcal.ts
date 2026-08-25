@@ -310,6 +310,38 @@ export async function taskEventExists(task: {
   return data.status !== "cancelled";
 }
 
+/** מצב האירוע ביומן — קיום + מועדי התחלה/סיום. מאפשר לסנכרן חזרה למערכת
+ *  גרירה של האירוע ביומן Google (מועד חדש). null = לא ניתן לבדוק כרגע. */
+export async function getTaskEventState(task: {
+  googleEventId?: string | null;
+  googleEventOwnerId?: string | null;
+}): Promise<{ exists: boolean; start?: Date; end?: Date } | null> {
+  if (!task.googleEventId || !task.googleEventOwnerId) return null;
+  const conn = await prisma.calendarConnection.findUnique({
+    where: { userId: task.googleEventOwnerId },
+  });
+  if (!conn?.active) return null;
+  const token = await gcalAccessToken(conn);
+  const res = await fetch(
+    `${CAL_API}/calendars/primary/events/${encodeURIComponent(task.googleEventId)}?fields=status,start,end`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (res.status === 404 || res.status === 410) return { exists: false };
+  if (!res.ok) return null; // תקלה זמנית — לא מסיקים כלום
+  const data = (await res.json()) as {
+    status?: string;
+    start?: { dateTime?: string; date?: string };
+    end?: { dateTime?: string; date?: string };
+  };
+  if (data.status === "cancelled") return { exists: false };
+  return {
+    exists: true,
+    // אירועי יום-שלם (date בלי dateTime) — בלי אימוץ שעה.
+    start: data.start?.dateTime ? new Date(data.start.dateTime) : undefined,
+    end: data.end?.dateTime ? new Date(data.end.dateTime) : undefined,
+  };
+}
+
 /** Delete the linked Google event (task deleted in the system). */
 export async function deleteTaskEvent(task: {
   googleEventId?: string | null;

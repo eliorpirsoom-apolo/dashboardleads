@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { createTaskEvent, deleteTaskEvent, syncTaskEvent, taskEventExists } from "./gcal";
+import { createTaskEvent, deleteTaskEvent, syncTaskEvent, getTaskEventState } from "./gcal";
 import { sendMessage } from "./messaging";
 import { formatDateTime } from "./format";
 import { briefTypeLabel } from "./studio";
@@ -153,15 +153,18 @@ export async function syncDesignTaskCalendar(
 const H = 60 * 60 * 1000;
 
 /** סריקת ריפוי-עצמי (רץ מהקרון כל 5 דק'):
- *  pending/blocked → ניסיון חוזר; synced ותיק → אימות שהאירוע עדיין קיים ביומן
- *  (נמחק ע"י המעצב/ת? נוצר מחדש + התראה); מעברים ל-blocked → התראה למנהלים. */
+ *  pending/blocked → ניסיון חוזר; synced → בדיקת מצב האירוע ביומן כל ~10 דק':
+ *  נמחק? נוצר מחדש + התראה; **הוזז ביומן? המועד החדש מאומץ למשימה במערכת**
+ *  (סנכרון דו-כיווני — גוגל מנצח כשגוררים ביומן, המערכת מנצחת כשעורכים בה);
+ *  מעברים ל-blocked → התראה למנהלים. */
 export async function sweepStudioCalendar(): Promise<{
   checked: number;
   synced: number;
   recreated: number;
   blocked: number;
+  adopted: number;
 }> {
-  const result = { checked: 0, synced: 0, recreated: 0, blocked: 0 };
+  const result = { checked: 0, synced: 0, recreated: 0, blocked: 0, adopted: 0 };
   const tasks = await prisma.designTask.findMany({
     where: {
       status: { not: "approved" },
@@ -179,22 +182,51 @@ export async function sweepStudioCalendar(): Promise<{
 
   const newlyBlocked: { title: string; designer: string; error: string }[] = [];
   const recreatedTitles: { title: string; designer: string }[] = [];
+  const adoptedTitles: { title: string; designer: string; when: Date }[] = [];
+  let eventChecks = 0; // תקרת קריאות ל-Google בסריקה אחת
 
   for (const t of tasks) {
     try {
       if (t.gcalState === "synced") {
-        // אימות מדגמי כל 6 שעות: האם האירוע עדיין קיים ביומן?
-        if (t.gcalCheckedAt && t.gcalCheckedAt.getTime() > Date.now() - 6 * H) continue;
+        // בדיקת מצב כל ~10 דק' (מזהה גם גרירה ביומן, לא רק מחיקה).
+        if (t.gcalCheckedAt && t.gcalCheckedAt.getTime() > Date.now() - 10 * 60_000) continue;
+        if (eventChecks >= 25) continue; // השאר יטופלו בסריקה הבאה
+        eventChecks++;
         const calTask = t.calendarTaskId
           ? await prisma.task.findUnique({ where: { id: t.calendarTaskId } })
           : null;
-        const exists = calTask ? await taskEventExists(calTask) : false;
-        if (exists === true) {
+        const ev = calTask ? await getTaskEventState(calTask) : { exists: false as const };
+        if (ev === null) continue; // תקלה זמנית — לא נוגעים
+        if (ev.exists) {
+          // האירוע הוזז ביומן (מעל דקה הפרש)? מאמצים את המועד החדש למערכת.
+          if (
+            ev.start &&
+            t.scheduledAt &&
+            Math.abs(ev.start.getTime() - t.scheduledAt.getTime()) > 60_000
+          ) {
+            const newDur =
+              ev.end && ev.start
+                ? Math.max(15, Math.round((ev.end.getTime() - ev.start.getTime()) / 60_000))
+                : undefined;
+            await prisma.designTask.update({
+              where: { id: t.id },
+              data: { scheduledAt: ev.start, ...(newDur ? { durationMin: newDur } : {}) },
+            });
+            if (calTask) {
+              await prisma.task
+                .update({
+                  where: { id: calTask.id },
+                  data: { dueAt: ev.start, ...(newDur ? { durationMin: newDur } : {}) },
+                })
+                .catch(() => {});
+            }
+            result.adopted++;
+            adoptedTitles.push({ title: t.title, designer: t.designer?.name ?? "", when: ev.start });
+          }
           await setGcal(t.id, "synced", null, true);
           result.synced++;
           continue;
         }
-        if (exists === null) continue; // תקלה זמנית — לא נוגעים
         // האירוע נמחק ביומן — יוצרים מחדש ומדווחים.
         if (calTask) {
           await prisma.task
@@ -229,7 +261,7 @@ export async function sweepStudioCalendar(): Promise<{
   }
 
   // התראות למנהלים — רק על שינויים (בלי ספאם על מצב קיים).
-  if (newlyBlocked.length > 0 || recreatedTitles.length > 0) {
+  if (newlyBlocked.length > 0 || recreatedTitles.length > 0 || adoptedTitles.length > 0) {
     const managers = await prisma.user.findMany({
       where: { role: "ADMIN", adminRole: "manager", active: true },
       select: { whatsappPhone: true, phone: true },
@@ -245,6 +277,12 @@ export async function sweepStudioCalendar(): Promise<{
     if (recreatedTitles.length > 0) {
       lines.push("🎨🔁 אירועים שנמחקו מהיומן ונוצרו מחדש:");
       for (const r of recreatedTitles) lines.push(`• "${r.title}" — ${r.designer}`);
+    }
+    if (adoptedTitles.length > 0) {
+      lines.push("🎨🕐 משימות שהוזזו ביומן Google — המועד עודכן במערכת:");
+      for (const a of adoptedTitles) {
+        lines.push(`• "${a.title}" — ${a.designer} ← ${formatDateTime(a.when)}`);
+      }
     }
     for (const to of targets) {
       await sendMessage({
