@@ -44,7 +44,8 @@ export function DateTimeQuarter({
   const cls = className ?? inputCls;
 
   return (
-    <span dir="ltr" className="flex items-center gap-1">
+    // min-w-0 + flex-1 על התאריך: הזוג מתכווץ לרוחב התא ולא גולש על עמודות שכנות.
+    <span dir="ltr" className="flex w-full min-w-0 items-center gap-1">
       <input
         type="date"
         value={date}
@@ -55,7 +56,7 @@ export function DateTimeQuarter({
           if (!d) onChange("");
           else onChange(`${d}T${time || nextQuarterNow()}`);
         }}
-        className={cls}
+        className={`${cls} min-w-0 flex-1`}
       />
       <select
         dir="ltr"
@@ -66,7 +67,7 @@ export function DateTimeQuarter({
           const t = e.target.value;
           if (t) onChange(`${date || todayStr()}T${t}`);
         }}
-        className={`${cls} shrink-0`}
+        className={`${cls} !w-auto shrink-0 !px-1.5`}
       >
         <option value="" disabled>
           שעה

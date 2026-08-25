@@ -30,7 +30,7 @@ export const DESIGN_STATUS_COLORS: Record<string, string> = {
   client_feedback: "#f97316",
   final_review: "#a78bfa",
   qc: "#eab308",
-  ready_to_publish: "#2dd4bf",
+  ready_to_publish: "#ec4899",
   approved: "#34d399",
 };
 

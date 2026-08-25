@@ -258,7 +258,7 @@ export default function TasksBoards({
                           <col style={{ width: 250 }} />
                           <col style={{ width: 120 }} />
                           <col style={{ width: 130 }} />
-                          <col style={{ width: 150 }} />
+                          <col style={{ width: 196 }} />
                           <col style={{ width: 96 }} />
                           <col style={{ width: 104 }} />
                           <col style={{ width: 36 }} />

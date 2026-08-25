@@ -268,9 +268,10 @@ export default function StudioBoard({
   // רוחבי העמודות ניתנים לשינוי בגרירת הידית שבקצה כל כותרת (כמו באקסל) ונשמרים מקומית.
   const COLS = 12;
   // גרסת המפתח (v2) מאפסת רוחבים שמורים כשברירות המחדל מכווננות מחדש.
-  const COL_WIDTHS_KEY = "studio-col-widths-v4";
+  const COL_WIDTHS_KEY = "studio-col-widths-v5";
   // כל 11 העמודות ברוחב קבוע וניתן לגרירה (כולל "משימה"); עמודת-מילוי ריקה בסוף סופגת את שאר המסך.
-  const DEFAULT_COL_WIDTHS = [240, 104, 124, 100, 118, 148, 76, 44, 148, 84, 36];
+  // v5: עמודות תזמון/דדליין הורחבו לזוג תאריך+שעה (DateTimeQuarter).
+  const DEFAULT_COL_WIDTHS = [240, 104, 124, 100, 118, 196, 76, 44, 196, 84, 36];
   const [colW, setColW] = useState<number[]>(() => {
     if (typeof window !== "undefined") {
       try {
