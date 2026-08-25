@@ -368,10 +368,19 @@ export async function POST(
         data: { lastSeenAt: new Date() },
       });
       // פנייה חוזרת = ליד חם: נרשם בציר הפעילות של הליד הקיים + וואטסאפ למשווק.
-      await recordActivity(dup.id, "מערכת", "repeat", {
-        note: `הליד פנה שוב דרך ${source.name}`,
+      // שער ספאם: אותו ליד שוב בתוך שעה (רענון טופס, שליחה כפולה, מכונה) —
+      // נשאר ביומן הקליטה בלבד, בלי להציף את ציר הפעילות ואת המשווק.
+      const lastRepeat = await prisma.leadActivity.findFirst({
+        where: { leadId: dup.id, kind: "repeat" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
       });
-      await notifyRepeatInquiry(dup.id, source.name).catch(() => {});
+      if (!lastRepeat || lastRepeat.createdAt.getTime() < Date.now() - 60 * 60_000) {
+        await recordActivity(dup.id, "מערכת", "repeat", {
+          note: `הליד פנה שוב דרך ${source.name}`,
+        });
+        await notifyRepeatInquiry(dup.id, source.name).catch(() => {});
+      }
       return NextResponse.json({ ok: true, duplicate: true, leadId: dup.id });
     }
 

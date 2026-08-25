@@ -394,6 +394,22 @@ export async function pullRecentLeads(
           })
         ).map((l) => l.externalId)
       );
+      // ליד שנחסם בקליטה ככפילות (למשל: התקשר וגם השאיר טופס) לעולם לא נוצר
+      // עם ה-externalId של הטופס — בלי הבדיקה הזו המשיכה תשלח אותו מחדש כל
+      // 5 דקות לנצח, וכל שליחה תציף את המשווק ב"פנייה חוזרת". טופל = ok/duplicate;
+      // error/rejected דווקא כן יישלחו שוב (ריטריי מכוון).
+      for (const id of batchIds) {
+        if (known.has(id)) continue;
+        const handled = await prisma.intakeLog.findFirst({
+          where: {
+            clientId: page.clientId,
+            status: { in: ["ok", "duplicate"] },
+            payload: { contains: `"id":"${id}"` },
+          },
+          select: { id: true },
+        });
+        if (handled) known.add(id);
+      }
       for (const lead of data.data ?? []) {
         out.scanned++;
         if (lead.created_time && new Date(lead.created_time).getTime() < cutoff) {
