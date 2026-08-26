@@ -145,7 +145,15 @@ async function checkGreenApi(): Promise<Omit<HealthResult, "key" | "label" | "ms
   const id = process.env.GREENAPI_ID_INSTANCE!;
   const token = process.env.GREENAPI_API_TOKEN!;
   const base = (process.env.GREENAPI_API_URL || "https://api.green-api.com").replace(/\/$/, "");
-  const res = await withTimeout(fetch(`${base}/waInstance${id}/getStateInstance/${token}`, { cache: "no-store" }), 10000, "Green API");
+  // ה-API של גרין מחזיר לפעמים 404/5xx רגעי גם כשהמופע תקין — ניסיון שני
+  // אחרי 3 שניות לפני שמכריזים תקלה (מניעת התראות שווא בדוח הבוקר).
+  const probe = () =>
+    withTimeout(fetch(`${base}/waInstance${id}/getStateInstance/${token}`, { cache: "no-store" }), 10000, "Green API");
+  let res = await probe().catch(() => null);
+  if (!res || !res.ok) {
+    await new Promise((r) => setTimeout(r, 3000));
+    res = await probe();
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return { status: "fail", detail: `Green API HTTP ${res.status}` };
   if (data.stateInstance !== "authorized") {
