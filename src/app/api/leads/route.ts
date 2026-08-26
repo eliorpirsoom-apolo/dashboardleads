@@ -34,6 +34,13 @@ export const GET = handle(async (req) => {
         unitType: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
         _count: { select: { notes: true } },
+        // המשימה הפתוחה הקרובה — מזינה את פעמון ה"פולו-אפ" בטבלת הלידים.
+        tasks: {
+          where: { status: { in: ["open", "in_progress"] } },
+          orderBy: { dueAt: "asc" },
+          take: 1,
+          select: { dueAt: true },
+        },
       },
     }),
   ]);

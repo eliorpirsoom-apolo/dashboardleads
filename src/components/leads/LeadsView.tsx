@@ -48,6 +48,12 @@ interface LeadRow {
   callStatus: string | null;
   callDurationSec: number | null;
   _count: { notes: number };
+  tasks?: { dueAt: string }[]; // המשימה הפתוחה הקרובה — פעמון הפולו-אפ
+}
+
+// סטטוס "פולו-אפ" מזוהה לפי שם (FOLLOW UP / פולו / מעקב) — פעמון החזרה לליד.
+function isFollowupName(name?: string | null): boolean {
+  return /follow|פולו|מעקב/i.test(name ?? "");
 }
 
 // סטטוס שיחת טלפון → תווית + צבע לתצוגה בטבלה (עברית או ערך גולמי מ-CheckCall).
@@ -598,6 +604,37 @@ export default function LeadsView({
                       </option>
                     ))}
                   </select>
+                  {(() => {
+                    // פעמון פולו-אפ: מתי חוזרים לליד (ריחוף = התאריך המדויק).
+                    const due = l.tasks?.[0]?.dueAt ? new Date(l.tasks[0].dueAt) : null;
+                    const fu = isFollowupName(l.status?.name);
+                    if (due) {
+                      const overdue = due.getTime() < Date.now();
+                      return (
+                        <span
+                          title={
+                            overdue
+                              ? `⏰ מועד החזרה לליד עבר! היה: ${formatDateTime(l.tasks![0].dueAt)}`
+                              : `⏰ לחזור לליד: ${formatDateTime(l.tasks![0].dueAt)}`
+                          }
+                          className={`mr-1.5 inline-block cursor-default align-middle ${overdue ? "animate-pulse" : ""}`}
+                        >
+                          {overdue ? "🔴" : "🔔"}
+                        </span>
+                      );
+                    }
+                    if (fu) {
+                      return (
+                        <span
+                          title="סטטוס פולו-אפ בלי מועד חזרה — פתחו את הליד וקבעו ב״תזמון משימה ותזכורת״"
+                          className="mr-1.5 inline-block cursor-default align-middle opacity-60"
+                        >
+                          🔕
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </td>
                 <td className="px-3 py-2.5 text-xs text-slate-400">
                   {l.assignee ? (

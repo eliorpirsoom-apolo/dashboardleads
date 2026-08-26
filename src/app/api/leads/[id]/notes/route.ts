@@ -30,3 +30,21 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   await markLeadHandled(lead.id);
   return NextResponse.json({ note }, { status: 201 });
 });
+
+// DELETE /api/leads/[id]/notes?noteId= — מחיקת הערה.
+// צד משרד מוחק כל הערה; משתמש/ת צד לקוח — רק הערה שכתב/ה.
+export const DELETE = handle(async (req, { params }: { params: { id: string } }) => {
+  const user = await requireUser();
+  const noteId = new URL(req.url).searchParams.get("noteId");
+  if (!noteId) throw new ApiError(400, "חסר noteId");
+  const lead = await prisma.lead.findUnique({ where: { id: params.id } });
+  if (!lead) throw new ApiError(404, "ליד לא נמצא");
+  scopeClientId(user, lead.clientId);
+  const note = await prisma.leadNote.findUnique({ where: { id: noteId } });
+  if (!note || note.leadId !== lead.id) throw new ApiError(404, "הערה לא נמצאה");
+  if (user.role !== "ADMIN" && note.userId !== user.id) {
+    throw new ApiError(403, "אפשר למחוק רק הערה שכתבת");
+  }
+  await prisma.leadNote.delete({ where: { id: noteId } });
+  return NextResponse.json({ ok: true });
+});

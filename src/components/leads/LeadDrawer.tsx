@@ -350,6 +350,16 @@ export default function LeadDrawer({
     }
   }
 
+  async function deleteNote(noteId: string) {
+    if (!confirm("למחוק את ההערה?")) return;
+    try {
+      await api(`/api/leads/${leadId}/notes?noteId=${noteId}`, { method: "DELETE" });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
   async function archive() {
     if (!confirm("להעביר את הליד לארכיון?")) return;
     await api(`/api/leads/${leadId}`, { method: "DELETE" });
@@ -619,6 +629,17 @@ export default function LeadDrawer({
                   ))}
                 </Select>
               </Field>
+              {/* פולו-אפ = חוזרים לליד: תזכורת לקבוע מועד, שיוצג כפעמון ביומן הלידים */}
+              {(() => {
+                const effId = edit.statusId !== undefined ? edit.statusId : lead.statusId ?? "";
+                const sName = statuses.find((s) => s.id === effId)?.name ?? "";
+                return /follow|פולו|מעקב/i.test(sName) ? (
+                  <p className="col-span-2 rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
+                    📌 סטטוס פולו-אפ — קבעו למטה ב״תזמון משימה ותזכורת״ מתי לחזור לליד.
+                    בטבלת הלידים יופיע פעמון עם מועד החזרה.
+                  </p>
+                ) : null;
+              })()}
               <Field label="שם מלא">
                 <Input value={val("fullName") as string} onChange={(e) => setEdit({ ...edit, fullName: e.target.value })} />
               </Field>
@@ -659,6 +680,45 @@ export default function LeadDrawer({
               />
               הסכמה לדיוור
             </label>
+
+            {/* הערות — מוצמדות לפרטי הליד, מתחת לשדה "מודעה" (בקשת הבעלים) */}
+            <h3 className="mb-2 mt-5 text-sm font-bold text-slate-600">הערות</h3>
+            <form onSubmit={addNote} className="mb-3 flex gap-2">
+              <Input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="כתבו הערה…"
+              />
+              <Button type="submit" disabled={busy || !note.trim()} size="sm">
+                הוספה
+              </Button>
+            </form>
+            <div className="flex flex-col gap-2">
+              {lead.notes
+                .slice()
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .map((n) => (
+                  <div key={n.id} className="group rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-1 flex items-center justify-between gap-2 text-xs text-slate-500">
+                      <span className="font-medium text-slate-400">💬 {n.authorName}</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        {formatDateTime(n.createdAt)}
+                        <button
+                          onClick={() => deleteNote(n.id)}
+                          title="מחיקת ההערה"
+                          className="rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500"
+                        >
+                          <Icon name="trash" className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    </div>
+                    <p className="whitespace-pre-line text-sm text-slate-700">{n.body}</p>
+                  </div>
+                ))}
+              {lead.notes.length === 0 ? (
+                <p className="text-xs text-slate-500">אין הערות עדיין.</p>
+              ) : null}
+            </div>
 
             {/* Project linking (+ unit & purchase request for real-estate) */}
             {projects.length > 0 ? (
@@ -1001,57 +1061,35 @@ export default function LeadDrawer({
             {/* שיחת וואטסאפ מול הליד */}
             <LeadWhatsappChat leadId={lead.id} hasPhone={Boolean(lead.phone)} />
 
-            {/* Unified timeline: notes + activity trail */}
+            {/* ציר פעילות (ההערות עברו למעלה, מתחת לפרטי הליד) */}
             <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">
-              ציר פעילות והערות
+              ציר פעילות
             </h3>
-            <form onSubmit={addNote} className="mb-3 flex gap-2">
-              <Input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="כתבו הערה…"
-              />
-              <Button type="submit" disabled={busy || !note.trim()} size="sm">
-                הוספה
-              </Button>
-            </form>
             <div className="flex flex-col gap-2">
-              {[
-                ...lead.notes.map((n) => ({ type: "note" as const, at: n.createdAt, note: n })),
-                ...lead.activities.map((a) => ({ type: "activity" as const, at: a.createdAt, activity: a })),
-              ]
-                .sort((a, b) => b.at.localeCompare(a.at))
-                .map((item, i) =>
-                  item.type === "note" ? (
-                    <div key={`n${i}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-                        <span className="font-medium text-slate-400">💬 {item.note.authorName}</span>
-                        <span>{formatDateTime(item.note.createdAt)}</span>
-                      </div>
-                      <p className="whitespace-pre-line text-sm text-slate-700">{item.note.body}</p>
-                    </div>
-                  ) : (
-                    <div key={`a${i}`} className="flex items-center gap-2 px-3 py-1 text-xs">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-500/60" />
-                      <span className="text-slate-400">
-                        <b className="text-slate-600">{ACTIVITY_LABELS[item.activity.kind] ?? item.activity.kind}</b>
-                        {item.activity.fromValue || item.activity.toValue ? (
-                          <>
-                            {": "}
-                            {item.activity.fromValue ? `${item.activity.fromValue} ← ` : ""}
-                            <b className="text-slate-600">{item.activity.toValue ?? ""}</b>
-                          </>
-                        ) : null}
-                        {item.activity.note ? ` · ${item.activity.note}` : ""}
-                        {` · ${item.activity.actorName}`}
-                      </span>
-                      <span className="mr-auto whitespace-nowrap text-slate-600">
-                        {formatDateTime(item.activity.createdAt)}
-                      </span>
-                    </div>
-                  )
-                )}
-              {lead.notes.length === 0 && lead.activities.length === 0 ? (
+              {lead.activities
+                .slice()
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .map((a, i) => (
+                  <div key={`a${i}`} className="flex items-center gap-2 px-3 py-1 text-xs">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-500/60" />
+                    <span className="text-slate-400">
+                      <b className="text-slate-600">{ACTIVITY_LABELS[a.kind] ?? a.kind}</b>
+                      {a.fromValue || a.toValue ? (
+                        <>
+                          {": "}
+                          {a.fromValue ? `${a.fromValue} ← ` : ""}
+                          <b className="text-slate-600">{a.toValue ?? ""}</b>
+                        </>
+                      ) : null}
+                      {a.note ? ` · ${a.note}` : ""}
+                      {` · ${a.actorName}`}
+                    </span>
+                    <span className="mr-auto whitespace-nowrap text-slate-600">
+                      {formatDateTime(a.createdAt)}
+                    </span>
+                  </div>
+                ))}
+              {lead.activities.length === 0 ? (
                 <p className="text-xs text-slate-600">אין פעילות עדיין.</p>
               ) : null}
             </div>
