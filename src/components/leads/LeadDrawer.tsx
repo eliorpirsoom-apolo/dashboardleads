@@ -991,10 +991,25 @@ export default function LeadDrawer({
                 <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">משימות פתוחות</h3>
                 <div className="flex flex-col gap-1.5">
                   {lead.tasks.map((t) => (
-                    <div key={t.id} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600">
+                    <div key={t.id} className="group flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600">
                       <Icon name={t.type === "meeting" ? "calendar" : "tasks"} className="h-3.5 w-3.5 text-cyan-400" />
                       {t.title}
                       <span className="mr-auto text-slate-500">{formatDateTime(t.dueAt)}</span>
+                      <button
+                        onClick={async () => {
+                          if (!confirm("לבטל את המשימה והתזכורת? האירוע יימחק גם מהיומן.")) return;
+                          try {
+                            await api(`/api/tasks/${t.id}`, { method: "DELETE" });
+                            await load();
+                          } catch (e: any) {
+                            setError(e.message);
+                          }
+                        }}
+                        title="ביטול המשימה והתזכורת"
+                        className="rounded p-0.5 text-slate-300 transition hover:text-rose-500"
+                      >
+                        <Icon name="trash" className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
