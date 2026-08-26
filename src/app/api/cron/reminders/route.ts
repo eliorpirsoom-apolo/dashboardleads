@@ -37,6 +37,15 @@ export async function GET(req: Request) {
   // שומר לשומר: אם קרון הבריאות עצמו לא רץ 26 שעות — התראה מכאן.
   await watchdogHealthCron();
 
+  // מטאטא הודעות: שורה שנשארה pending מעל שעה = השליחה קרסה באמצע (טיימאאוט
+  // וכד') — מסומנת failed כדי שיומן ההודעות ישקף אמת ולא יצבור "תקועות".
+  await prisma.message
+    .updateMany({
+      where: { status: "pending", createdAt: { lt: new Date(Date.now() - 60 * 60_000) } },
+      data: { status: "failed", error: "השליחה נקטעה באמצע (טיימאאוט) — סומן אוטומטית ככשל" },
+    })
+    .catch(() => {});
+
   const due = await prisma.reminder.findMany({
     where: {
       status: "pending",

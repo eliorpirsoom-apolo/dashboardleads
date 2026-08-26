@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { syncSearchConsole, syncGa4 } from "@/lib/integrations/googleData";
+import { touchCronHeartbeat } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -17,6 +18,7 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  await touchCronHeartbeat("seo-sync");
 
   const integrations = await prisma.integration.findMany({
     where: {
