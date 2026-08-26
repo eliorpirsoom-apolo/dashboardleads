@@ -7,6 +7,7 @@ import { Button, Card, Chip, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import { DateTimeQuarter } from "@/components/DateTimeQuarter";
+import { SearchSelect } from "@/components/SearchSelect";
 import StudioTaskDrawer from "@/components/studio/StudioTaskDrawer";
 import {
   DESIGN_STATUSES,
@@ -1036,14 +1037,13 @@ function CreateBriefModal({
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label="לקוח">
-            <Select value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} required>
-              <option value="">— בחר לקוח —</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            <SearchSelect
+              value={form.clientId}
+              onChange={(id) => setForm({ ...form, clientId: id })}
+              options={clients}
+              placeholder="הקלידו לחיפוש לקוח…"
+              required
+            />
           </Field>
           <Field label="סוג עבודה">
             <Select value={form.briefType} onChange={(e) => setForm({ ...form, briefType: e.target.value })}>
