@@ -48,7 +48,7 @@ interface LeadRow {
   callStatus: string | null;
   callDurationSec: number | null;
   _count: { notes: number };
-  tasks?: { dueAt: string }[]; // המשימה הפתוחה הקרובה — פעמון הפולו-אפ
+  tasks?: { dueAt: string; type: string }[]; // משימות פתוחות — פעמון פולו-אפ + אייקון פגישה
 }
 
 // סטטוס "פולו-אפ" מזוהה לפי שם (FOLLOW UP / פולו / מעקב) — פעמון החזרה לליד.
@@ -605,27 +605,46 @@ export default function LeadsView({
                     ))}
                   </select>
                   {(() => {
-                    // פעמון פולו-אפ: מתי חוזרים לליד (ריחוף = התאריך המדויק).
-                    const due = l.tasks?.[0]?.dueAt ? new Date(l.tasks[0].dueAt) : null;
+                    // אייקוני מעקב: 📅 פגישה קרובה + 🔔 פולו-אפ (ריחוף = המועד המדויק).
+                    const meeting = l.tasks?.find((t) => t.type === "meeting");
+                    const task = l.tasks?.find((t) => t.type !== "meeting");
                     const fu = isFollowupName(l.status?.name);
-                    if (due) {
-                      const overdue = due.getTime() < Date.now();
-                      return (
+                    const icons: React.ReactNode[] = [];
+                    if (meeting) {
+                      const passed = new Date(meeting.dueAt).getTime() < Date.now();
+                      icons.push(
                         <span
+                          key="m"
+                          title={
+                            passed
+                              ? `📅 מועד הפגישה עבר: ${formatDateTime(meeting.dueAt)} — לעדכן סטטוס`
+                              : `📅 פגישה: ${formatDateTime(meeting.dueAt)}`
+                          }
+                          className={`mr-1.5 inline-block cursor-default align-middle ${passed ? "opacity-50 grayscale" : ""}`}
+                        >
+                          📅
+                        </span>
+                      );
+                    }
+                    if (task) {
+                      const overdue = new Date(task.dueAt).getTime() < Date.now();
+                      icons.push(
+                        <span
+                          key="t"
                           title={
                             overdue
-                              ? `⏰ מועד החזרה לליד עבר! היה: ${formatDateTime(l.tasks![0].dueAt)}`
-                              : `⏰ לחזור לליד: ${formatDateTime(l.tasks![0].dueAt)}`
+                              ? `⏰ מועד החזרה לליד עבר! היה: ${formatDateTime(task.dueAt)}`
+                              : `⏰ לחזור לליד: ${formatDateTime(task.dueAt)}`
                           }
                           className={`mr-1.5 inline-block cursor-default align-middle ${overdue ? "animate-pulse" : ""}`}
                         >
                           {overdue ? "🔴" : "🔔"}
                         </span>
                       );
-                    }
-                    if (fu) {
-                      return (
+                    } else if (fu && !meeting) {
+                      icons.push(
                         <span
+                          key="fu"
                           title="סטטוס פולו-אפ בלי מועד חזרה — פתחו את הליד וקבעו ב״תזמון משימה ותזכורת״"
                           className="mr-1.5 inline-block cursor-default align-middle opacity-60"
                         >
@@ -633,7 +652,7 @@ export default function LeadsView({
                         </span>
                       );
                     }
-                    return null;
+                    return icons.length ? <>{icons}</> : null;
                   })()}
                 </td>
                 <td className="px-3 py-2.5 text-xs text-slate-400">
