@@ -114,7 +114,7 @@ export async function ensureDuplicateStatus(clientId: string): Promise<string> {
  * חוזרת") שהטלפון/אימייל שלו זהה לליד מוקדם יותר של אותו לקוח → מקבל סטטוס
  * "כפול" + רישום בציר הפעילות. הליד המקורי לא נגע. מחזיר true אם סומן.
  */
-export async function markLeadIfDuplicate(leadId: string): Promise<boolean> {
+export async function markLeadIfDuplicate(leadId: string, notify = true): Promise<boolean> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead || lead.kind === "call") return false;
   if (!lead.phone && !lead.email) return false;
@@ -142,6 +142,21 @@ export async function markLeadIfDuplicate(leadId: string): Promise<boolean> {
     toValue: "כפול",
     note: `זוהה אוטומטית כליד כפול — אותו ${how} כמו ליד #${original.number}`,
   }).catch(() => {});
+  // צד המקור: "פנייה חוזרת" + וואטסאפ ליד-חם למטפל (שער שעה נגד הצפה).
+  // notify=false בסריקה רטרואקטיבית — אין טעם להתריע על כפולים ישנים.
+  if (!notify) return true;
+  const lastRepeat = await prisma.leadActivity.findFirst({
+    where: { leadId: original.id, kind: "repeat" },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  if (!lastRepeat || lastRepeat.createdAt.getTime() < Date.now() - 60 * 60_000) {
+    await recordActivity(original.id, "מערכת", "repeat", {
+      note: `הליד פנה שוב — נוצרה שורת כפול #${lead.number}`,
+    }).catch(() => {});
+    const { notifyRepeatInquiry } = await import("./hooks");
+    await notifyRepeatInquiry(original.id, `פנייה חדשה (סומנה כפול #${lead.number})`).catch(() => {});
+  }
   return true;
 }
 

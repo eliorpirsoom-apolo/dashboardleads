@@ -350,9 +350,11 @@ export async function POST(
       );
     }
 
-    // Dedupe within 24h by phone/email — לא לשיחות (כל שיחה נפרדת = ליד;
-    // כפילות webhook לאותה שיחה כבר טופלה לפי externalId למעלה).
-    const dup = source.kind === "call" ? null : await findDuplicateLead(source.clientId, phone, email);
+    // בליעת שליחה-כפולה: אותו טלפון/אימייל בתוך שעה = אותה פנייה ממש
+    // (דאבל-קליק, וובהוק שנשלח פעמיים) — לא נוצרת שורה. מעבר לשעה נוצר ליד
+    // שמסומן אוטומטית "כפול" (markLeadIfDuplicate בתוך createLeadNumbered).
+    // לא לשיחות (כל שיחה = ליד; כפילות webhook לאותה שיחה טופלה לפי externalId).
+    const dup = source.kind === "call" ? null : await findDuplicateLead(source.clientId, phone, email, 1);
     if (dup) {
       await prisma.intakeLog.create({
         data: {
@@ -479,7 +481,15 @@ export async function POST(
         note: "שיוך אוטומטי (סבב)",
       });
     }
-    await onLeadCreated(lead.id);
+    // ליד שסומן "כפול" בזיהוי האוטומטי — בלי התראות "ליד חדש" (המטפל במקורי
+    // כבר קיבל התראת "ליד חם"); ליד רגיל — המסלול המלא.
+    const fresh = await prisma.lead.findUnique({
+      where: { id: lead.id },
+      select: { status: { select: { systemKind: true } } },
+    });
+    if (fresh?.status?.systemKind !== "duplicate") {
+      await onLeadCreated(lead.id);
+    }
 
     return NextResponse.json({ ok: true, leadId: lead.id, number: lead.number });
   } catch (err) {

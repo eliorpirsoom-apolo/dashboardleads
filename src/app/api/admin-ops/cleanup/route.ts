@@ -71,7 +71,7 @@ export const POST = handle(async (req) => {
   let applied = 0;
   if (b.apply) {
     for (const c of candidates) {
-      if (await markLeadIfDuplicate(c.id).catch(() => false)) applied++;
+      if (await markLeadIfDuplicate(c.id, false).catch(() => false)) applied++;
     }
   }
   return NextResponse.json({
