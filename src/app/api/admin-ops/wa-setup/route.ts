@@ -80,3 +80,15 @@ export const POST = handle(async () => {
     note: "Green API עשוי לאתחל את המופע לדקה-שתיים לאחר שינוי הגדרות.",
   });
 });
+
+// PATCH /api/admin-ops/wa-setup — ריסטארט למופע (Green API reboot). משחרר
+// מופע שנתקע ב-"starting" בלי לסרוק QR מחדש; ההתחברות לטלפון נשמרת.
+export const PATCH = handle(async () => {
+  await requireAdmin();
+  if (!whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
+  const { id, token } = creds();
+  const res = await fetch(`${base()}/waInstance${id}/reboot/${token}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(502, `Green API reboot ${res.status}: ${JSON.stringify(data).slice(0, 150)}`);
+  return NextResponse.json({ ok: true, isReboot: data?.isReboot ?? null, note: "המופע עולה מחדש — עד 2 דקות" });
+});
