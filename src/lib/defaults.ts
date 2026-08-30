@@ -23,6 +23,7 @@ export const SYSTEM_KINDS = [
   { value: "in_progress", label: "בטיפול" },
   { value: "won", label: "עסקה (מוריד מהמלאי בנדל\"ן)" },
   { value: "lost", label: "אבוד" },
+  { value: "duplicate", label: "כפול (זיהוי אוטומטי)" },
 ] as const;
 
 export const DOCUMENT_CATEGORIES = [

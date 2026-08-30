@@ -17,7 +17,7 @@ async function ownStatus(userClientId: string, id: string) {
 const UpdateStatus = z.object({
   name: z.string().min(1).max(60).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-  systemKind: z.enum(["new", "in_progress", "won", "lost"]).optional(),
+  systemKind: z.enum(["new", "in_progress", "won", "lost", "duplicate"]).optional(),
   order: z.number().int().min(0).optional(),
   isDefault: z.boolean().optional(),
 });

@@ -58,7 +58,7 @@ export async function createLeadNumbered(
 ) {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
+      const created = await prisma.$transaction(async (tx) => {
         const last = await tx.lead.findFirst({
           where: { clientId: data.clientId },
           orderBy: { number: "desc" },
@@ -68,6 +68,9 @@ export async function createLeadNumbered(
           data: { ...data, number: (last?.number ?? 0) + 1 },
         });
       });
+      // זיהוי כפול אוטומטי — כל נתיבי היצירה (קליטה/ידני/ייבוא) עוברים כאן.
+      await markLeadIfDuplicate(created.id).catch(() => {});
+      return created;
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -80,6 +83,66 @@ export async function createLeadNumbered(
     }
   }
   throw new Error("createLeadNumbered: exhausted retries");
+}
+
+/** סטטוס "כפול" של הלקוח — נוצר אוטומטית בזיהוי הראשון (systemKind: duplicate). */
+export async function ensureDuplicateStatus(clientId: string): Promise<string> {
+  const existing = await prisma.leadStatus.findFirst({
+    where: { clientId, OR: [{ systemKind: "duplicate" }, { name: "כפול" }] },
+  });
+  if (existing) return existing.id;
+  const last = await prisma.leadStatus.findFirst({
+    where: { clientId },
+    orderBy: { order: "desc" },
+    select: { order: true },
+  });
+  const st = await prisma.leadStatus.create({
+    data: {
+      clientId,
+      name: "כפול",
+      color: "#94a3b8",
+      order: (last?.order ?? 0) + 1,
+      systemKind: "duplicate",
+      isDefault: false,
+    },
+  });
+  return st.id;
+}
+
+/**
+ * זיהוי ליד כפול אוטומטי: ליד חדש (לא שיחה — לשיחות יש את מנגנון "פנייה
+ * חוזרת") שהטלפון/אימייל שלו זהה לליד מוקדם יותר של אותו לקוח → מקבל סטטוס
+ * "כפול" + רישום בציר הפעילות. הליד המקורי לא נגע. מחזיר true אם סומן.
+ */
+export async function markLeadIfDuplicate(leadId: string): Promise<boolean> {
+  const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+  if (!lead || lead.kind === "call") return false;
+  if (!lead.phone && !lead.email) return false;
+  const or: Prisma.LeadWhereInput[] = [];
+  if (lead.phone) or.push({ phone: lead.phone });
+  if (lead.email) or.push({ email: lead.email });
+  // רק לידים מוקדמים יותר נחשבים "מקור" — החדש הוא שמסומן ככפול.
+  const original = await prisma.lead.findFirst({
+    where: {
+      clientId: lead.clientId,
+      id: { not: lead.id },
+      receivedAt: { lt: lead.receivedAt },
+      OR: or,
+    },
+    orderBy: { receivedAt: "asc" },
+    select: { id: true, number: true, phone: true },
+  });
+  if (!original) return false;
+  const dupStatusId = await ensureDuplicateStatus(lead.clientId);
+  if (lead.statusId === dupStatusId) return true;
+  await prisma.lead.update({ where: { id: lead.id }, data: { statusId: dupStatusId } });
+  const how = lead.phone && original.phone === lead.phone ? "טלפון" : "אימייל";
+  const { recordActivity } = await import("./leadActivity");
+  await recordActivity(lead.id, "מערכת", "status", {
+    toValue: "כפול",
+    note: `זוהה אוטומטית כליד כפול — אותו ${how} כמו ליד #${original.number}`,
+  }).catch(() => {});
+  return true;
 }
 
 /** The default status (or first by order) for new leads of a client. */

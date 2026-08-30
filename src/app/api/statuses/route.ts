@@ -23,7 +23,7 @@ const CreateStatus = z.object({
   clientId: z.string().optional(),
   name: z.string().min(1, "חסר שם סטטוס").max(60),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "צבע לא תקין"),
-  systemKind: z.enum(["new", "in_progress", "won", "lost"]),
+  systemKind: z.enum(["new", "in_progress", "won", "lost", "duplicate"]),
 });
 
 // POST /api/statuses — client-defined status (name + color + kind).
