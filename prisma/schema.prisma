@@ -521,6 +521,7 @@ model Task {
   title       String
   description String?
   type        String    @default("task") // "task" | "meeting"
+  teamKey     String? // זימון צוות: עותק לכל משתתף/ת עם מפתח משותף
   ownerSide   String    @default("agency") // "agency" | "client" — המשימות שלנו / של הלקוח
   assignee    User?     @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   assigneeId  String?
@@ -545,6 +546,7 @@ model Task {
 
   @@index([clientId, dueAt])
   @@index([assigneeId, dueAt])
+  @@index([teamKey])
   @@index([ownerSide])
   @@index([status, dueAt])
 }
@@ -571,6 +573,8 @@ model AiAgentConfig {
   id             String   @id @default(cuid())
   key            String   @unique @default("task-capture")
   name           String   @default("יעקב") // שם הסוכן = מילת הטריגר בקבוצות
+  officeGroupChatId String? // קבוצת הוואטסאפ של המשרד — זימוני צוות ותזכורות
+  officeGroupName   String?
   enabled        Boolean  @default(false) // לכידה מצ'אט פרטי (מספרים מורשים)
   groupsEnabled  Boolean  @default(false) // לכידה מקבוצות (בקריאה בשם)
   allowedNumbers String   @default("") // מספרים מורשים (מופרדים בפסיק/שורה)

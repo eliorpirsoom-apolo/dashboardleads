@@ -23,6 +23,9 @@ const UpdateAgent = z.object({
   instructions: z.string().max(2000).nullable().optional(),
   model: z.string().max(80).nullable().optional(),
   replyConfirm: z.boolean().optional(),
+  // קבוצת הוואטסאפ של המשרד — זימוני צוות ותזכורות קבוצתיות.
+  officeGroupChatId: z.string().max(120).nullable().optional(),
+  officeGroupName: z.string().max(200).nullable().optional(),
 });
 
 // PATCH /api/task-agent — עדכון הגדרות (מנהל בלבד).
@@ -38,6 +41,8 @@ export const PATCH = handle(async (req) => {
   if (b.instructions !== undefined) data.instructions = b.instructions?.trim() || null;
   if (b.model !== undefined) data.model = b.model?.trim() || null;
   if (b.replyConfirm !== undefined) data.replyConfirm = b.replyConfirm;
+  if (b.officeGroupChatId !== undefined) data.officeGroupChatId = b.officeGroupChatId || null;
+  if (b.officeGroupName !== undefined) data.officeGroupName = b.officeGroupName || null;
   const config = await prisma.aiAgentConfig.update({ where: { id: cur.id }, data });
   return NextResponse.json({ config });
 });

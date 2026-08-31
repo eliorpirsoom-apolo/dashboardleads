@@ -98,16 +98,49 @@ export default async function AdminDashboard() {
   const nowMs = now.getTime();
 
   // 📆 לוז פגישות: מהיומנים של צוות המשרד בלבד (לא לקוחות) — אירועים עם שעה
-  // שהכותרת שלהם נשמעת כמו פגישה. מילות המפתח ניתנות להרחבה בקלות.
+  // שהכותרת שלהם נשמעת כמו פגישה, + זימוני צוות מהמערכת (teamKey).
   const MEETING_WORDS = /פגיש|סיכום|meeting/i;
-  const scheduleBoard = gcal.events
-    .filter(
-      (e) =>
-        !e.allDay &&
-        MEETING_WORDS.test(e.title || "") &&
-        new Date(e.end).getTime() > nowMs
-    )
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  const teamInvites = await prisma.task.findMany({
+    where: {
+      teamKey: { not: null },
+      status: { in: ["open", "in_progress"] },
+      dueAt: { gte: now },
+    },
+    orderBy: { dueAt: "asc" },
+    take: 60,
+    select: { teamKey: true, title: true, dueAt: true, type: true },
+  });
+  const seenTeam = new Set<string>();
+  const scheduleBoard = [
+    ...gcal.events
+      .filter(
+        (e) =>
+          !e.allDay &&
+          MEETING_WORDS.test(e.title || "") &&
+          new Date(e.end).getTime() > nowMs
+      )
+      .map((e) => ({
+        id: e.id,
+        start: new Date(e.start),
+        title: e.title,
+        owner: e.ownerName,
+        color: e.color,
+      })),
+    ...teamInvites
+      .filter((t) => {
+        if (seenTeam.has(t.teamKey!)) return false;
+        seenTeam.add(t.teamKey!);
+        return true;
+      })
+      .map((t) => ({
+        id: `team-${t.teamKey}`,
+        start: t.dueAt,
+        title: `👥 ${t.title}`,
+        owner: "כל הצוות",
+        color: "#3a5bd9",
+      })),
+  ]
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
     .slice(0, 20);
   const teamNow = gcal.connections.map((c) => {
     const current = gcal.events
@@ -268,10 +301,10 @@ export default async function AdminDashboard() {
                   className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5"
                   style={{ borderInlineStartColor: e.color, borderInlineStartWidth: 3 }}
                 >
-                  <span className="font-mono text-[10px] text-slate-600">{shortDate(new Date(e.start))}</span>
-                  <span className="font-mono text-[11px] text-slate-500">{formatTime(new Date(e.start))}</span>
+                  <span className="font-mono text-[10px] text-slate-600">{shortDate(e.start)}</span>
+                  <span className="font-mono text-[11px] text-slate-500">{formatTime(e.start)}</span>
                   <span className="flex-1 truncate text-xs text-slate-700">{e.title}</span>
-                  <span className="max-w-[80px] truncate text-[10px] text-slate-500">{e.ownerName}</span>
+                  <span className="max-w-[80px] truncate text-[10px] text-slate-500">{e.owner}</span>
                 </div>
               ))}
             </div>

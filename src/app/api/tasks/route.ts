@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireUser, readJson, ApiError } from "@/lib/api";
 import { allowedProjectIds } from "@/lib/projectScope";
 import { createTaskEvent } from "@/lib/gcal";
+import { getTaskAgentConfig } from "@/lib/taskAgent";
+import { sendWhatsappToChat } from "@/lib/whatsapp";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +86,9 @@ const CreateTask = z.object({
   // למי לשלוח את התזכורת: הסוכן/משרד ו/או הליד עצמו.
   reminderTargets: z.array(z.enum(["agent", "lead"])).optional(),
   priority: z.enum(["low", "normal", "urgent"]).optional(),
+  // 👥 זימון צוות: עותק לכל משתתף/ת + הודעה ותזכורת בקבוצת המשרד.
+  participantIds: z.array(z.string()).max(50).optional(),
+  allOffice: z.boolean().optional(),
 });
 
 // POST /api/tasks — create task/meeting with optional reminder.
@@ -116,6 +122,66 @@ export const POST = handle(async (req) => {
 
   const dueAt = new Date(body.dueAt);
   if (isNaN(dueAt.getTime())) throw new ApiError(400, "מועד לא תקין");
+
+  // --- 👥 זימון צוות (משרד בלבד): עותק לכל משתתף/ת עם teamKey משותף — כל
+  // אחד רואה את זה בבורד וביומן שלו; הודעה מיידית + תזכורת בקבוצת המשרד.
+  if (user.role === "ADMIN" && (body.allOffice || (body.participantIds?.length ?? 0) > 1)) {
+    const participants = body.allOffice
+      ? await prisma.user.findMany({
+          where: { role: "ADMIN", active: true },
+          select: { id: true, name: true },
+        })
+      : await prisma.user.findMany({
+          where: { id: { in: body.participantIds! }, role: "ADMIN", active: true },
+          select: { id: true, name: true },
+        });
+    if (participants.length === 0) throw new ApiError(400, "לא נבחרו משתתפים מהמשרד");
+
+    const teamKey = crypto.randomUUID();
+    const mb = body.reminderMinutesBefore ?? body.reminder?.minutesBefore ?? 60;
+    const remindAt = new Date(dueAt.getTime() - mb * 60_000);
+    const created: { id: string }[] = [];
+    for (const [i, p] of participants.entries()) {
+      const t = await prisma.task.create({
+        data: {
+          clientId,
+          title: body.title,
+          description: body.description || null,
+          type: body.type,
+          ownerSide: "agency",
+          priority: body.priority ?? "normal",
+          orderIndex: 0,
+          assigneeId: p.id,
+          dueAt,
+          durationMin: body.durationMin ?? (body.type === "meeting" ? 60 : null),
+          location: body.location || null,
+          createdById: user.id,
+          teamKey,
+          // תזכורת קבוצתית אחת בלבד — על העותק הראשון (הקרון שולח לקבוצה).
+          ...(i === 0
+            ? { reminders: { create: [{ channel: "whatsapp", target: "office_group", remindAt }] } }
+            : {}),
+        },
+      });
+      created.push(t);
+      await createTaskEvent({ ...t, createdById: user.id });
+    }
+
+    // הודעה מיידית לקבוצת המשרד (אם הוגדרה בהגדרות סוכן המשימות).
+    const cfg = await getTaskAgentConfig();
+    if (cfg.officeGroupChatId) {
+      const label = body.type === "meeting" ? "פגישת צוות" : "משימת צוות";
+      await sendWhatsappToChat(
+        cfg.officeGroupChatId,
+        `📅 ${label}: ${body.title}\n` +
+          `מועד: ${formatDateTime(dueAt)}` +
+          (body.location ? `\nמיקום: ${body.location}` : "") +
+          `\nמשתתפים: ${body.allOffice ? "כל המשרד 🙌" : participants.map((p) => p.name).join(", ")}` +
+          `\nזומן ע"י ${user.name}`
+      ).catch(() => {});
+    }
+    return NextResponse.json({ task: created[0], teamCount: created.length }, { status: 201 });
+  }
 
   // תזכורות: ריבוי ערוצים (reminderChannels) × יעדים (סוכן/ליד); אחרת תאימות לאחור.
   const reminderRows: { channel: string; target: string; remindAt: Date }[] = [];

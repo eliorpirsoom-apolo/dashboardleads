@@ -348,9 +348,17 @@ export function TaskFormModal({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // 👥 זימון צוות (יצירה בלבד)
+  const [teamMode, setTeamMode] = useState(false);
+  const [allOffice, setAllOffice] = useState(true);
+  const [participants, setParticipants] = useState<string[]>([]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (teamMode && !allOffice && participants.length < 2) {
+      setError("זימון צוות דורש לפחות שני משתתפים (או סמנו 'כל המשרד')");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -372,6 +380,10 @@ export function TaskFormModal({
               }
             : null,
       };
+      if (teamMode && !task) {
+        if (allOffice) payload.allOffice = true;
+        else payload.participantIds = participants;
+      }
       if (task) {
         await api(`/api/tasks/${task.id}`, { method: "PATCH", json: payload });
       } else {
@@ -461,7 +473,7 @@ export function TaskFormModal({
           </div>
         ) : null}
 
-        {users.length > 0 ? (
+        {users.length > 0 && !teamMode ? (
           <Field label="משויך ל…">
             <Select value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}>
               <option value="">—</option>
@@ -470,6 +482,51 @@ export function TaskFormModal({
               ))}
             </Select>
           </Field>
+        ) : null}
+
+        {/* 👥 זימון צוות — עותק לכל משתתף/ת בבורד וביומן + הודעה בקבוצת המשרד */}
+        {isAdmin && !task && users.length > 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={teamMode}
+                onChange={(e) => setTeamMode(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-400"
+              />
+              👥 זימון צוות — יופיע בבורד וביומן של כל משתתף/ת, עם הודעה ותזכורת בקבוצת הוואטסאפ של המשרד
+            </label>
+            {teamMode ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <label className="flex items-center gap-1.5 rounded-lg border border-[#3a5bd9]/40 bg-[#3a5bd9]/10 px-2 py-1 text-xs font-bold text-[#3a5bd9]">
+                  <input
+                    type="checkbox"
+                    checked={allOffice}
+                    onChange={(e) => setAllOffice(e.target.checked)}
+                    className="h-3.5 w-3.5"
+                  />
+                  כל המשרד
+                </label>
+                {!allOffice
+                  ? users.map((u) => (
+                      <label key={u.id} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={participants.includes(u.id)}
+                          onChange={(e) =>
+                            setParticipants((p) =>
+                              e.target.checked ? [...p, u.id] : p.filter((x) => x !== u.id)
+                            )
+                          }
+                          className="h-3.5 w-3.5"
+                        />
+                        {u.name}
+                      </label>
+                    ))
+                  : null}
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="grid grid-cols-2 gap-3">

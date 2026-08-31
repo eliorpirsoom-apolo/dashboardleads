@@ -14,6 +14,8 @@ interface AgentConfig {
   instructions: string | null;
   model: string | null;
   replyConfirm: boolean;
+  officeGroupChatId: string | null;
+  officeGroupName: string | null;
 }
 
 // מתג הפעלה/כיבוי פשוט.
@@ -31,6 +33,62 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
       </span>
       {label}
     </button>
+  );
+}
+
+// 👥 קבוצת הוואטסאפ של המשרד — לשם נשלחות הודעות ותזכורות של זימוני צוות.
+function OfficeGroupPicker({
+  cfg,
+  setCfg,
+}: {
+  cfg: AgentConfig;
+  setCfg: (c: AgentConfig) => void;
+}) {
+  const [groups, setGroups] = useState<{ id: string; name: string }[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  async function loadGroups() {
+    setLoading(true);
+    try {
+      const d = await api<{ groups: { id: string; name: string }[] }>("/api/admin-ops/broadcast");
+      setGroups(d.groups);
+    } catch {
+      setGroups([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Field
+      label="קבוצת המשרד לזימוני צוות 👥"
+      hint="לקבוצה הזו נשלחות ההודעות והתזכורות כשמזמנים פגישה/משימה לכל הצוות."
+    >
+      {groups === null ? (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-600">
+            {cfg.officeGroupName ? `נבחרה: ${cfg.officeGroupName}` : "לא נבחרה קבוצה"}
+          </span>
+          <Button type="button" size="sm" variant="ghost" disabled={loading} onClick={loadGroups}>
+            {loading ? "טוען קבוצות…" : "בחירת קבוצה"}
+          </Button>
+        </div>
+      ) : (
+        <select
+          value={cfg.officeGroupChatId ?? ""}
+          onChange={(e) => {
+            const g = groups.find((x) => x.id === e.target.value);
+            setCfg({ ...cfg, officeGroupChatId: g?.id ?? null, officeGroupName: g?.name ?? null });
+          }}
+          className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+        >
+          <option value="">— ללא —</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </Field>
   );
 }
 
@@ -76,6 +134,8 @@ export default function TaskAgentCard() {
           instructions: cfg.instructions,
           model: cfg.model,
           replyConfirm: cfg.replyConfirm,
+          officeGroupChatId: cfg.officeGroupChatId,
+          officeGroupName: cfg.officeGroupName,
         },
       });
       setSaved(true);
@@ -170,6 +230,8 @@ export default function TaskAgentCard() {
             placeholder="לדוגמה: התייחס גם לתזכורות אישיות. אם מוזכר לקוח — כלול את שמו בכותרת."
           />
         </Field>
+
+        <OfficeGroupPicker cfg={cfg} setCfg={setCfg} />
 
         <div className="flex items-center justify-end gap-3">
           {saved ? <span className="text-xs text-emerald-600">נשמר ✓</span> : null}

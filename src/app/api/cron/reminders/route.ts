@@ -71,6 +71,37 @@ export async function GET(req: Request) {
     const { task } = reminder;
     const channel = reminder.channel as Channel;
 
+    // 👥 תזכורת זימון-צוות — הודעה אחת לקבוצת הוואטסאפ של המשרד.
+    if (reminder.target === "office_group") {
+      const { getTaskAgentConfig } = await import("@/lib/taskAgent");
+      const { sendWhatsappToChat } = await import("@/lib/whatsapp");
+      const cfg = await getTaskAgentConfig();
+      let groupOk = false;
+      if (cfg.officeGroupChatId) {
+        const r = await sendWhatsappToChat(
+          cfg.officeGroupChatId,
+          `⏰ תזכורת לכל הצוות: ${task.type === "meeting" ? "פגישה" : "משימה"} — ${task.title}\n` +
+            `מועד: ${formatDateTime(task.dueAt)}` +
+            (task.location ? `\nמיקום: ${task.location}` : "")
+        );
+        groupOk = r.ok;
+      }
+      await prisma.reminder.update({
+        where: { id: reminder.id },
+        data: {
+          status: groupOk ? "sent" : "failed",
+          sentAt: new Date(),
+          error: cfg.officeGroupChatId
+            ? groupOk
+              ? null
+              : "שליחה לקבוצת המשרד נכשלה"
+            : "לא הוגדרה קבוצת משרד (הגדרות ⟵ סוכן המשימות)",
+        },
+      });
+      groupOk ? sent++ : failed++;
+      continue;
+    }
+
     const toLead = reminder.target === "lead";
     const typeLabel =
       task.type === "meeting" ? "פגישה" : task.type === "contract" ? "חתימת חוזה" : "משימה";
