@@ -68,6 +68,11 @@ export default function EngagementsPanel() {
     await api(`/api/engagement-tasks/${id}`, { method: "DELETE" });
     load();
   }
+  async function deleteAllTasks(engagementId: string, clientName: string, count: number) {
+    if (!confirm(`למחוק את כל ${count} משימות האונבורדינג של "${clientName}"? הליווי עצמו נשאר.`)) return;
+    await api(`/api/engagements/${engagementId}/tasks`, { method: "DELETE" });
+    load();
+  }
   async function deleteEngagement(id: string, name: string) {
     if (
       !confirm(
@@ -161,25 +166,31 @@ export default function EngagementsPanel() {
                     </button>
                   </td>
                   <td className="px-3 py-3">
-                    <div className="mb-1 text-[10px] text-slate-500">
-                      {doneCount}/{e.tasks.length} הושלמו
+                    <div className="mb-1 flex items-center gap-2 text-[10px] text-slate-500">
+                      <span>
+                        {doneCount}/{e.tasks.length} הושלמו
+                      </span>
+                      {e.tasks.length > 0 ? (
+                        <button
+                          onClick={() => deleteAllTasks(e.id, e.client.name, e.tasks.length)}
+                          className="text-slate-400 hover:text-rose-500"
+                          title="מחיקת כל משימות האונבורדינג של הלקוח בבת אחת"
+                        >
+                          🗑 מחיקת הכל
+                        </button>
+                      ) : null}
                     </div>
                     <div className="flex flex-col gap-1">
-                      {e.tasks.map((t) => (
+                      {e.tasks.filter((t) => !t.done).map((t) => (
                         <div key={t.id} className="flex items-center gap-2">
                           <button
-                            onClick={() => patchTask(t.id, { done: !t.done })}
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
-                              t.done
-                                ? "border-emerald-500 bg-emerald-500/20 text-emerald-700"
-                                : "border-slate-600 text-transparent"
-                            }`}
+                            onClick={() => patchTask(t.id, { done: true })}
+                            title="סיום המשימה — תעבור ל'בוצעו'"
+                            className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-slate-600 text-[10px] text-transparent hover:border-emerald-500 hover:text-emerald-500"
                           >
                             ✓
                           </button>
-                          <span className={`text-xs ${t.done ? "text-slate-500 line-through" : "text-slate-700"}`}>
-                            {t.title}
-                          </span>
+                          <span className="text-xs text-slate-700">{t.title}</span>
                           <select
                             value={t.assignee?.id ?? ""}
                             onChange={(ev) => patchTask(t.id, { assigneeId: ev.target.value || null })}
@@ -201,6 +212,37 @@ export default function EngagementsPanel() {
                           </button>
                         </div>
                       ))}
+                      {doneCount > 0 ? (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-[11px] font-medium text-emerald-600 hover:underline">
+                            ✓ משימות שבוצעו ({doneCount})
+                          </summary>
+                          <div className="mt-1 flex flex-col gap-1">
+                            {e.tasks.filter((t) => t.done).map((t) => (
+                              <div key={t.id} className="flex items-center gap-2">
+                                <button
+                                  onClick={() => patchTask(t.id, { done: false })}
+                                  title="החזרה למשימות פתוחות"
+                                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-emerald-500 bg-emerald-500/20 text-[10px] text-emerald-700"
+                                >
+                                  ✓
+                                </button>
+                                <span className="text-xs text-slate-500 line-through">{t.title}</span>
+                                {t.assignee ? (
+                                  <span className="mr-auto text-[10px] text-slate-400">{t.assignee.name}</span>
+                                ) : null}
+                                <button
+                                  onClick={() => deleteTask(t.id)}
+                                  title="מחק משימה"
+                                  className="mr-auto shrink-0 text-slate-600 hover:text-rose-400"
+                                >
+                                  <Icon name="trash" className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      ) : null}
                     </div>
                     <div className="mt-1.5 flex gap-1">
                       <Input

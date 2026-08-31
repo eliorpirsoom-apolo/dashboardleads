@@ -29,3 +29,16 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   });
   return NextResponse.json({ task }, { status: 201 });
 });
+
+// DELETE /api/engagements/[id]/tasks — מחיקת כל משימות האונבורדינג של הליווי
+// בבת אחת (הליווי עצמו נשאר). ?done=true מוחק רק את שבוצעו.
+export const DELETE = handle(async (req, { params }: { params: { id: string } }) => {
+  await requireAdmin();
+  const engagement = await prisma.engagement.findUnique({ where: { id: params.id } });
+  if (!engagement) throw new ApiError(404, "ליווי לא נמצא");
+  const onlyDone = new URL(req.url).searchParams.get("done") === "true";
+  const res = await prisma.engagementTask.deleteMany({
+    where: { engagementId: params.id, ...(onlyDone ? { done: true } : {}) },
+  });
+  return NextResponse.json({ deleted: res.count });
+});
