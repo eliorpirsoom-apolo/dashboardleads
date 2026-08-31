@@ -100,6 +100,7 @@ model SeoAction {
   assignee   User?     @relation("SeoActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   assigneeId String?
   notes      String?
+  images     String? // JSON [{key,name}] — צילומי מסך/תמונות של הביצוע (R2)
   orderIndex Int       @default(0)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

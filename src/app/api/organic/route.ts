@@ -54,6 +54,7 @@ export const GET = handle(async (req) => {
           status: a.status,
           doneAt: a.doneAt,
           notes: a.notes,
+          images: a.images,
           orderIndex: a.orderIndex,
           assignee: a.assignee,
           cost: manager ? a.cost : null,

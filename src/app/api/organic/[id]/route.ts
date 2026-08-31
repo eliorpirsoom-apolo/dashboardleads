@@ -23,6 +23,8 @@ const UpdateAction = z.object({
   assigneeId: z.string().nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
   month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  // צילומי מסך/תמונות של הביצוע — מפתחות אחסון שהועלו דרך /api/uploads.
+  images: z.array(z.object({ key: z.string().max(400), name: z.string().max(200) })).max(10).optional(),
 });
 
 // PATCH /api/organic/[id] — עדכון פעולה. עלות — מנהלים בלבד.
@@ -30,7 +32,9 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   const user = await guard();
   const b = UpdateAction.parse(await readJson(req));
   if (b.cost !== undefined && user.adminRole === "staff") throw new ApiError(403, "עלויות — הנהלה בלבד");
-  const data: Record<string, unknown> = { ...b };
+  const { images, ...rest } = b;
+  const data: Record<string, unknown> = { ...rest };
+  if (images !== undefined) data.images = images.length ? JSON.stringify(images) : null;
   if (b.title !== undefined) data.title = b.title.trim();
   if (b.status !== undefined) {
     data.doneAt = b.status === "done" ? new Date() : null;
