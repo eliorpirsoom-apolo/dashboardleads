@@ -45,23 +45,11 @@ export default async function AdminDashboard() {
       }),
     ]);
 
-  // ארבעת הפאנלים: לוז פגישות קרובות (מהמערכת בלבד), יומני Google (עכשיו +
-  // פגישות היום), והצעות מחיר פתוחות. כשל ביומני Google לא מפיל את הסקירה.
-  const [upcomingMeetings, gcal, openQuotes] = await Promise.all([
-    prisma.task.findMany({
-      where: {
-        type: "meeting",
-        status: { in: ["open", "in_progress"] },
-        dueAt: { gte: dayStart },
-      },
-      orderBy: { dueAt: "asc" },
-      take: 20,
-      include: {
-        client: { select: { name: true, color: true } },
-        assignee: { select: { name: true } },
-      },
-    }),
-    teamGoogleEvents(dayStart.toISOString(), dayEnd.toISOString()).catch(
+  // הפאנלים: יומני Google של צוות המשרד (שבועיים קדימה — מזין גם את "לוז
+  // פגישות" וגם את פאנלי היום) והצעות מחיר פתוחות. כשל ביומנים לא מפיל את הסקירה.
+  const twoWeeksAhead = new Date(dayStart.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const [gcal, openQuotes] = await Promise.all([
+    teamGoogleEvents(dayStart.toISOString(), twoWeeksAhead.toISOString()).catch(
       () => ({ events: [] as GoogleEvent[], connections: [] as { userId: string; name: string; email: string; color: string; error: string | null }[] })
     ),
     prisma.quote.findMany({
@@ -82,9 +70,10 @@ export default async function AdminDashboard() {
     ]);
 
   // פגישות היום: אירועי Google עם שעה (לא יום-שלם) + פגישות מהמערכת.
+  // (המשיכה מגוגל היא לשבועיים — כאן מסננים להיום בלבד.)
   const todayMeetings = [
     ...gcal.events
-      .filter((e) => !e.allDay)
+      .filter((e) => !e.allDay && new Date(e.start).getTime() < dayEnd.getTime())
       .map((e) => ({
         key: e.id,
         at: new Date(e.start),
@@ -107,6 +96,19 @@ export default async function AdminDashboard() {
 
   // עכשיו בצוות: לכל יומן מחובר — האירוע שרץ ברגע זה.
   const nowMs = now.getTime();
+
+  // 📆 לוז פגישות: מהיומנים של צוות המשרד בלבד (לא לקוחות) — אירועים עם שעה
+  // שהכותרת שלהם נשמעת כמו פגישה. מילות המפתח ניתנות להרחבה בקלות.
+  const MEETING_WORDS = /פגיש|סיכום|meeting/i;
+  const scheduleBoard = gcal.events
+    .filter(
+      (e) =>
+        !e.allDay &&
+        MEETING_WORDS.test(e.title || "") &&
+        new Date(e.end).getTime() > nowMs
+    )
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+    .slice(0, 20);
   const teamNow = gcal.connections.map((c) => {
     const current = gcal.events
       .filter((e) => e.ownerId === c.userId && !e.allDay)
@@ -244,7 +246,7 @@ export default async function AdminDashboard() {
           )}
         </Card>
 
-        {/* 📆 לוז פגישות — פגישות קרובות מהמערכת בלבד (לא כל היומן) */}
+        {/* 📆 לוז פגישות — מיומני צוות המשרד בלבד, לפי מילות מפתח בכותרת */}
         <Card className="glass-hover flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900">📆 לוז פגישות</h2>
@@ -252,27 +254,24 @@ export default async function AdminDashboard() {
               ללוח ←
             </Link>
           </div>
-          {upcomingMeetings.length === 0 ? (
-            <p className="flex flex-1 items-center justify-center text-xs text-slate-600">
-              אין פגישות מתוכננות
+          {scheduleBoard.length === 0 ? (
+            <p className="flex flex-1 items-center justify-center px-4 text-center text-xs text-slate-600">
+              {gcal.connections.length === 0
+                ? "אין יומנים מחוברים — חברו יומן Google מהחשבון שלי"
+                : "אין פגישות קרובות ביומני הצוות"}
             </p>
           ) : (
             <div className="thin-scroll flex flex-1 flex-col gap-1.5 overflow-y-auto pl-1">
-              {upcomingMeetings.map((m) => (
+              {scheduleBoard.map((e) => (
                 <div
-                  key={m.id}
+                  key={e.id}
                   className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5"
-                  style={{
-                    borderInlineStartColor: m.client?.color ?? "#a78bfa",
-                    borderInlineStartWidth: 3,
-                  }}
+                  style={{ borderInlineStartColor: e.color, borderInlineStartWidth: 3 }}
                 >
-                  <span className="font-mono text-[10px] text-slate-600">{shortDate(m.dueAt)}</span>
-                  <span className="font-mono text-[11px] text-slate-500">{formatTime(m.dueAt)}</span>
-                  <span className="flex-1 truncate text-xs text-slate-700">{m.title}</span>
-                  <span className="max-w-[80px] truncate text-[10px] text-slate-500">
-                    {m.assignee?.name ?? m.client?.name ?? "פנימי"}
-                  </span>
+                  <span className="font-mono text-[10px] text-slate-600">{shortDate(new Date(e.start))}</span>
+                  <span className="font-mono text-[11px] text-slate-500">{formatTime(new Date(e.start))}</span>
+                  <span className="flex-1 truncate text-xs text-slate-700">{e.title}</span>
+                  <span className="max-w-[80px] truncate text-[10px] text-slate-500">{e.ownerName}</span>
                 </div>
               ))}
             </div>
