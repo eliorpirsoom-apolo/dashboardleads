@@ -793,6 +793,9 @@ model Quote {
   recipient String // למי נשלחה — שם העסק / איש הקשר
   title     String // נושא ההצעה
   amount    Float?
+  // המחיר בפועל כשנחתם (שונה לרוב מההצעה) — מפוצל ריטיינר חודשי / חד-פעמי.
+  approvedRetainer Float?
+  approvedOneoff   Float?
   status    String   @default("sent") // "sent" | "followup" | "won" | "lost"
   sentAt    DateTime @default(now())
   notes     String?

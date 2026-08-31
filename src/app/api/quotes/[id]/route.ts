@@ -9,6 +9,9 @@ const UpdateQuote = z.object({
   recipient: z.string().min(1).max(160).optional(),
   title: z.string().min(1).max(200).optional(),
   amount: z.number().min(0).nullable().optional(),
+  // המחיר בפועל (נחתם) — ריטיינר חודשי / חד-פעמי; ניתן לעדכון בכל שלב.
+  approvedRetainer: z.number().min(0).nullable().optional(),
+  approvedOneoff: z.number().min(0).nullable().optional(),
   clientId: z.string().nullable().optional(),
   status: z.enum(["sent", "followup", "won", "lost"]).optional(),
   notes: z.string().max(2000).nullable().optional(),

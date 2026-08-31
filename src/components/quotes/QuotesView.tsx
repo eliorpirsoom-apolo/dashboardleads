@@ -23,6 +23,8 @@ interface QuoteRow {
   recipient: string;
   title: string;
   amount: number | null;
+  approvedRetainer: number | null;
+  approvedOneoff: number | null;
   status: string;
   sentAt: string;
   updatedAt: string;
@@ -163,8 +165,38 @@ export default function QuotesView() {
                     </td>
                     <td className="px-4 py-2.5 text-slate-600">{q.title}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{q.client?.name ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-slate-600">
-                      {q.amount ? formatCurrency(q.amount) : "—"}
+                    <td className="px-4 py-2.5 text-slate-600" onClick={(e) => e.stopPropagation()}>
+                      {open ? (
+                        // מחיר ניתן לעריכה כל עוד ההצעה פתוחה (המחיר משתנה במו"מ).
+                        <input
+                          type="number"
+                          dir="ltr"
+                          defaultValue={q.amount ?? ""}
+                          onBlur={async (e) => {
+                            const v = e.target.value === "" ? null : Number(e.target.value);
+                            if (v === q.amount) return;
+                            try {
+                              await api(`/api/quotes/${q.id}`, { method: "PATCH", json: { amount: v } });
+                              load();
+                            } catch (err: any) {
+                              alert(err.message);
+                            }
+                          }}
+                          className="w-24 rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
+                          title="המחיר בהצעה — לחיצה לעריכה"
+                        />
+                      ) : (
+                        <span>
+                          {q.amount ? formatCurrency(q.amount) : "—"}
+                          {q.approvedRetainer || q.approvedOneoff ? (
+                            <span className="mt-0.5 block text-[10px] text-emerald-600">
+                              בפועל: {q.approvedRetainer ? `ריטיינר ${formatCurrency(q.approvedRetainer)}` : ""}
+                              {q.approvedRetainer && q.approvedOneoff ? " + " : ""}
+                              {q.approvedOneoff ? `חד״פ ${formatCurrency(q.approvedOneoff)}` : ""}
+                            </span>
+                          ) : null}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{fmtDate(q.sentAt)}</td>
                     <td className="px-4 py-2.5">
@@ -270,6 +302,13 @@ function ApproveQuoteModal({
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  // המחיר בפועל כשנחתם — מפוצל ריטיינר/חד-פעמי (נרשם גם בלוח התשלומים).
+  const [actualRetainer, setActualRetainer] = useState(
+    quote.approvedRetainer != null ? String(quote.approvedRetainer) : ""
+  );
+  const [actualOneoff, setActualOneoff] = useState(
+    quote.approvedOneoff != null ? String(quote.approvedOneoff) : ""
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -288,16 +327,21 @@ function ApproveQuoteModal({
     }
     setBusy(true);
     try {
+      const prices = {
+        approvedRetainer: actualRetainer === "" ? null : Number(actualRetainer),
+        approvedOneoff: actualOneoff === "" ? null : Number(actualOneoff),
+      };
       await api(`/api/quotes/${quote.id}/approve`, {
         method: "POST",
         json:
           mode === "existing"
-            ? { clientId }
+            ? { clientId, ...prices }
             : {
                 company,
                 contactName: contactName || null,
                 phone: phone || null,
                 email: email || null,
+                ...prices,
               },
       });
       onApproved();
@@ -371,6 +415,38 @@ function ApproveQuoteModal({
             </div>
           </>
         )}
+
+        {/* 💰 המחיר בפועל — מה שנחתם (לרוב שונה מההצעה). נרשם גם בלוח התשלומים. */}
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <p className="mb-2 text-xs font-bold text-emerald-700">
+            💰 המחיר בפועל שנחתם{quote.amount ? ` (בהצעה: ${formatCurrency(quote.amount)})` : ""}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="ריטיינר חודשי (₪)">
+              <Input
+                type="number"
+                dir="ltr"
+                min={0}
+                value={actualRetainer}
+                onChange={(e) => setActualRetainer(e.target.value)}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="חד-פעמי (₪)">
+              <Input
+                type="number"
+                dir="ltr"
+                min={0}
+                value={actualOneoff}
+                onChange={(e) => setActualOneoff(e.target.value)}
+                placeholder="0"
+              />
+            </Field>
+          </div>
+          <p className="mt-1.5 text-[11px] text-emerald-600">
+            הסכומים יירשמו אוטומטית בלוח התשלומים של הלקוח לחודש הנוכחי.
+          </p>
+        </div>
 
         <div className="mt-1 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>

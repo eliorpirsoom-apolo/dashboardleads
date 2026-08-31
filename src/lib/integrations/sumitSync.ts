@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { createDefaultStatuses } from "@/lib/defaults";
 import {
   sumitConfigured,
   sumitListDocuments,
@@ -11,8 +10,8 @@ import {
 
 // ---------------------------------------------------------------------------
 // סנכרון SUMIT → CRM — הצעות מחיר בלבד. כל הצעה חדשה (14 יום אחרונים) מיובאת
-// למודול ההצעות ומשויכת ללקוח: התאמה לפי מזהה-SUMIT → שם → מייל; ואם אין לקוח
-// מתאים — נפתח לקוח חדש עם הפרטים מ-SUMIT (שם/טלפון/מייל).
+// למודול ההצעות ומשויכת ללקוח קיים (מזהה-SUMIT → שם → מייל). לקוח חדש
+// לא נפתח מהסנכרון — רק כשההצעה עוברת ל"אושרה" (החלטת הבעלים 2026-08-31).
 // סנכרון מסמכים פיננסיים (חשבוניות/קבלות) — כבוי לבקשת המשרד.
 // ---------------------------------------------------------------------------
 
@@ -296,35 +295,17 @@ async function resolveOrCreateClient(
     }
   }
 
-  // 4. פתיחת לקוח חדש
+  // 4. התאמה ללקוח קיים לפי שם — אבל בלי לפתוח לקוח חדש: החלטת הבעלים
+  // (2026-08-31) — לקוח נפתח במערכת (ומופיע בלוח התשלומים) רק כשההצעה
+  // עוברת ל"אושרה" (מסלול quotes/[id]/approve). עד אז ההצעה נשארת ללא לקוח.
   const name = (d.CustomerName || cust?.name || "").trim();
   if (!name) return { clientId: null, created: false };
-  // שם ייחודי — אם כבר קיים לקוח בשם הזה, נשייך אליו
   const existing = await prisma.client.findFirst({ where: { name }, select: { id: true } });
   if (existing) {
     await linkSumitId(existing.id, d.CustomerID, maps);
     return { clientId: existing.id, created: false };
   }
-  const c = await prisma.client
-    .create({
-      data: {
-        name,
-        company: name,
-        contactPhone: cust?.phone || null,
-        contactEmail: cust?.email || null,
-        sumitCustomerId: d.CustomerID,
-        notes: "נוצר אוטומטית מהצעת מחיר ב-SUMIT",
-      },
-      select: { id: true },
-    })
-    .catch(() => null);
-  if (!c) return { clientId: null, created: false };
-  // בלי סטטוסי ברירת מחדל, לידים עתידיים של הלקוח יקבלו סטטוס שרירותי.
-  await createDefaultStatuses(prisma, c.id).catch(() => {});
-  maps.bySumitId.set(d.CustomerID, c.id);
-  maps.byName.set(normName(name), c.id);
-  if (cust?.email) maps.byEmail.set(cust.email, c.id);
-  return { clientId: c.id, created: true };
+  return { clientId: null, created: false };
 }
 
 async function linkSumitId(

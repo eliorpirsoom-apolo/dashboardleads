@@ -24,6 +24,9 @@ const Approve = z.object({
   contactName: z.string().max(120).optional().nullable(),
   phone: z.string().max(30).optional().nullable(),
   email: z.string().email("אימייל לא תקין").optional().nullable(),
+  // המחיר בפועל כשנחתם — מפוצל ריטיינר חודשי / חד-פעמי. נרשם גם בלוח התשלומים.
+  approvedRetainer: z.number().min(0).nullable().optional(),
+  approvedOneoff: z.number().min(0).nullable().optional(),
 });
 
 // POST /api/quotes/[id]/approve — הלקוח אישר: פותח לקוח+משתמש (אם חדש),
@@ -78,7 +81,7 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
       }
     }
 
-    // 3. עדכון ההצעה + פרטי הקשר שהוזנו.
+    // 3. עדכון ההצעה + פרטי הקשר והמחיר בפועל שהוזנו.
     await tx.quote.update({
       where: { id: quote.id },
       data: {
@@ -87,6 +90,8 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
         company: body.company ?? quote.company,
         phone: body.phone ?? quote.phone,
         email: body.email ?? quote.email,
+        approvedRetainer: body.approvedRetainer ?? quote.approvedRetainer,
+        approvedOneoff: body.approvedOneoff ?? quote.approvedOneoff,
       },
     });
 
@@ -105,6 +110,37 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   });
 
   await audit(actor, "quote_approved", "quote", quote.id, quote.recipient);
+
+  // המחיר בפועל → לוח התשלומים של חודש האישור (דריסה ידנית שגוברת על SUMIT).
+  const now = new Date();
+  const cells: ["retainer" | "oneoff", number | null | undefined][] = [
+    ["retainer", body.approvedRetainer],
+    ["oneoff", body.approvedOneoff],
+  ];
+  for (const [kind, val] of cells) {
+    if (val && val > 0) {
+      await prisma.clientPayment
+        .upsert({
+          where: {
+            clientId_year_month_kind: {
+              clientId: result.clientId,
+              year: now.getFullYear(),
+              month: now.getMonth() + 1,
+              kind,
+            },
+          },
+          update: { amount: val },
+          create: {
+            clientId: result.clientId,
+            year: now.getFullYear(),
+            month: now.getMonth() + 1,
+            kind,
+            amount: val,
+          },
+        })
+        .catch(() => {});
+    }
+  }
 
   // מייל "ברוכים הבאים" ללקוח החדש (מחוץ לטרנזקציה — לא חוסם את הפתיחה).
   let welcome = null;
