@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
-import { sendWhatsappRaw, whatsappConfigured, clientWaCreds } from "@/lib/whatsapp";
+import { sendWhatsappRaw, clientWaCreds } from "@/lib/whatsapp";
 import { markLeadHandled } from "@/lib/leadActivity";
 import { getTaskAgentConfig } from "@/lib/taskAgent";
 
@@ -39,11 +39,13 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       mediaUrl: true, mediaName: true, createdAt: true,
     },
   });
+  // הודעות ללידים יוצאות אך ורק מהמופע של הלקוח (החלטת הבעלים 2026-08-31) —
+  // בלי מופע מחובר הצ'אט מוצג כ"לא מוגדר".
   const hasClientInstance = Boolean(await clientWaCreds(lead.clientId));
   return NextResponse.json({
     enabled: true,
     messages,
-    configured: hasClientInstance || whatsappConfigured(),
+    configured: hasClientInstance,
     phone: lead.phone,
   });
 });
@@ -58,9 +60,14 @@ export const POST = handle(async (req, { params }: { params: { id: string } }) =
   if (!lead.phone) throw new ApiError(400, "לליד אין מספר טלפון");
   const b = SendBody.parse(await readJson(req));
 
-  // מספר ייעודי של הלקוח אם חובר; אחרת המספר של הסוכנות.
+  // אך ורק המספר הייעודי של הלקוח — בלי נפילה חזרה למספר של הסוכנות.
   const creds = await clientWaCreds(lead.clientId);
-  if (!creds && !whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
+  if (!creds) {
+    throw new ApiError(
+      400,
+      "ללקוח אין מופע וואטסאפ מחובר — הודעות ללידים יוצאות רק מהמספר של הלקוח (הגדרות לקוח ⟵ אינטגרציות ⟵ וואטסאפ ייעודי)"
+    );
+  }
 
   const r = await sendWhatsappRaw(lead.phone, b.body, creds);
   if (!r.ok) throw new ApiError(502, r.error || "השליחה נכשלה");

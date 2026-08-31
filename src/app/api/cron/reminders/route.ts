@@ -152,6 +152,8 @@ export async function GET(req: Request) {
         body,
         kind: "reminder",
         clientId: task.clientId,
+        // תזכורת וואטסאפ ללקוח הסופי — אך ורק מהמופע של הלקוח (בלי fallback).
+        viaClientWa: toLead && channel === "whatsapp",
       });
       if (res.status === "sent" || res.status === "skipped") ok = true;
     }

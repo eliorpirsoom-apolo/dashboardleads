@@ -1233,7 +1233,10 @@ function LeadWhatsappChat({ leadId, hasPhone, clientId }: { leadId: string; hasP
         וואטסאפ עם הליד
       </h3>
       {!configured ? (
-        <p className="text-xs text-slate-500">וואטסאפ (Green API) אינו מוגדר.</p>
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          הודעות ללידים יוצאות רק מהמספר של הלקוח — וללקוח הזה עוד לא חובר מופע וואטסאפ.
+          חיבור: הגדרות הלקוח ⟵ אינטגרציות ⟵ וואטסאפ ייעודי.
+        </p>
       ) : (
         <div className="rounded-xl border border-slate-200">
           {messages.length > 0 ? (
