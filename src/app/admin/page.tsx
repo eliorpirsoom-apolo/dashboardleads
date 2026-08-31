@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { PageHeader, Card, Chip } from "@/components/ui";
+import { PageHeader, Card } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { formatTime, formatCurrency } from "@/lib/format";
 import { ilDayStart, ilDayEnd } from "@/lib/time";
 import { ilGreeting } from "@/lib/greeting";
-import { wonDeals } from "@/lib/wins";
 import { teamGoogleEvents, type GoogleEvent } from "@/lib/gcal";
 import EngagementsPanel from "@/components/EngagementsPanel";
 
@@ -32,7 +31,7 @@ export default async function AdminDashboard() {
   const dayEnd = ilDayEnd(now);
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  const [activeClients, leadsWeek, leadsToday, openAgencyTasks, todayItems, recentLeads] =
+  const [activeClients, leadsWeek, leadsToday, openAgencyTasks, todayItems] =
     await Promise.all([
       prisma.client.count({ where: { active: true } }),
       prisma.lead.count({ where: { receivedAt: { gte: weekAgo }, archived: false } }),
@@ -44,22 +43,24 @@ export default async function AdminDashboard() {
         take: 8,
         include: { client: { select: { name: true, color: true } } },
       }),
-      prisma.lead.findMany({
-        where: { archived: false },
-        orderBy: { receivedAt: "desc" },
-        take: 8,
-        include: {
-          client: { select: { id: true, name: true, color: true } },
-          status: { select: { name: true, color: true } },
-        },
-      }),
     ]);
 
-  // ארבעת הפאנלים: עסקאות 30 יום, יומני Google (עכשיו + פגישות היום),
-  // והצעות מחיר פתוחות. כשל ביומני Google לא מפיל את הסקירה.
-  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const [deals, gcal, openQuotes] = await Promise.all([
-    wonDeals(monthAgo, now).catch(() => []),
+  // ארבעת הפאנלים: לוז פגישות קרובות (מהמערכת בלבד), יומני Google (עכשיו +
+  // פגישות היום), והצעות מחיר פתוחות. כשל ביומני Google לא מפיל את הסקירה.
+  const [upcomingMeetings, gcal, openQuotes] = await Promise.all([
+    prisma.task.findMany({
+      where: {
+        type: "meeting",
+        status: { in: ["open", "in_progress"] },
+        dueAt: { gte: dayStart },
+      },
+      orderBy: { dueAt: "asc" },
+      take: 20,
+      include: {
+        client: { select: { name: true, color: true } },
+        assignee: { select: { name: true } },
+      },
+    }),
     teamGoogleEvents(dayStart.toISOString(), dayEnd.toISOString()).catch(
       () => ({ events: [] as GoogleEvent[], connections: [] as { userId: string; name: string; email: string; color: string; error: string | null }[] })
     ),
@@ -185,7 +186,7 @@ export default async function AdminDashboard() {
         </div>
       </section>
 
-      {/* שורת הפאנלים: פגישות היום · עכשיו בצוות · עסקאות שנסגרו · הצעות מחיר */}
+      {/* שורת הפאנלים: פגישות היום · עכשיו בצוות · לוז פגישות · הצעות מחיר */}
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {/* 📅 פגישות היום — מהיומנים המחוברים + פגישות המערכת */}
         <Card className="glass-hover flex h-72 flex-col">
@@ -243,30 +244,35 @@ export default async function AdminDashboard() {
           )}
         </Card>
 
-        {/* 🔥 עסקאות שנסגרו — 30 הימים האחרונים */}
+        {/* 📆 לוז פגישות — פגישות קרובות מהמערכת בלבד (לא כל היומן) */}
         <Card className="glass-hover flex h-72 flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-900">🔥 עסקאות שנסגרו</h2>
-            <Chip color="#10b981">{deals.length}</Chip>
+            <h2 className="text-sm font-bold text-slate-900">📆 לוז פגישות</h2>
+            <Link href="/admin/calendar" className="text-xs font-medium text-[#3a5bd9] hover:underline">
+              ללוח ←
+            </Link>
           </div>
-          {deals.length === 0 ? (
+          {upcomingMeetings.length === 0 ? (
             <p className="flex flex-1 items-center justify-center text-xs text-slate-600">
-              אין עסקאות ב-30 הימים האחרונים
+              אין פגישות מתוכננות
             </p>
           ) : (
             <div className="thin-scroll flex flex-1 flex-col gap-1.5 overflow-y-auto pl-1">
-              {deals.map((d) => (
+              {upcomingMeetings.map((m) => (
                 <div
-                  key={d.leadId}
+                  key={m.id}
                   className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  style={{
+                    borderInlineStartColor: m.client?.color ?? "#a78bfa",
+                    borderInlineStartWidth: 3,
+                  }}
                 >
-                  <span className="flex-1 truncate text-xs text-slate-700">
-                    {d.fullName ?? `ליד #${d.number}`}
+                  <span className="font-mono text-[10px] text-slate-600">{shortDate(m.dueAt)}</span>
+                  <span className="font-mono text-[11px] text-slate-500">{formatTime(m.dueAt)}</span>
+                  <span className="flex-1 truncate text-xs text-slate-700">{m.title}</span>
+                  <span className="max-w-[80px] truncate text-[10px] text-slate-500">
+                    {m.assignee?.name ?? m.client?.name ?? "פנימי"}
                   </span>
-                  <span className="max-w-[90px] truncate text-[10px] text-slate-500">
-                    {d.projectName ?? d.clientName}
-                  </span>
-                  <span className="font-mono text-[10px] text-slate-600">{shortDate(d.at)}</span>
                 </div>
               ))}
             </div>
@@ -322,68 +328,8 @@ export default async function AdminDashboard() {
         </Card>
       </div>
 
-      {/* היום שלי + לידים אחרונים */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {/* Today */}
-        <Card className="glass-hover">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900">היום שלי</h2>
-            <Link href="/admin/calendar" className="text-xs font-medium text-[#3a5bd9] hover:underline">
-              ללוח השנה ←
-            </Link>
-          </div>
-          {todayItems.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-600">אין משימות להיום 🎉</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {todayItems.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                  <span className="font-mono text-xs text-slate-500">{formatTime(t.dueAt)}</span>
-                  <Icon
-                    name={t.type === "meeting" ? "calendar" : "tasks"}
-                    className={`h-4 w-4 ${t.type === "meeting" ? "text-violet-500" : "text-[#3a5bd9]"}`}
-                  />
-                  <span className="flex-1 truncate text-sm text-slate-700">{t.title}</span>
-                  {t.client ? (
-                    <Chip color={t.client.color ?? "#64748b"}>{t.client.name}</Chip>
-                  ) : (
-                    <Chip color="#818cf8">פנימי</Chip>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* Recent leads across clients */}
-        <Card className="glass-hover">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900">לידים אחרונים</h2>
-            <Link href="/admin/clients" className="text-xs font-medium text-[#3a5bd9] hover:underline">
-              לכל הלקוחות ←
-            </Link>
-          </div>
-          {recentLeads.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-600">אין לידים עדיין</p>
-          ) : (
-            <div className="thin-scroll flex max-h-80 flex-col gap-2 overflow-y-auto pl-1">
-              {recentLeads.map((l) => (
-                <Link
-                  key={l.id}
-                  href={`/admin/clients/${l.client.id}/leads`}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 transition hover:border-[#3a5bd9]/40"
-                >
-                  <span className="flex-1 truncate text-sm text-slate-700">
-                    {l.fullName ?? l.phone ?? "ליד"}
-                  </span>
-                  {l.status ? <Chip color={l.status.color}>{l.status.name}</Chip> : null}
-                  <Chip color={l.client.color ?? "#64748b"}>{l.client.name}</Chip>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
+      {/* "היום שלי" ו"לידים אחרונים" הוסרו — החלטת הבעלים 2026-08-31:
+          לוז הלקוחות והלידים שלהם לא שייכים לסקירת המשרד. */}
 
       {/* 🚀 נכנס לעבודה — רוחב מלא */}
       <div className="mt-4">
