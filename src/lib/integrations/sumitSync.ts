@@ -35,6 +35,11 @@ function normName(s: string): string {
   return (s || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+// כל הסכומים במערכת הם ללא מע"מ (החלטת הבעלים 2026-08-31) — SUMIT מחזיר
+// סכומי מסמכים ברוטו, ולכן מפשיטים 18% מע"מ (חלוקה ב-1.18) בכל ייבוא.
+const VAT_RATE = 1.18;
+const exVat = (n: number): number => n / VAT_RATE;
+
 // סנכרון אוטומטי כל ~15 דקות — רוכב על מנוע התזכורות (שרץ כל ~5 דקות).
 // מריצים ב-5 הדקות הראשונות של כל רבע שעה → הצעה חדשה מופיעה תוך ~15 דק'.
 export async function maybeAutoSyncSumit(force = false): Promise<SumitSyncResult | null> {
@@ -230,11 +235,11 @@ async function syncSumitInvoices(docs: SumitDoc[], maps: ClientMaps, result: Sum
       const { r, o } = classifyShares(items, kw);
       const tot = r + o;
       if (tot > 0) {
-        // מחילים את יחס הפריטים על סכום החשבונית (כדי לכלול מע"מ/עיגולים)
-        retainerAmt = (docValue * r) / tot;
-        oneoffAmt = (docValue * o) / tot;
+        // יחס הפריטים מוחל על סכום החשבונית, והתוצאה נשמרת נטו (ללא מע"מ).
+        retainerAmt = exVat((docValue * r) / tot);
+        oneoffAmt = exVat((docValue * o) / tot);
       } else {
-        retainerAmt = docValue; // ללא פריטים → הכל ריטיינר
+        retainerAmt = exVat(docValue); // ללא פריטים → הכל ריטיינר
       }
     }
 
@@ -325,7 +330,7 @@ async function createQuoteFromSumit(clientId: string | null, d: SumitDoc) {
         clientId,
         recipient: d.CustomerName || "מתעניין",
         title: d.DocumentNumber ? `${label} #${d.DocumentNumber}` : label,
-        amount: d.DocumentValue || null,
+        amount: d.DocumentValue ? Math.round(exVat(d.DocumentValue)) : null,
         status: "sent",
         sentAt: d.Date ? new Date(d.Date) : new Date(),
         notes: `יובא מ-SUMIT [sumit:${d.DocumentID}]`,
