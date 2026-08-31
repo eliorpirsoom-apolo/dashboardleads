@@ -11,7 +11,8 @@ export type ActivityKind =
   | "consent"
   | "merge"
   | "import"
-  | "repeat"; // הליד פנה שוב (כפילות בחלון 24 שעות)
+  | "repeat" // הליד פנה שוב (כפילות בחלון 24 שעות)
+  | "call_attempt"; // ניסיון חיוג מהיר ("חייגתי — אין מענה" וכד')
 
 export async function recordActivity(
   leadId: string,

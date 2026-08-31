@@ -38,6 +38,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   merge: "מיזוג כפילות",
   import: "יובא מקובץ",
   repeat: "🔁 פנייה חוזרת",
+  call_attempt: "☎️ ניסיון חיוג",
 };
 
 interface CustomField {
@@ -350,6 +351,26 @@ export default function LeadDrawer({
     }
   }
 
+  // פעולות מהירות: "אין מענה" / דחיית חזרה — לחיצה אחת, בלי טפסים.
+  async function quickAction(action: "no_answer" | "snooze", daysAhead: number) {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(10, 0, 0, 0);
+    setBusy(true);
+    try {
+      await api(`/api/leads/${leadId}/quick`, {
+        method: "POST",
+        json: { action, followUpAt: d.toISOString() },
+      });
+      await load();
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deleteNote(noteId: string) {
     if (!confirm("למחוק את ההערה?")) return;
     try {
@@ -605,6 +626,35 @@ export default function LeadDrawer({
                 ) : null}
               </div>
             ) : null}
+
+            {/* ⚡ פעולות מהירות — לחיצה אחת ללא טפסים */}
+            <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="text-[11px] font-bold text-slate-500">⚡ מהיר:</span>
+              <button
+                onClick={() => quickAction("no_answer", 1)}
+                disabled={busy}
+                title="נרשם בציר הפעילות + נקבעת חזרה אוטומטית למחר 10:00 (הפעמון בטבלה)"
+                className="rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+              >
+                ☎️ חייגתי — אין מענה
+              </button>
+              <span className="mx-1 text-[11px] text-slate-400">דחיית חזרה:</span>
+              {[
+                { l: "מחר", d: 1 },
+                { l: "+2 ימים", d: 2 },
+                { l: "שבוע", d: 7 },
+              ].map((o) => (
+                <button
+                  key={o.d}
+                  onClick={() => quickAction("snooze", o.d)}
+                  disabled={busy}
+                  title={`מועד החזרה לליד יעבור ל${o.l} ב-10:00`}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9]"
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
 
             {/* Details form */}
             <div className="grid grid-cols-2 gap-3">
@@ -1073,7 +1123,7 @@ export default function LeadDrawer({
             </div>
 
             {/* שיחת וואטסאפ מול הליד */}
-            <LeadWhatsappChat leadId={lead.id} hasPhone={Boolean(lead.phone)} />
+            <LeadWhatsappChat leadId={lead.id} hasPhone={Boolean(lead.phone)} clientId={lead.clientId} />
 
             {/* ציר פעילות (ההערות עברו למעלה, מתחת לפרטי הליד) */}
             <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">
@@ -1116,12 +1166,13 @@ export default function LeadDrawer({
 
 // שיחת וואטסאפ דו-כיוונית מול הליד — שליחה מכאן, תשובות הליד נכנסות אוטומטית
 // (webhook של Green API מזהה את מספר הטלפון). מתרענן כל 12 שניות כשהכרטיס פתוח.
-function LeadWhatsappChat({ leadId, hasPhone }: { leadId: string; hasPhone: boolean }) {
+function LeadWhatsappChat({ leadId, hasPhone, clientId }: { leadId: string; hasPhone: boolean; clientId?: string }) {
   const [messages, setMessages] = useState<
     { id: string; direction: string; body: string; authorName: string | null; mediaUrl: string | null; mediaName: string | null; createdAt: string }[]
   >([]);
   const [configured, setConfigured] = useState(true);
   const [enabled, setEnabled] = useState(false); // מתג ראשי בהגדרות המשרד (ברירת מחדל: כבוי)
+  const [templates, setTemplates] = useState<{ id: string; name: string; body: string }[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -1144,6 +1195,14 @@ function LeadWhatsappChat({ leadId, hasPhone }: { leadId: string; hasPhone: bool
     const t = setInterval(load, 12000);
     return () => clearInterval(t);
   }, [load]);
+
+  // 📋 תבניות הודעה מהירות של הלקוח — נטענות לתיבת הטקסט בבחירה.
+  useEffect(() => {
+    if (!clientId) return;
+    api<{ templates: { id: string; name: string; body: string }[] }>(`/api/templates?clientId=${clientId}`)
+      .then((d) => setTemplates(d.templates))
+      .catch(() => {});
+  }, [clientId]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -1208,6 +1267,23 @@ function LeadWhatsappChat({ leadId, hasPhone }: { leadId: string; hasPhone: bool
             </p>
           )}
           <form onSubmit={send} className="flex gap-2 border-t border-slate-100 p-2">
+            {templates.length > 0 ? (
+              <select
+                value=""
+                onChange={(e) => {
+                  const t = templates.find((x) => x.id === e.target.value);
+                  if (t) setText(t.body);
+                  e.target.value = "";
+                }}
+                title="תבנית מוכנה — נטענת לתיבה, אפשר לערוך לפני שליחה"
+                className="w-9 shrink-0 rounded-lg border border-slate-300 bg-white px-1 py-1 text-sm text-slate-600"
+              >
+                <option value="">📋</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            ) : null}
             <Input
               value={text}
               onChange={(e) => setText(e.target.value)}

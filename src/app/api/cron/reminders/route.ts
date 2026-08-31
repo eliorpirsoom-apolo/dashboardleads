@@ -235,6 +235,17 @@ export async function GET(req: Request) {
     console.error("[lead-sla]", err);
   }
 
+  // ☀️ תקציר בוקר למשווקים (צד לקוח) — 08:30-09:30, פעם ביום, רק כשיש עבודה.
+  let agentDigests = 0;
+  try {
+    const { sendAgentMorningDigests } = await import("@/lib/agentDigest");
+    agentDigests = await sendAgentMorningDigests(
+      new URL(req.url).searchParams.get("agentDigest") === "force"
+    );
+  } catch (err) {
+    console.error("[agent-digest]", err);
+  }
+
   // 💰 התראות הנהלת חשבונות — אי-תשלום חודשי + תזכורות ידניות.
   let billing: unknown = null;
   try {
@@ -264,6 +275,7 @@ export async function GET(req: Request) {
     sumitSync,
     studio,
     leadSla,
+    agentDigests,
     billing,
     broadcast,
   });

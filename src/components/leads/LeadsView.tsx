@@ -49,11 +49,27 @@ interface LeadRow {
   callDurationSec: number | null;
   _count: { notes: number };
   tasks?: { dueAt: string; type: string }[]; // משימות פתוחות — פעמון פולו-אפ + אייקון פגישה
+  firstHandledAt?: string | null; // Speed-to-Lead: מתי הליד קיבל טיפול ראשון
 }
 
 // סטטוס "פולו-אפ" מזוהה לפי שם (FOLLOW UP / פולו / מעקב) — פעמון החזרה לליד.
 function isFollowupName(name?: string | null): boolean {
   return /follow|פולו|מעקב/i.test(name ?? "");
+}
+
+// ⏱ טיימר מענה: כמה זמן ליד חדש ממתין לטיפול ראשון (ירוק→כתום→אדום).
+function responseTimer(l: LeadRow): { text: string; color: string } | null {
+  if (l.firstHandledAt || l.archived) return null;
+  const min = Math.floor((Date.now() - new Date(l.receivedAt).getTime()) / 60_000);
+  if (min < 1) return { text: "עכשיו", color: "#10b981" };
+  const text =
+    min < 60
+      ? `ממתין ${min} דק׳`
+      : min < 60 * 24
+        ? `ממתין ${Math.floor(min / 60)} שע׳`
+        : `ממתין ${Math.floor(min / 1440)} ימים`;
+  const color = min < 30 ? "#10b981" : min < 120 ? "#f59e0b" : "#ef4444";
+  return { text, color };
 }
 
 // סטטוס שיחת טלפון → תווית + צבע לתצוגה בטבלה (עברית או ערך גולמי מ-CheckCall).
@@ -546,6 +562,18 @@ export default function LeadsView({
                       <Icon name="whatsapp" className="h-3.5 w-3.5 text-emerald-400" />
                     ) : null}
                     {l.fullName ?? "—"}
+                    {(() => {
+                      const rt = responseTimer(l);
+                      return rt ? (
+                        <span
+                          title="הזמן מאז שהליד נכנס ועד טיפול ראשון — שינוי סטטוס, הערה או 'חייגתי' עוצרים את הטיימר"
+                          className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold"
+                          style={{ color: rt.color, backgroundColor: `${rt.color}1a` }}
+                        >
+                          ⏱ {rt.text}
+                        </span>
+                      ) : null;
+                    })()}
                     {l.kind === "call" && callStatusStyle(l.callStatus)
                       ? (() => {
                           const c = callStatusStyle(l.callStatus)!;

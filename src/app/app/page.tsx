@@ -76,6 +76,35 @@ export default async function ClientDashboard() {
     prisma.user.count({ where: { clientId, isAgent: true, active: true } }),
   ]);
 
+  // 🎯 העבודה שלי עכשיו: לידים חדשים בלי מענה + חזרות שמועדן עבר.
+  const agentTaskScope = allowed
+    ? { OR: [{ assigneeId: user.id }, { lead: { projectId: { in: allowed } } }] }
+    : {};
+  const [unhandledLeads, overdueTasks] = await Promise.all([
+    prisma.lead.findMany({
+      where: { clientId, archived: false, ...projScope, firstHandledAt: null },
+      orderBy: { receivedAt: "asc" },
+      take: 6,
+      select: { id: true, number: true, fullName: true, phone: true, receivedAt: true },
+    }),
+    prisma.task.findMany({
+      where: {
+        clientId,
+        ownerSide: "client",
+        status: { in: ["open", "in_progress"] },
+        dueAt: { lt: dayStart },
+        ...agentTaskScope,
+      },
+      orderBy: { dueAt: "asc" },
+      take: 6,
+      include: { lead: { select: { number: true, fullName: true } } },
+    }),
+  ]);
+  const waitingLabel = (iso: Date) => {
+    const min = Math.floor((now.getTime() - iso.getTime()) / 60_000);
+    return min < 60 ? `${min} דק׳` : min < 1440 ? `${Math.floor(min / 60)} שע׳` : `${Math.floor(min / 1440)} ימים`;
+  };
+
   return (
     <>
       <PageHeader
@@ -89,6 +118,67 @@ export default async function ClientDashboard() {
           hasAgent={agentsCount > 0}
           hasLead={totalLeads > 0}
         />
+      ) : null}
+
+      {/* 🎯 העבודה שלי עכשיו — מה דורש טיפול ברגע זה */}
+      {unhandledLeads.length > 0 || overdueTasks.length > 0 ? (
+        <Card className="mb-4 border-amber-200 bg-amber-50/50">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-800">🎯 דורש טיפול עכשיו</h2>
+            <Link href="/app/leads" className="text-xs font-medium text-[#3a5bd9] hover:underline">
+              לכל הלידים ←
+            </Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {unhandledLeads.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-xs font-bold text-red-600">
+                  ⏱ לידים חדשים בלי מענה ({unhandledLeads.length})
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {unhandledLeads.map((l) => (
+                    <Link
+                      key={l.id}
+                      href="/app/leads"
+                      className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs transition hover:border-red-400"
+                    >
+                      <span className="flex-1 truncate font-medium text-slate-700">
+                        {l.fullName ?? l.phone ?? `ליד #${l.number}`}
+                      </span>
+                      <span className="whitespace-nowrap rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                        ממתין {waitingLabel(l.receivedAt)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {overdueTasks.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-xs font-bold text-amber-700">
+                  🔴 חזרות ומשימות באיחור ({overdueTasks.length})
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {overdueTasks.map((t) => (
+                    <Link
+                      key={t.id}
+                      href="/app/tasks"
+                      className="flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs transition hover:border-amber-400"
+                    >
+                      <span className="flex-1 truncate text-slate-700">
+                        {t.title}
+                        {t.lead ? ` · #${t.lead.number}` : ""}
+                      </span>
+                      <span className="whitespace-nowrap text-[10px] text-amber-700">
+                        {formatDateTime(t.dueAt)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </Card>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
