@@ -37,11 +37,16 @@ export default function TasksBoards({
   clients,
   meId,
   onChanged,
+  ownerSide = "agency",
+  isAdmin = true,
 }: {
   users: { id: string; name: string }[];
   clients: { id: string; name: string }[];
   meId?: string | null;
   onChanged?: () => void;
+  // "client" = הלוח של צד הלקוח (משווקים/משתמשי לקוח) — אותו רכיב, סקופ אחר.
+  ownerSide?: "agency" | "client";
+  isAdmin?: boolean;
 }) {
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [showDone, setShowDone] = useState(false);
@@ -54,12 +59,12 @@ export default function TasksBoards({
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ tasks: BoardTask[] }>("/api/tasks?ownerSide=agency");
+      const d = await api<{ tasks: BoardTask[] }>(`/api/tasks?ownerSide=${ownerSide}`);
       setTasks(d.tasks);
     } catch (e: any) {
       setError(e.message);
     }
-  }, []);
+  }, [ownerSide]);
   useEffect(() => {
     load();
   }, [load]);
@@ -303,7 +308,7 @@ export default function TasksBoards({
 
       {editTask || createFor !== false ? (
         <TaskFormModal
-          isAdmin
+          isAdmin={isAdmin}
           clients={clients}
           users={users}
           task={editTask}

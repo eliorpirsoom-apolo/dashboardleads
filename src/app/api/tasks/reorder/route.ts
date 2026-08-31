@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { handle, requireAdmin, readJson } from "@/lib/api";
+import { handle, requireUser, readJson, ApiError } from "@/lib/api";
 import { syncTaskEvent } from "@/lib/gcal";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,21 @@ const Reorder = z.object({
 
 // POST /api/tasks/reorder — סדר חדש לבורד של עובד; משימה שנגררה מבורד אחר
 // מקבלת גם assigneeId חדש (והאירוע ביומן Google עובר ליומן של המטפל החדש).
+// צד לקוח: רק משימות הצד שלו, ורק שיוך למשתמשים של הלקוח.
 export const POST = handle(async (req) => {
-  await requireAdmin();
+  const user = await requireUser();
   const b = Reorder.parse(await readJson(req));
+
+  if (user.role !== "ADMIN") {
+    const foreign = await prisma.task.count({
+      where: { id: { in: b.taskIds }, NOT: { clientId: user.clientId!, ownerSide: "client" } },
+    });
+    if (foreign > 0) throw new ApiError(403, "אין הרשאה למשימות אלו");
+    if (b.assigneeId) {
+      const target = await prisma.user.findUnique({ where: { id: b.assigneeId }, select: { clientId: true } });
+      if (target?.clientId !== user.clientId) throw new ApiError(403, "שיוך רק למשתמשי הלקוח");
+    }
+  }
 
   const existing = await prisma.task.findMany({
     where: { id: { in: b.taskIds } },

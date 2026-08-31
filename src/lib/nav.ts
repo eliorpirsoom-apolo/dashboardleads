@@ -64,9 +64,16 @@ const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app/profile", label: "החשבון שלי", icon: "users" },
 ];
 
-// נתיבים שמשווק (isAgent) רשאי לראות — לידים והפרויקטים שלו בלבד + סקירה וחשבון.
-// כל השאר חסום ("אין לו גישה לשום מודול אחר חוץ מהלידים ונתוני הפרויקט שלו").
-const MARKETER_PATHS = new Set(["/app", "/app/leads", "/app/projects", "/app/profile"]);
+// נתיבים שמשווק (isAgent) רשאי לראות — לידים והפרויקטים שלו + כלי העבודה
+// האישיים (לוח משימות ולוח שנה — נפתחו 2026-08-31 לבקשת הבעלים).
+const MARKETER_PATHS = new Set([
+  "/app",
+  "/app/leads",
+  "/app/projects",
+  "/app/tasks",
+  "/app/calendar",
+  "/app/profile",
+]);
 
 // Navigation reflects the permission model. A marketer (isAgent) is scoped to
 // their leads + assigned projects only; the owner sees the full client.

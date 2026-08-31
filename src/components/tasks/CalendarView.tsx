@@ -9,6 +9,15 @@ import { TaskFormModal, type TaskRow } from "./TasksView";
 
 const WEEKDAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 
+// שכבות היומן לפי סוג משימה — צבע ותווית אחידים בכל התצוגות.
+const TYPE_META: Record<string, { label: string; color: string; icon: string }> = {
+  task: { label: "משימות", color: "#06b6d4", icon: "✅" },
+  meeting: { label: "פגישות", color: "#8b5cf6", icon: "📅" },
+  callback: { label: "חזרות ללידים", color: "#f59e0b", icon: "📞" },
+  contract: { label: "חוזים", color: "#10b981", icon: "📝" },
+};
+const typeMeta = (t: string) => TYPE_META[t] ?? TYPE_META.task;
+
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -57,6 +66,7 @@ export default function CalendarView({
   const [createDate, setCreateDate] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [selectedDay, setSelectedDay] = useState<string>(ymd(new Date()));
+  const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
 
   const monthLabel = cursor.toLocaleDateString("he-IL", {
     month: "long",
@@ -95,6 +105,7 @@ export default function CalendarView({
   const byDay = useMemo(() => {
     const map: Record<string, TaskRow[]> = {};
     for (const t of tasks) {
+      if (hiddenTypes.has(t.type)) continue;
       (map[ymd(new Date(t.dueAt))] ??= []).push(t);
     }
     // בתוך כל יום — סדר כרונולוגי לפי שעה.
@@ -102,7 +113,7 @@ export default function CalendarView({
       list.sort((a, b) => a.dueAt.localeCompare(b.dueAt));
     }
     return map;
-  }, [tasks]);
+  }, [tasks, hiddenTypes]);
 
   // אירועי Google לפי יום — בלי אירועים שכבר מסונכרנים מהמערכת (מניעת כפל),
   // ובלי עובדים שהוסתרו בסינון.
@@ -200,6 +211,29 @@ export default function CalendarView({
         </div>
       ) : null}
 
+      {/* שכבות: סינון לפי סוג — לחיצה מסתירה/מציגה */}
+      <div className="glass flex flex-wrap items-center gap-2 rounded-2xl px-4 py-2.5">
+        <span className="text-xs font-medium text-slate-400">שכבות:</span>
+        {Object.entries(TYPE_META).map(([key, m]) => (
+          <button
+            key={key}
+            onClick={() => {
+              const next = new Set(hiddenTypes);
+              next.has(key) ? next.delete(key) : next.add(key);
+              setHiddenTypes(next);
+            }}
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
+              hiddenTypes.has(key)
+                ? "border-slate-200 text-slate-400 line-through"
+                : "border-slate-300 text-slate-700"
+            }`}
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+            {m.icon} {m.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <div className="glass rounded-2xl p-4">
         {/* Month header */}
@@ -250,11 +284,11 @@ export default function CalendarView({
                     item.kind === "task" && item.t ? (
                       <span
                         key={item.t.id}
-                        className={`truncate rounded px-1 text-[10px] leading-4 ${
-                          item.t.type === "meeting"
-                            ? "bg-violet-500/20 text-violet-700"
-                            : "bg-cyan-500/15 text-cyan-700"
-                        } ${item.t.status === "done" ? "line-through opacity-50" : ""}`}
+                        className={`truncate rounded px-1 text-[10px] leading-4 ${item.t.status === "done" ? "line-through opacity-50" : ""}`}
+                        style={{
+                          backgroundColor: `${typeMeta(item.t.type).color}22`,
+                          color: typeMeta(item.t.type).color,
+                        }}
                       >
                         {item.t.title}
                       </span>
@@ -311,14 +345,15 @@ export default function CalendarView({
                   key={item.t.id}
                   onClick={() => setEditTask(item.t)}
                   className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-right transition hover:border-cyan-500/40"
+                  style={{ borderInlineStartColor: typeMeta(item.t.type).color, borderInlineStartWidth: 3 }}
                 >
                   <span className="font-mono text-xs text-slate-500">{formatTime(item.t.dueAt)}</span>
-                  <Icon
-                    name={item.t.type === "meeting" ? "calendar" : "tasks"}
-                    className={`h-3.5 w-3.5 ${item.t.type === "meeting" ? "text-violet-400" : "text-cyan-400"}`}
-                  />
+                  <span className="text-xs">{typeMeta(item.t.type).icon}</span>
                   <span className={`flex-1 truncate text-sm text-slate-700 ${item.t.status === "done" ? "line-through opacity-60" : ""}`}>
                     {item.t.title}
+                    {item.t.lead ? (
+                      <span className="text-[10px] text-slate-500"> · ליד #{item.t.lead.number} {item.t.lead.fullName ?? ""}</span>
+                    ) : null}
                   </span>
                   {isAdmin && item.t.client ? (
                     <span className="text-[10px] text-slate-500">{item.t.client.name}</span>

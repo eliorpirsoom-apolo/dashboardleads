@@ -1,25 +1,30 @@
-import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
-import TasksView from "@/components/tasks/TasksView";
+import TasksBoards from "@/components/tasks/TasksBoards";
 
 export const dynamic = "force-dynamic";
 
+// לוח משימות צד לקוח — פתוח גם למשווקים (בורד אישי בסגנון מאנדיי).
 export default async function AppTasksPage() {
   const user = (await getSession())!;
-  if (user.isAgent) redirect("/app"); // משווק — גישה מוגבלת ללידים ולפרויקטים שלו
-  const users = await prisma.user.findMany({
-    where: { clientId: user.clientId!, active: true },
-    select: { id: true, name: true },
-  });
+  // משווק רואה רק את הבורד שלו; משתמש לקוח מלא — את כל בלוקי הצוות.
+  const users = user.isAgent
+    ? await prisma.user.findMany({
+        where: { id: user.id },
+        select: { id: true, name: true },
+      })
+    : await prisma.user.findMany({
+        where: { clientId: user.clientId!, active: true },
+        select: { id: true, name: true },
+      });
   return (
     <>
       <PageHeader
-        title="משימות"
-        subtitle="משימות יומיות ופגישות — עם תזכורות למייל (SMS/וואטסאפ בהמשך)"
+        title="לוח משימות"
+        subtitle="בלוק לכל איש צוות — גרירה מסדרת ומעבירה אחריות · חדש נכנס למעלה"
       />
-      <TasksView isAdmin={false} clientId={user.clientId!} users={users} />
+      <TasksBoards users={users} clients={[]} meId={user.id} ownerSide="client" isAdmin={false} />
     </>
   );
 }
