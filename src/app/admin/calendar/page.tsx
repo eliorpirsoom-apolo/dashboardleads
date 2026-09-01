@@ -21,8 +21,8 @@ export default async function AdminCalendarPage() {
 
   return (
     <>
-      <PageHeader title="לוח שנה" subtitle="כל הפגישות והמשימות של המשרד והלקוחות" />
-      <CalendarView isAdmin clients={clients} users={admins} />
+      <PageHeader title="לוח שנה" subtitle="הפגישות והמשימות של צוות המשרד בלבד" />
+      <CalendarView isAdmin clients={clients} users={admins} ownerSide="agency" />
     </>
   );
 }

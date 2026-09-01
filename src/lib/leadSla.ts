@@ -72,14 +72,20 @@ export async function runLeadSlaChecks(): Promise<SlaRunResult> {
   result.checked = pending.length;
   if (pending.length === 0) return result;
 
-  // מנהלי המשרד להסלמה — וואטסאפ ייעודי אם הוגדר, אחרת הטלפון הרגיל.
-  const managers = await prisma.user.findMany({
-    where: { role: "ADMIN", adminRole: "manager", active: true },
-    select: { whatsappPhone: true, phone: true },
-  });
-  const managerTargets = managers
-    .map((m) => m.whatsappPhone || m.phone)
-    .filter((x): x is string => Boolean(x));
+  // הסלמה — למנהלים בצד הלקוח (משתמשי הלקוח שאינם משווקים), לא למשרד:
+  // "זה פיצ'ר של מערכת אנשי המכירות, לא שלנו" (החלטת הבעלים 2026-09-01).
+  const clientManagerCache = new Map<string, string[]>();
+  async function clientManagerTargets(clientId: string): Promise<string[]> {
+    const hit = clientManagerCache.get(clientId);
+    if (hit) return hit;
+    const mgrs = await prisma.user.findMany({
+      where: { clientId, role: "CLIENT", isAgent: false, active: true },
+      select: { whatsappPhone: true, phone: true },
+    });
+    const targets = mgrs.map((m) => m.whatsappPhone || m.phone).filter((x): x is string => Boolean(x));
+    clientManagerCache.set(clientId, targets);
+    return targets;
+  }
 
   for (const lead of pending) {
     const ageMin = Math.round((now - lead.receivedAt.getTime()) / 60000);
@@ -105,15 +111,17 @@ export async function runLeadSlaChecks(): Promise<SlaRunResult> {
       result.marketerReminders++;
     }
 
-    // שלב 2 — הסלמה למנהלי המשרד.
-    if (!lead.slaEscalatedAt && lead.receivedAt <= escalateDue && managerTargets.length > 0) {
+    // שלב 2 — הסלמה למנהלים אצל הלקוח (אין נמענים ⇒ מסומן בלי לשלוח,
+    // כדי שלא ניבדק שוב כל 5 דקות לנצח).
+    if (!lead.slaEscalatedAt && lead.receivedAt <= escalateDue) {
+      const targets = await clientManagerTargets(lead.clientId);
       const body =
         `🚨 ליד ללא טיפול ${ageMin} דקות\n\n` +
         `${who}${lead.phone ? ` · ${lead.phone}` : ""}\n` +
         (where ? `פרויקט: ${where}\n` : "") +
         (lead.assignee?.name ? `משווק: ${lead.assignee.name}\n` : "לא משויך למשווק!\n") +
         (lead.source?.name ? `מקור: ${lead.source.name}` : "");
-      for (const to of managerTargets) {
+      for (const to of targets) {
         await sendMessage({
           channel: "whatsapp",
           to,

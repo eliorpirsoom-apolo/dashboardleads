@@ -48,11 +48,14 @@ export default function CalendarView({
   clientId,
   clients = [],
   users = [],
+  ownerSide,
 }: {
   isAdmin: boolean;
   clientId?: string;
   clients?: { id: string; name: string }[];
   users?: { id: string; name: string }[];
+  // "agency" ביומן המשרד — רק משימות הצוות, בלי משימות צד הלקוחות.
+  ownerSide?: "agency" | "client";
 }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -78,6 +81,7 @@ export default function CalendarView({
     const to = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 7);
     const p = new URLSearchParams({ from: ymd(from), to: ymd(to) });
     if (clientId) p.set("clientId", clientId);
+    if (ownerSide) p.set("ownerSide", ownerSide);
     const d = await api<{ tasks: TaskRow[] }>(`/api/tasks?${p}`);
     setTasks(d.tasks);
 
@@ -96,7 +100,7 @@ export default function CalendarView({
         setGEvents([]);
       }
     }
-  }, [cursor, clientId, isAdmin]);
+  }, [cursor, clientId, isAdmin, ownerSide]);
 
   useEffect(() => {
     load();
