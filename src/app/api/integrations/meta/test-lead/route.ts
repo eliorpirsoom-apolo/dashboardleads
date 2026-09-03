@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { handle, readJson, ApiError } from "@/lib/api";
-import { requireManager } from "@/lib/permissions";
+import { handle, readJson, ApiError, requireAdmin } from "@/lib/api";
+// פתוח לכל צוות המשרד — חיבור טפסים וניתוב לידים (החלטת הבעלים 2026-09-01).
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -16,7 +16,7 @@ const Body = z.object({ id: z.string().min(1), formId: z.string().min(1) });
 // המשיכה המחזורית קולטת אותו — בדיקת כל הצינור בלחיצה אחת, בלי כלי מטא
 // (שממילא לא מציג עמודים בגישה עסקית).
 export const POST = handle(async (req) => {
-  await requireManager();
+  await requireAdmin();
   const b = Body.parse(await readJson(req));
   const page = await prisma.metaPage.findUnique({
     where: { id: b.id },

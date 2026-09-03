@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { handle, readJson, ApiError } from "@/lib/api";
-import { requireManager } from "@/lib/permissions";
+import { handle, readJson, ApiError, requireAdmin } from "@/lib/api";
+// פתוח לכל צוות המשרד — חיבור טפסים וניתוב לידים (החלטת הבעלים 2026-09-01).
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +14,10 @@ const Body = z.object({
 });
 
 // POST /api/integrations/meta/forms/archive — ארכוב טופס לידים בפייסבוק
-// (מנהל בלבד). טופס בארכיון מפסיק לקבל לידים ובדיקת כיסוי הטפסים מתעלמת
+// (כל צוות המשרד). טופס בארכיון מפסיק לקבל לידים ובדיקת כיסוי הטפסים מתעלמת
 // ממנו. משתמש בטוקן העמוד השמור; הפיך מספריית הטפסים של פייסבוק.
 export const POST = handle(async (req) => {
-  await requireManager();
+  await requireAdmin();
   const b = Body.parse(await readJson(req));
   const page = await prisma.metaPage.findUnique({ where: { id: b.pageDbId } });
   if (!page) throw new ApiError(404, "החיבור לא נמצא");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { handle, ApiError } from "@/lib/api";
-import { requireManager } from "@/lib/permissions";
+import { handle, ApiError, requireAdmin } from "@/lib/api";
+// פתוח לכל צוות המשרד — חיבור טפסים וניתוב לידים (החלטת הבעלים 2026-09-01).
 import crypto from "crypto";
 import {
   getPageToken,
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 // POST /api/integrations/meta/attach — חיבור העמוד הנבחר לפרויקט:
 // טוקן עמוד ← מקור קליטה ייעודי ← רישום לוובהוק leadgen.
 export const POST = handle(async (req) => {
-  const user = await requireManager();
+  const user = await requireAdmin();
   const form = await req.formData();
   const pageId = String(form.get("pageId") ?? "");
   const pageNameRaw = String(form.get("pageName") ?? "");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { handle, ApiError } from "@/lib/api";
-import { requireManager } from "@/lib/permissions";
+import { handle, ApiError, requireAdmin } from "@/lib/api";
+// פתוח לכל צוות המשרד — חיבור טפסים וניתוב לידים (החלטת הבעלים 2026-09-01).
 import { metaEnabled, metaRedirectUri, packMetaState } from "@/lib/integrations/metaLeads";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // ברמת הלקוח (מנהל בלבד). מפנה לדיאלוג ההרשאות של Meta.
 // ?projectId= נתמך לתאימות לאחור — הפרויקט הופך לברירת המחדל לטפסים לא-משויכים.
 export const GET = handle(async (req) => {
-  await requireManager();
+  await requireAdmin();
   if (!metaEnabled()) {
     throw new ApiError(400, "חיבור Meta לא מוגדר (META_APP_ID/SECRET חסרים בסביבה)");
   }

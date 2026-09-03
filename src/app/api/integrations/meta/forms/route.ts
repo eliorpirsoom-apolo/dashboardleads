@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { handle, readJson, ApiError } from "@/lib/api";
-import { requireManager } from "@/lib/permissions";
+import { handle, readJson, ApiError, requireAdmin } from "@/lib/api";
+// פתוח לכל צוות המשרד — חיבור טפסים וניתוב לידים (החלטת הבעלים 2026-09-01).
 import { listPageForms, parseRouting } from "@/lib/integrations/metaLeads";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export const maxDuration = 30;
 // GET ?projectId=<projectId> — תצוגת פרויקט: כל עמודי הלקוח עם הטפסים
 // והניתוב שלהם, כדי שכל פרויקט יראה וינהל רק את הטפסים שלו.
 export const GET = handle(async (req) => {
-  await requireManager();
+  await requireAdmin();
   const sp = new URL(req.url).searchParams;
   const id = sp.get("id") || "";
   const projectId = sp.get("projectId") || "";
@@ -89,7 +89,7 @@ const SaveRouting = z.object({
 // POST — שמירת כללי הניתוב (טופס → פרויקט) + ברירת המחדל של החיבור.
 // פרויקטים חייבים להיות של אותו לקוח.
 export const POST = handle(async (req) => {
-  await requireManager();
+  await requireAdmin();
   const b = SaveRouting.parse(await readJson(req));
   const page = await prisma.metaPage.findUnique({
     where: { id: b.id },
