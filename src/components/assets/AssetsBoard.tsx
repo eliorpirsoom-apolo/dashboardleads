@@ -69,6 +69,37 @@ function overallStatus(assets: Asset[]): { icon: string; label: string; color: s
   return { icon: "🟢", label: "שליטה מלאה", color: "#10b981" };
 }
 
+// 📋 העתקת ID בלחיצה — מופיע בריחוף ליד המספר, מציג ✓ ירוק אחרי העתקה.
+function CopyId({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span
+      role="button"
+      title={copied ? "הועתק ✓" : "העתקת ה-ID"}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard
+          ?.writeText(value)
+          .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          })
+          .catch(() => {});
+      }}
+      className="shrink-0 cursor-pointer text-slate-300 opacity-0 transition group-hover/id:opacity-100 hover:text-[#3a5bd9]"
+    >
+      {copied ? (
+        <span className="text-[10px] font-bold text-emerald-600">✓</span>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3">
+          <rect x="9" y="9" width="11" height="11" rx="2" />
+          <path d="M5 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
 export default function AssetsBoard() {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -112,8 +143,11 @@ export default function AssetsBoard() {
 
   const idText = (a: Asset) =>
     a.externalId ? (
-      <span dir="ltr" className="block truncate font-mono text-[10px] text-slate-500" title={a.externalId}>
-        {a.externalId}
+      <span dir="ltr" className="group/id flex items-center gap-1">
+        <span className="truncate font-mono text-[10px] text-slate-500" title={a.externalId}>
+          {a.externalId}
+        </span>
+        <CopyId value={a.externalId} />
       </span>
     ) : (
       <span className="text-[10px] text-slate-300">ללא ID</span>
