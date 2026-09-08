@@ -7,12 +7,12 @@ import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 
 // ---------------------------------------------------------------------------
-// 🗂 מרשם הנכסים הדיגיטליים — שורה לכל לקוח: ביזנס מנג'ר, דף, חשבון מודעות —
+// 🗂 מרשם הנכסים הדיגיטליים — שורה לכל לקוח: ביזנס מנג׳ר, דף, חשבון מודעות —
 // בבעלות מי, יש גישה?, דרך אילו משתמשים, וסימון ✓ אוטומטי לדף שמחובר ל-CRM.
 // ---------------------------------------------------------------------------
 
 const KINDS: { key: string; label: string; icon: string }[] = [
-  { key: "business_manager", label: "ביזנס מנג'ר", icon: "🏢" },
+  { key: "business_manager", label: "ביזנס מנג׳ר", icon: "🏢" },
   { key: "page", label: "דף פייסבוק", icon: "📘" },
   { key: "ad_account", label: "חשבון מודעות", icon: "📣" },
   { key: "instagram", label: "אינסטגרם", icon: "📷" },
@@ -207,7 +207,7 @@ export default function AssetsBoard() {
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
               <th className="px-3 py-2 text-right font-medium">לקוח</th>
-              <th className="px-2 py-2 text-right font-medium">🏢 ביזנס מנג'ר</th>
+              <th className="px-2 py-2 text-right font-medium">🏢 ביזנס מנג׳ר</th>
               <th className="px-2 py-2 text-right font-medium">📘 דף פייסבוק</th>
               <th className="px-2 py-2 text-right font-medium">📣 חשבון מודעות</th>
               <th className="px-2 py-2 text-right font-medium">📌 נכסים נוספים</th>
