@@ -176,8 +176,13 @@ export default function AssetsBoard() {
         </span>
         {idText(a)}
         <span className="mt-1 flex flex-wrap items-center gap-1">
-          <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ color: own.color, backgroundColor: `${own.color}1a` }}>
-            {own.label}
+          {/* טקסט הבעלות החופשי מוצג אם מולא; הצבע לפי הקטגוריה (לדגלים) */}
+          <span
+            className="max-w-full truncate rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+            style={{ color: own.color, backgroundColor: `${own.color}1a` }}
+            title={a.ownerNote ? `${own.label} — ${a.ownerNote}` : own.label}
+          >
+            {a.ownerNote || own.label}
           </span>
           <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold" style={{ color: acc.color, backgroundColor: `${acc.color}1a` }}>
             {acc.label}
@@ -404,7 +409,7 @@ function AssetModal({
       name: form.name || null,
       externalId: form.externalId || null,
       ownership: form.ownership,
-      ownerNote: form.ownership === "third_party" ? form.ownerNote || null : null,
+      ownerNote: form.ownerNote || null,
       access: form.access,
       accessUsers: form.accessUsers || null,
       role: form.role || null,
@@ -466,11 +471,12 @@ function AssetModal({
             </Select>
           </Field>
         </div>
-        {form.ownership === "third_party" ? (
-          <Field label="מי הצד השלישי?" hint="למשל: סוכנות קודמת, בן משפחה של הלקוח…">
-            <Input value={form.ownerNote} onChange={(e) => setForm({ ...form, ownerNote: e.target.value })} />
-          </Field>
-        ) : null}
+        <Field
+          label="בבעלות מי — טקסט חופשי"
+          hint='מה שיוצג בטבלה. למשל: "הביזנס האישי של יורם", "סוכנות קודמת — X", "שותף של הלקוח"'
+        >
+          <Input value={form.ownerNote} onChange={(e) => setForm({ ...form, ownerNote: e.target.value })} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="משתמשים מחוברים" hint="מי מהמשרד ניגש — מופרד בפסיקים">
             <Input value={form.accessUsers} onChange={(e) => setForm({ ...form, accessUsers: e.target.value })} placeholder="אליאור, בר" />
