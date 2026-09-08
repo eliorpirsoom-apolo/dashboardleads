@@ -16,12 +16,15 @@ export const GET = handle(async () => {
   await requireAdmin();
   if (!whatsappConfigured()) throw new ApiError(400, "וואטסאפ אינו מוגדר");
   const { id, token } = creds();
-  const [res, stateRes, inRes] = await Promise.all([
+  const [res, stateRes, inRes, outRes] = await Promise.all([
     fetch(`${base()}/waInstance${id}/getSettings/${token}`),
     fetch(`${base()}/waInstance${id}/getStateInstance/${token}`),
     // הודעות שנקלטו במופע ב-24 השעות האחרונות — בלי תלות ב-webhooks. אם יש
     // הודעות כאן אבל אין POST-ים אצלנו, גרין-API לא דוחף את ההתראות.
     fetch(`${base()}/waInstance${id}/lastIncomingMessages/${token}?minutes=1440`),
+    // הודעות יוצאות + סטטוס מסירה אמיתי (sent/delivered/read/failed) —
+    // מזהה מצב שבו המערכת "שלחה" אבל וואטסאפ לא מסר בפועל.
+    fetch(`${base()}/waInstance${id}/lastOutgoingMessages/${token}?minutes=1440`),
   ]);
   const j = await res.json().catch(() => ({}));
   // authorized = הטלפון מקושר; notAuthorized = נדרשת סריקת QR מחדש בקונסולת Green API.
@@ -29,6 +32,22 @@ export const GET = handle(async () => {
   const incoming = await inRes.json().catch(() => null);
   const incomingArr = Array.isArray(incoming) ? incoming : [];
   const newestTs = incomingArr.reduce((m: number, x: any) => Math.max(m, Number(x?.timestamp) || 0), 0);
+  const outgoing = await outRes.json().catch(() => null);
+  const outgoingArr = Array.isArray(outgoing) ? outgoing : [];
+  const outStatus: Record<string, number> = {};
+  for (const o of outgoingArr) {
+    const s = String(o?.statusMessage ?? "unknown");
+    outStatus[s] = (outStatus[s] || 0) + 1;
+  }
+  const outNewest = outgoingArr
+    .sort((a: any, b: any) => (b?.timestamp || 0) - (a?.timestamp || 0))
+    .slice(0, 8)
+    .map((o: any) => ({
+      at: o?.timestamp ? new Date(o.timestamp * 1000).toISOString().slice(11, 16) : null,
+      status: o?.statusMessage ?? null,
+      toTail: String(o?.chatId ?? "").replace(/@.*/, "").slice(-4),
+      text: String(o?.textMessage ?? o?.typeMessage ?? "").slice(0, 40),
+    }));
   const envTok = process.env.GREENAPI_WEBHOOK_TOKEN || "";
   return NextResponse.json({
     idInstance: id,
@@ -37,6 +56,9 @@ export const GET = handle(async () => {
     incomingWebhook: j?.incomingWebhook ?? null,
     incoming24h: inRes.ok ? incomingArr.length : `HTTP ${inRes.status}`,
     incomingNewestAt: newestTs ? new Date(newestTs * 1000).toISOString() : null,
+    outgoing24h: outRes.ok ? outgoingArr.length : `HTTP ${outRes.status}`,
+    outgoingStatuses: outStatus,
+    outgoingNewest: outNewest,
     envLen: envTok.length,
     greenLen: (j?.webhookUrlToken || "").length,
     aligned: Boolean(envTok) && envTok === (j?.webhookUrlToken || ""),
