@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm run db:dev && next dev",
     "build": "next build",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "vercel-build": "prisma generate && (prisma migrate resolve --rolled-back 0060_digital_assets || true) && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
