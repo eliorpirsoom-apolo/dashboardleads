@@ -23,6 +23,7 @@ export const ADMIN_MODULES: AdminModule[] = [
   { key: "quotes", label: "הצעות מחיר", path: "/admin/quotes" },
   { key: "studio", label: "סטודיו", path: "/admin/studio" },
   { key: "organic", label: "קידום אורגני", path: "/admin/organic" },
+  { key: "assets", label: "נכסים דיגיטליים", path: "/admin/assets" },
   { key: "messages", label: "הודעות", path: "/admin/messages" },
   { key: "payments", label: "תשלומים", path: "/admin/payments" },
   { key: "settings", label: "הגדרות", path: "/admin/settings" },

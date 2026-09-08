@@ -124,6 +124,27 @@ model SeoQuota {
   updatedAt DateTime @updatedAt
 }
 
+// 🗂 מרשם הנכסים הדיגיטליים — שליטה על ביזנס מנג'רים, דפים וחשבונות מודעות:
+// בבעלות מי כל נכס, האם יש לנו גישה ודרך אילו משתמשים. שורת האמת של המשרד.
+model DigitalAsset {
+  id          String   @id @default(cuid())
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String
+  kind        String // "business_manager" | "page" | "ad_account" | "instagram" | "google_ads" | "other"
+  name        String?
+  externalId  String? // ה-ID בפלטפורמה (BM ID / Page ID / act_...)
+  ownership   String   @default("client") // "client" | "agency" | "third_party"
+  ownerNote   String? // מי הצד השלישי / פירוט בעלות
+  access      String   @default("none") // "full" | "partial" | "none"
+  accessUsers String? // אילו משתמשי משרד מחוברים (טקסט, מופרד בפסיקים)
+  role        String? // רמת ההרשאה (Admin / Editor / Advertiser…)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId, kind])
+}
+
 // התראה פנימית למשתמש משרד (תיוג @ בעדכון וכד') — נצברת בפעמון שבסיידבר.
 model Notification {
   id        String    @id @default(cuid())
@@ -223,6 +244,7 @@ model Client {
   statuses         LeadStatus[]
   customFields     CustomFieldDef[]
   sources          LeadSource[]
+  digitalAssets    DigitalAsset[]
   metaPages        MetaPage[]
   tasks            Task[]
   documents        Document[]
