@@ -44,6 +44,16 @@ const CreateAsset = z.object({
   notes: z.string().max(1000).nullable().optional(),
 });
 
+// DELETE /api/assets?clientId= — הסרת כל רישומי הנכסים של לקוח מהטבלה
+// (הנכסים עצמם בפייסבוק/גוגל כמובן לא נמחקים).
+export const DELETE = handle(async (req) => {
+  await guard();
+  const clientId = new URL(req.url).searchParams.get("clientId");
+  if (!clientId) throw new ApiError(400, "חסר clientId");
+  const res = await prisma.digitalAsset.deleteMany({ where: { clientId } });
+  return NextResponse.json({ deleted: res.count });
+});
+
 // POST /api/assets — רישום נכס חדש (כל צוות המשרד).
 export const POST = handle(async (req) => {
   await guard();

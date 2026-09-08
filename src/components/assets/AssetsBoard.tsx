@@ -158,6 +158,27 @@ export default function AssetsBoard() {
     );
   };
 
+  // הסרת לקוח מהטבלה: מוחקת את כל רישומי הנכסים שלו. לקוח עם דף שמחובר
+  // ל-CRM ימשיך להופיע (זו המציאות — החיבור חי), רק הרישומים הידניים יימחקו.
+  async function removeClient(c: ClientRow) {
+    const hasCrm = metaPages.some((p) => p.clientId === c.id);
+    const msg = hasCrm
+      ? `למחוק את כל רישומי הנכסים של "${c.name}"?\n\nשימו לב: ללקוח יש דף שמחובר ל-CRM, ולכן השורה תישאר (עם החיבור בלבד). הנכסים עצמם בפייסבוק לא נמחקים.`
+      : `להסיר את "${c.name}" מהטבלה ולמחוק את כל רישומי הנכסים שלו?\n(הנכסים עצמם בפייסבוק/גוגל לא נמחקים)`;
+    if (!confirm(msg)) return;
+    try {
+      await api(`/api/assets?clientId=${c.id}`, { method: "DELETE" });
+      setShown((s) => {
+        const next = new Set(s);
+        next.delete(c.id);
+        return next;
+      });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
   const addBtn = (clientId: string, kind: string) => (
     <button
       onClick={() => setCreating({ clientId, kind })}
@@ -181,8 +202,10 @@ export default function AssetsBoard() {
           <select
             value=""
             onChange={(e) => {
-              if (e.target.value) setShown((s) => new Set(s).add(e.target.value));
+              // חשוב לקרוא את הערך לפני האיפוס — אחרת ה-updater רואה מחרוזת ריקה.
+              const id = e.target.value;
               e.target.value = "";
+              if (id) setShown((s) => new Set(s).add(id));
             }}
             className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-600"
           >
@@ -225,12 +248,21 @@ export default function AssetsBoard() {
               return (
                 <tr key={c.id} className="border-b border-slate-100 align-top hover:bg-slate-50/60">
                   <td className="px-3 py-2.5">
-                    <span
-                      className="inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-bold"
-                      style={{ color: c.color ?? "#334155", backgroundColor: `${c.color ?? "#64748b"}1a` }}
-                    >
-                      {c.name}
-                    </span>
+                    <div className="group/client flex items-start gap-1">
+                      <span
+                        className="inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-bold"
+                        style={{ color: c.color ?? "#334155", backgroundColor: `${c.color ?? "#64748b"}1a` }}
+                      >
+                        {c.name}
+                      </span>
+                      <button
+                        onClick={() => removeClient(c)}
+                        title="הסרת הלקוח מהטבלה (מחיקת כל רישומי הנכסים שלו)"
+                        className="mt-0.5 shrink-0 text-slate-300 opacity-0 transition group-hover/client:opacity-100 hover:text-rose-500"
+                      >
+                        <Icon name="trash" className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                   <td className="px-2 py-2.5">
                     <div className="flex flex-col gap-1">
