@@ -7,6 +7,7 @@ import { onLeadStatusChanged, sendLeadToMarketer } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
 import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
 import { assertNotAgent } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -226,6 +227,14 @@ export const DELETE = handle(async (req, { params }: { params: { id: string } })
 
   if (hard) {
     assertNotAgent(user, "מחיקת ליד לצמיתות");
+    // מחיקה קשיחה חייבת עקבות — בלי זה ליד שנעלם הוא חור שחור (ממצא QA 9.9).
+    await audit(
+      user,
+      "lead_deleted",
+      "lead",
+      lead.id,
+      `#${lead.number} · ${lead.fullName ?? "ללא שם"} · ${lead.phone ?? "ללא טלפון"}`
+    ).catch(() => {});
     await prisma.lead.delete({ where: { id: lead.id } });
     // ליד מפייסבוק: ניסיון מחיקה גם אצל מטא — עובד רק על לידי בדיקה (מטא
     // מסרבת למחוק לידים אמיתיים), ומונע מהמשיכה לייבא את ליד הבדיקה מחדש.
