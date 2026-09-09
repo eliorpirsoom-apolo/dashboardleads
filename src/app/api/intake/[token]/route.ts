@@ -152,12 +152,26 @@ function flattenFormShapes(payload: Record<string, any>): Record<string, any> {
   return payload;
 }
 
+// נירמול מפתח לפני התאמת כינויים: טפסי Lead Ads בעברית שולחים מפתחות עם
+// קו תחתון ("שם_מלא", "מספר_טלפון") וסימני שאלה בסוף — בלי הנירמול הזה כל
+// ליד אמיתי מהטופס נדחה "ללא שם, טלפון או אימייל" (ממצא בדיקת יורם 9.9).
+function normKey(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[?!:]+$/, "")
+    .replace(/[_\-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function pick(payload: Record<string, any>, target: string): any {
   const keys = Object.keys(payload);
   // exact key first
   if (payload[target] !== undefined) return payload[target];
   for (const alias of ALIASES[target] ?? []) {
-    const hit = keys.find((k) => k.toLowerCase().trim() === alias);
+    const na = normKey(alias);
+    const hit = keys.find((k) => normKey(k) === na);
     if (hit !== undefined) return payload[hit];
   }
   return undefined;
@@ -388,11 +402,11 @@ export async function POST(
 
     // Unmapped keys → custom data blob.
     const mappedAliases = new Set(
-      Object.values(ALIASES).flat().concat(Object.keys(ALIASES))
+      Object.values(ALIASES).flat().concat(Object.keys(ALIASES)).map(normKey)
     );
     const extra: Record<string, any> = {};
     for (const [k, v] of Object.entries(payload)) {
-      if (!mappedAliases.has(k.toLowerCase().trim()) && v !== null && v !== "") {
+      if (!mappedAliases.has(normKey(k)) && v !== null && v !== "") {
         extra[k] = v;
       }
     }
