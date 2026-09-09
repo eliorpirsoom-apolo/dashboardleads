@@ -3,7 +3,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, readJson, ApiError } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
-import { markLeadIfDuplicate } from "@/lib/leads";
+import {
+  markLeadIfDuplicate,
+  createLeadNumbered,
+  defaultStatusId,
+  normalizePhone,
+  normalizeEmail,
+} from "@/lib/leads";
+import { recordActivity } from "@/lib/leadActivity";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +29,12 @@ const Body = z.union([
   z.object({
     action: z.literal("fix-future-received"),
     apply: z.boolean().default(false),
+  }),
+  // שחזור ליד מרישום קליטה שנדחה (למשל: באג מיפוי מפתחות עברית 9.9) —
+  // יצירה שקטה (בלי התראות) עם תאריך הקבלה המקורי.
+  z.object({
+    action: z.literal("recover-rejected-lead"),
+    logId: z.string().min(1),
   }),
 ]);
 
@@ -44,6 +57,73 @@ export const POST = handle(async (req) => {
       where: { id: { in: acts.slice(1).map((a) => a.id) } },
     });
     return NextResponse.json({ deleted: res.count, kept: 1 });
+  }
+
+  // --- recover-rejected-lead -------------------------------------------------
+  if (b.action === "recover-rejected-lead") {
+    const log = await prisma.intakeLog.findUnique({
+      where: { id: b.logId },
+      include: { source: { select: { name: true, projectId: true, clientId: true } } },
+    });
+    if (!log || log.status !== "rejected") throw new ApiError(404, "רישום דחייה לא נמצא");
+    const clientId = log.clientId ?? log.source?.clientId;
+    if (!clientId) throw new ApiError(400, "לרישום אין לקוח");
+    let pl: Record<string, any> = {};
+    try { pl = JSON.parse(log.payload ?? "{}"); } catch {}
+    const norm = (s: string) =>
+      s.toLowerCase().trim().replace(/[?!:]+$/, "").replace(/[_\-]+/g, " ").replace(/\s+/g, " ").trim();
+    const findVal = (aliases: string[]) => {
+      for (const [k, v] of Object.entries(pl)) {
+        if (aliases.includes(norm(k)) && v != null && typeof v !== "object" && String(v).trim() !== "") {
+          return String(v);
+        }
+      }
+      return null;
+    };
+    const fullName = findVal(["שם מלא", "שם", "full name", "name", "fullname"]);
+    const phone = normalizePhone(findVal(["מספר טלפון", "טלפון", "phone number", "phone", "tel"]));
+    const email = normalizeEmail(findVal(["אימייל", "מייל", "email", "e mail"]));
+    if (!fullName && !phone && !email) throw new ApiError(400, "אין זהות בליד — אין מה לשחזר");
+    const existing =
+      phone || email
+        ? await prisma.lead.findFirst({
+            where: {
+              clientId,
+              archived: false,
+              OR: [...(phone ? [{ phone }] : []), ...(email ? [{ email }] : [])],
+            },
+            select: { number: true },
+          })
+        : null;
+    if (existing) return NextResponse.json({ recovered: false, alreadyExists: existing.number });
+    const extras: Record<string, any> = {};
+    for (const [k, v] of Object.entries(pl)) {
+      if (["id", "platform", "channel", "campaign_name", "adset_name", "ad_name"].includes(k)) continue;
+      if (v == null || typeof v === "object") continue;
+      extras[k.replace(/_/g, " ")] = v;
+    }
+    const lead = await createLeadNumbered({
+      clientId,
+      projectId: log.source?.projectId ?? null,
+      kind: "form",
+      statusId: await defaultStatusId(clientId),
+      fullName,
+      phone,
+      email,
+      channel: typeof pl.channel === "string" ? pl.channel : "facebook",
+      platform: typeof pl.platform === "string" ? pl.platform : null,
+      campaignLabel: typeof pl.campaign_name === "string" ? pl.campaign_name : null,
+      audience: typeof pl.adset_name === "string" ? pl.adset_name : null,
+      adName: typeof pl.ad_name === "string" ? pl.ad_name : null,
+      externalId: typeof pl.id === "string" ? pl.id : null,
+      consent: false,
+      receivedAt: log.createdAt,
+      data: Object.keys(extras).length ? JSON.stringify(extras) : null,
+    });
+    await recordActivity(lead.id, "מערכת", "import", {
+      note: `שוחזר מדחיית קליטה (${log.source?.name ?? "מקור לא ידוע"}) — התקבל במקור ${log.createdAt.toLocaleDateString("he-IL")}`,
+    }).catch(() => {});
+    return NextResponse.json({ recovered: true, number: lead.number });
   }
 
   // --- fix-future-received ---------------------------------------------------
