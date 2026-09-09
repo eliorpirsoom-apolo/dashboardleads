@@ -3,9 +3,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, readJson, ApiError, requireAdmin } from "@/lib/api";
 // פתוח לכל צוות המשרד — חיבור טפסים וניתוב לידים (החלטת הבעלים 2026-09-01).
+import { processLeadgenEvent } from "@/lib/integrations/metaLeads";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -20,7 +21,7 @@ export const POST = handle(async (req) => {
   const b = Body.parse(await readJson(req));
   const page = await prisma.metaPage.findUnique({
     where: { id: b.id },
-    select: { pageToken: true, pageName: true, clientId: true },
+    select: { pageToken: true, pageName: true, clientId: true, pageId: true },
   });
   if (!page) throw new ApiError(404, "החיבור לא נמצא");
 
@@ -46,10 +47,40 @@ export const POST = handle(async (req) => {
     /* ניקוי הוא best-effort — יצירה חדשה תדווח אם עדיין חסום */
   }
 
+  // ערכי דמה לפי שאלות הטופס: בלי field_data מטא יוצרת ליד ריק (בלי שם/טלפון)
+  // שהקליטה מדלגת עליו בכוונה — ליד בדיקה חייב זהות כדי לבדוק את הצינור באמת.
+  const rand = String(Math.floor(1000 + Math.random() * 9000));
+  let fieldData: { name: string; values: string[] }[] = [];
+  try {
+    const qRes = await fetch(
+      `${GRAPH}/${b.formId}?fields=questions&access_token=${encodeURIComponent(page.pageToken)}`,
+      { cache: "no-store" }
+    );
+    const qData = await qRes.json();
+    fieldData = (qData?.questions ?? [])
+      .map((q: any) => {
+        const key = String(q.key ?? "");
+        const type = String(q.type ?? "").toUpperCase();
+        let v = "בדיקה";
+        if (Array.isArray(q.options) && q.options.length) v = String(q.options[0]?.value ?? q.options[0]?.key ?? "בדיקה");
+        else if (type.includes("PHONE") || /phone|טלפון|נייד/i.test(key)) v = `050000${rand}`;
+        else if (type.includes("EMAIL") || /mail|מייל/i.test(key)) v = `test.${rand}@apolloadv.co.il`;
+        else if (type.includes("NAME") || /name|שם/i.test(key)) v = "ליד בדיקה — Apollo CRM";
+        else if (/city|עיר/i.test(key)) v = "בדיקת מערכת";
+        return { name: key, values: [v] };
+      })
+      .filter((f: { name: string }) => f.name);
+  } catch {
+    /* בלי שאלות — ניצור ליד ריק; delivered=false יסמן שהקליטה דילגה */
+  }
+
   const res = await fetch(`${GRAPH}/${b.formId}/test_leads`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ access_token: page.pageToken }),
+    body: new URLSearchParams({
+      access_token: page.pageToken,
+      ...(fieldData.length ? { field_data: JSON.stringify(fieldData) } : {}),
+    }),
   });
   const data = await res.json();
   if (!res.ok || !data.id) {
@@ -61,5 +92,16 @@ export const POST = handle(async (req) => {
         : `יצירת ליד בדיקה נכשלה: ${msg.slice(0, 200)}`
     );
   }
-  return NextResponse.json({ ok: true, leadgenId: String(data.id), cleanedPrevious: cleaned });
+
+  // הזרמה מיידית לקליטה — הוובהוק של מטא לא אמין במצב פיתוח, והמשיכה
+  // המחזורית רצה רק כל כמה דקות; ככה הבדיקה מקצה-לקצה מסתיימת בלחיצה אחת.
+  const delivery = await processLeadgenEvent(page.pageId, String(data.id));
+  return NextResponse.json({
+    ok: true,
+    leadgenId: String(data.id),
+    cleanedPrevious: cleaned,
+    fields: fieldData.map((f) => f.name),
+    delivered: delivery.ok,
+    deliveryNote: delivery.ok ? null : delivery.note,
+  });
 });
