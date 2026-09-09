@@ -336,6 +336,23 @@ function mapToIntakePayload(
   return out;
 }
 
+/** האם לליד יש זהות (שם/טלפון/אימייל)? טפסים בעברית שולחים מפתחות עם קו
+ *  תחתון ("שם_מלא", "מספר_טלפון") — נירמול זהה לזה של צינור הקליטה, אחרת
+ *  לידים אמיתיים מדולגים במשיכה כאילו היו ריקים (באג שנתפס 9.9). */
+const IDENTITY_KEYS = new Set([
+  "full name", "fullname", "name", "שם", "שם מלא", "שם פרטי", "שם ומשפחה",
+  "phone", "phone number", "tel", "mobile", "טלפון", "מספר טלפון", "נייד", "טלפון נייד",
+  "email", "e mail", "mail", "מייל", "אימייל", "כתובת מייל",
+]);
+function hasLeadIdentity(payload: Record<string, any>): boolean {
+  for (const [k, v] of Object.entries(payload)) {
+    if (v == null || String(v).trim() === "") continue;
+    const norm = k.toLowerCase().trim().replace(/[?!:]+$/, "").replace(/[_\-]+/g, " ").replace(/\s+/g, " ").trim();
+    if (IDENTITY_KEYS.has(norm)) return true;
+  }
+  return false;
+}
+
 /** משיכת לידים אחרונים מהעמוד (טפסי Lead Ads) — גיבוי לוובהוק ואימות חיבור.
  *  עובר על כל הטפסים של העמוד ומזרים כל ליד לצינור הקליטה; מגן הכפילויות
  *  (externalId = מזהה הליד ב-Meta) מונע כפל מול לידים שכבר הגיעו בוובהוק. */
@@ -422,9 +439,7 @@ export async function pullRecentLeads(
         });
         // ליד בלי שם/טלפון/אימייל (למשל ליד בדיקה ישן שפג) — הקליטה תדחה
         // אותו ממילא, ובלי הדילוג הוא היה נדחה מחדש בכל ריצת cron.
-        const hasIdentity = Boolean(
-          payload.full_name || payload.phone || payload.phone_number || payload.email
-        );
+        const hasIdentity = hasLeadIdentity(payload);
         if (
           hasIdentity &&
           lead.created_time &&
