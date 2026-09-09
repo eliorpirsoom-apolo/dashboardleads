@@ -17,6 +17,12 @@ const Body = z.union([
     clientId: z.string().min(1),
     apply: z.boolean().default(false),
   }),
+  // תיקון תאריכים עתידיים מבאג ייבוא dd/mm↔mm/dd: החלפת יום/חודש חזרה
+  // כשאפשר, אחרת תאריך היצירה. apply=false ⟵ דו"ח בלבד.
+  z.object({
+    action: z.literal("fix-future-received"),
+    apply: z.boolean().default(false),
+  }),
 ]);
 
 // POST /api/admin-ops/cleanup — פעולות ניקוי (מנהל בלבד).
@@ -38,6 +44,40 @@ export const POST = handle(async (req) => {
       where: { id: { in: acts.slice(1).map((a) => a.id) } },
     });
     return NextResponse.json({ deleted: res.count, kept: 1 });
+  }
+
+  // --- fix-future-received ---------------------------------------------------
+  if (b.action === "fix-future-received") {
+    const now = new Date();
+    const leads = await prisma.lead.findMany({
+      where: { receivedAt: { gt: now } },
+      select: { id: true, number: true, receivedAt: true, createdAt: true },
+    });
+    const plan = leads.map((l) => {
+      const r = l.receivedAt;
+      // הפירסור השגוי שמר חודש=DD וים=MM מהקובץ; מחליפים חזרה כשזה תקף ובעבר.
+      const intendedMonth = r.getDate(); // מספר החודש האמיתי מהקובץ
+      const intendedDay = r.getMonth() + 1;
+      const swapped = new Date(r.getFullYear(), intendedMonth - 1, intendedDay, r.getHours(), r.getMinutes());
+      const ok = intendedMonth <= 12 && !isNaN(swapped.getTime()) && swapped <= now;
+      return { id: l.id, number: l.number, from: r, to: ok ? swapped : l.createdAt };
+    });
+    let applied = 0;
+    if (b.apply) {
+      const { recordActivity } = await import("@/lib/leadActivity");
+      for (const p of plan) {
+        await prisma.lead.update({ where: { id: p.id }, data: { receivedAt: p.to } });
+        await recordActivity(p.id, "מערכת", "import", {
+          note: `תאריך הקליטה תוקן אוטומטית (באג פירסור בייבוא): ${p.from.toLocaleDateString("he-IL")} ← ${p.to.toLocaleDateString("he-IL")}`,
+        }).catch(() => {});
+        applied++;
+      }
+    }
+    return NextResponse.json({
+      found: plan.length,
+      applied,
+      sample: plan.slice(0, 8).map((p) => `#${p.number}: ${p.from.toISOString().slice(0, 10)} ← ${p.to.toISOString().slice(0, 10)}`),
+    });
   }
 
   // --- scan-duplicates -------------------------------------------------------

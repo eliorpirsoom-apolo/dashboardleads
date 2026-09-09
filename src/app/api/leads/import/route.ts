@@ -16,6 +16,32 @@ import { audit } from "@/lib/audit";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+// פירסור תאריך ישראלי: 12/07/2026 = 12 ביולי (dd/mm), לא 7 בדצמבר.
+// new Date("12/07/2026") של JS מפרש חודש/יום אמריקאי — הבאג שדחף 48 לידים
+// מיובאים ל"עתיד" ושבר את סדר החדש-למעלה (תוקן 2026-09-09).
+function parseIlDate(s: string): Date | null {
+  const t = s.trim();
+  if (!t) return null;
+  // ISO (yyyy-mm-dd...) — חד-משמעי, נשאר כמו שהוא.
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(t)) {
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // dd/mm/yyyy · dd.mm.yy · dd-mm-yyyy (+ שעה אופציונלית) — פורמט ישראלי.
+  const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})(?:[ T]+(\d{1,2}):(\d{2}))?/.exec(t);
+  if (m) {
+    const dd = Number(m[1]);
+    const mm = Number(m[2]);
+    let yy = Number(m[3]);
+    if (yy < 100) yy += 2000;
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+    const d = new Date(yy, mm - 1, dd, Number(m[4] ?? 12), Number(m[5] ?? 0));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // CSV import — agency managers only (approved decision 3: המשרד כשומר סף).
 const ImportReq = z.object({
   clientId: z.string().min(1),
@@ -77,7 +103,9 @@ export const POST = handle(async (req) => {
         continue;
       }
 
-      const receivedAt = row.receivedAt ? new Date(row.receivedAt) : new Date();
+      // תאריך מהקובץ בפירסור ישראלי; תאריך עתידי (שגיאת הקלדה) מוצמד לעכשיו.
+      let receivedAt = (row.receivedAt ? parseIlDate(row.receivedAt) : null) ?? new Date();
+      if (receivedAt.getTime() > Date.now()) receivedAt = new Date();
       const lead = await createLeadNumbered({
         clientId: client.id,
         kind: "manual",
