@@ -20,9 +20,31 @@ export const POST = handle(async (req) => {
   const b = Body.parse(await readJson(req));
   const page = await prisma.metaPage.findUnique({
     where: { id: b.id },
-    select: { pageToken: true, pageName: true },
+    select: { pageToken: true, pageName: true, clientId: true },
   });
   if (!page) throw new ApiError(404, "החיבור לא נמצא");
+
+  // ניקוי עצמי: מטא מתירה ליד בדיקה אחד לטופס — מוחקים את הקודמים (אצל מטא
+  // וגם את הליד שנוצר מהם במערכת) כדי שאפשר יהיה לשלוח בדיקה חדשה בכל רגע.
+  let cleaned = 0;
+  try {
+    const prevRes = await fetch(
+      `${GRAPH}/${b.formId}/test_leads?fields=id&access_token=${encodeURIComponent(page.pageToken)}`,
+      { cache: "no-store" }
+    );
+    const prev = await prevRes.json();
+    for (const t of prev?.data ?? []) {
+      await fetch(`${GRAPH}/${t.id}?access_token=${encodeURIComponent(page.pageToken)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+      await prisma.lead
+        .deleteMany({ where: { clientId: page.clientId, externalId: String(t.id) } })
+        .catch(() => {});
+      cleaned++;
+    }
+  } catch {
+    /* ניקוי הוא best-effort — יצירה חדשה תדווח אם עדיין חסום */
+  }
 
   const res = await fetch(`${GRAPH}/${b.formId}/test_leads`, {
     method: "POST",
@@ -39,5 +61,5 @@ export const POST = handle(async (req) => {
         : `יצירת ליד בדיקה נכשלה: ${msg.slice(0, 200)}`
     );
   }
-  return NextResponse.json({ ok: true, leadgenId: String(data.id) });
+  return NextResponse.json({ ok: true, leadgenId: String(data.id), cleanedPrevious: cleaned });
 });

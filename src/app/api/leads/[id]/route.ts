@@ -227,6 +227,20 @@ export const DELETE = handle(async (req, { params }: { params: { id: string } })
   if (hard) {
     assertNotAgent(user, "מחיקת ליד לצמיתות");
     await prisma.lead.delete({ where: { id: lead.id } });
+    // ליד מפייסבוק: ניסיון מחיקה גם אצל מטא — עובד רק על לידי בדיקה (מטא
+    // מסרבת למחוק לידים אמיתיים), ומונע מהמשיכה לייבא את ליד הבדיקה מחדש.
+    if (lead.externalId) {
+      const page = await prisma.metaPage.findFirst({
+        where: { clientId: lead.clientId, active: true },
+        select: { pageToken: true },
+      });
+      if (page) {
+        await fetch(
+          `https://graph.facebook.com/v21.0/${lead.externalId}?access_token=${encodeURIComponent(page.pageToken)}`,
+          { method: "DELETE" }
+        ).catch(() => {});
+      }
+    }
     return NextResponse.json({ ok: true, deleted: true });
   }
 
