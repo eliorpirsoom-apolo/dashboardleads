@@ -410,6 +410,11 @@ export default function LeadsView({
               ייבוא Excel/CSV
             </Button>
           ) : null}
+          {canImport ? (
+            <a href={`/admin/clients/${clientId}/leads/assign`}>
+              <Button variant="ghost" type="button">שיוך המוני</Button>
+            </a>
+          ) : null}
           <Button onClick={() => setShowCreate(true)}>
             <Icon name="plus" className="h-4 w-4" />
             ליד חדש
