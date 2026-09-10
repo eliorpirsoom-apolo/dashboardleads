@@ -8,6 +8,11 @@ import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
 const CAPS = [
   { k: "broadcast", l: "דיוור יזום ללקוחות", hint: "שליחת קמפיינים/הודעות לאנשי הקשר של הלקוח" },
   { k: "leadAlerts", l: "התראות על לידים חדשים", hint: "התראה למשתמשי הלקוח על כל ליד שנכנס" },
+  {
+    k: "unhandledAlerts",
+    l: "התראות על לידים שלא טופלו",
+    hint: "הסלמה בוואטסאפ למנהלי הלקוח כשליד נשאר ללא טיפול (לפי זמני ה-SLA)",
+  },
 ];
 const CHANS = [
   { k: "email", l: "מייל" },
@@ -54,6 +59,7 @@ export default function MessagingPermsCard({
           messagingAllowed: {
             broadcast: !!state.broadcast,
             leadAlerts: !!state.leadAlerts,
+            unhandledAlerts: !!state.unhandledAlerts,
             email: !!state.email,
             sms: !!state.sms,
             whatsapp: !!state.whatsapp,

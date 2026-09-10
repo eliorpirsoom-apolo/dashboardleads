@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { getTaskAgentConfig } from "./taskAgent";
 import { sendMessage } from "./messaging";
+import { parseMsgConfig, effectiveFlags } from "./messagingConfig";
 
 // ---------------------------------------------------------------------------
 // Speed-to-Lead — תזכורות אי-טיפול בלידים. רוכב על קרון ה-5 דקות:
@@ -64,7 +65,7 @@ export async function runLeadSlaChecks(): Promise<SlaRunResult> {
     take: BATCH,
     include: {
       assignee: { select: { name: true, whatsappPhone: true, active: true } },
-      client: { select: { name: true } },
+      client: { select: { name: true, messagingConfig: true } },
       project: { select: { name: true } },
       source: { select: { name: true } },
     },
@@ -115,7 +116,10 @@ export async function runLeadSlaChecks(): Promise<SlaRunResult> {
     // שלב 2 — הסלמה למנהלים אצל הלקוח (אין נמענים ⇒ מסומן בלי לשלוח,
     // כדי שלא ניבדק שוב כל 5 דקות לנצח).
     if (!lead.slaEscalatedAt && lead.receivedAt <= escalateDue) {
-      const targets = await clientManagerTargets(lead.clientId);
+      // המשרד (allowed) והלקוח (enabled) יכולים לכבות את ההסלמה ללקוח הזה;
+      // הליד עדיין מסומן כמוסלם כדי שלא ייבדק שוב בכל ריצה.
+      const alertsOn = effectiveFlags(parseMsgConfig(lead.client?.messagingConfig)).unhandledAlerts;
+      const targets = alertsOn ? await clientManagerTargets(lead.clientId) : [];
       const body =
         `🚨 ליד ללא טיפול ${ageMin} דקות\n\n` +
         `${who}${lead.phone ? ` · ${lead.phone}` : ""}\n` +

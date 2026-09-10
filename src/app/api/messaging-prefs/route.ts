@@ -28,6 +28,7 @@ const Prefs = z.object({
     .object({
       broadcast: z.boolean(),
       leadAlerts: z.boolean(),
+      unhandledAlerts: z.boolean(),
       email: z.boolean(),
       sms: z.boolean(),
       whatsapp: z.boolean(),

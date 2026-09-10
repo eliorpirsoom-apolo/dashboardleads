@@ -9,26 +9,32 @@
 export type MsgFlags = {
   broadcast: boolean; // דיוור יזום ללקוחות הלקוח
   leadAlerts: boolean; // התראות על לידים חדשים
+  unhandledAlerts: boolean; // הסלמת SLA למנהלי הלקוח על ליד שלא טופל
   email: boolean;
   sms: boolean;
   whatsapp: boolean;
 };
 export type MsgConfig = { allowed: MsgFlags; enabled: MsgFlags };
 
+// unhandledAlerts נולד אחרי שהפיצ'ר כבר עבד לכולם — לכן ברירת המחדל שלו
+// (כשהמפתח חסר ב-JSON) היא "פעיל", והמשרד/הלקוח מכבים במפורש.
 const EMPTY: MsgFlags = {
   broadcast: false,
   leadAlerts: false,
+  unhandledAlerts: true,
   email: false,
   sms: false,
   whatsapp: false,
 };
 
-export const MSG_KEYS = ["broadcast", "leadAlerts", "email", "sms", "whatsapp"] as const;
+export const MSG_KEYS = ["broadcast", "leadAlerts", "unhandledAlerts", "email", "sms", "whatsapp"] as const;
 export const MSG_CHANNELS = ["email", "sms", "whatsapp"] as const;
 
 function coerce(o: any): MsgFlags {
   const f: any = { ...EMPTY };
-  if (o && typeof o === "object") for (const k of MSG_KEYS) f[k] = Boolean(o[k]);
+  if (o && typeof o === "object") {
+    for (const k of MSG_KEYS) f[k] = o[k] === undefined ? EMPTY[k] : Boolean(o[k]);
+  }
   return f;
 }
 

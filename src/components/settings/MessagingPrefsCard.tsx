@@ -7,6 +7,7 @@ import { Card } from "@/components/ui";
 const ITEMS = [
   { k: "broadcast", l: "דיוור יזום ללקוחות שלי", hint: "לשלוח קמפיינים/הודעות לאנשי הקשר שלי" },
   { k: "leadAlerts", l: "התראות על לידים חדשים", hint: "לקבל התראה על כל ליד שנכנס" },
+  { k: "unhandledAlerts", l: "התראות על לידים שלא טופלו", hint: "הסלמה למנהלים כשליד נשאר ללא טיפול" },
   { k: "email", l: "ערוץ מייל", hint: "" },
   { k: "sms", l: "ערוץ SMS", hint: "" },
   { k: "whatsapp", l: "ערוץ וואטסאפ", hint: "" },
