@@ -87,7 +87,9 @@ export default function AssignLeadsPanel({ clientId }: { clientId: string }) {
         all.push(...rows);
         if (rows.length < 200) break;
       }
-      setLeads(all);
+      // הגנה מכפילות בין עמודים (תאריכים זהים בייבוא).
+      const seen = new Set<string>();
+      setLeads(all.filter((l) => (seen.has(l.id) ? false : (seen.add(l.id), true))));
       if (ag.length === 1) setDefaultAgent(ag[0].id);
     } catch (e) {
       setError((e as Error).message || "טעינה נכשלה");

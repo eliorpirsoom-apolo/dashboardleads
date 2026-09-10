@@ -24,7 +24,9 @@ export const GET = handle(async (req) => {
     prisma.lead.count({ where }),
     prisma.lead.findMany({
       where,
-      orderBy: { receivedAt: "desc" },
+      // סדר משני לפי מספר: לידים מיובאים חולקים תאריך זהה, ובלי שובר-שוויון
+      // העימוד לא יציב (ליד מופיע פעמיים בעמוד אחד ונעלם מאחר).
+      orderBy: [{ receivedAt: "desc" }, { number: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
