@@ -6,6 +6,7 @@ import {
   findDuplicateLead,
   normalizeEmail,
   normalizePhone,
+  ExternalIdConflict,
 } from "@/lib/leads";
 import { onLeadCreated, notifyRepeatInquiry } from "@/lib/hooks";
 import { rateLimit } from "@/lib/rateLimit";
@@ -429,7 +430,9 @@ export async function POST(
     } else if (source.client.autoAssignLeads) {
       assigneeId = await pickAutoAssignee(source.clientId);
     }
-    const lead = await createLeadNumbered({
+    let lead!: Awaited<ReturnType<typeof createLeadNumbered>>;
+    try {
+      lead = await createLeadNumbered({
       clientId: source.clientId,
       projectId: source.projectId,
       sourceId: source.id,
@@ -470,6 +473,27 @@ export async function POST(
       receivedAt: new Date(),
       data: Object.keys(extra).length ? JSON.stringify(extra) : null,
     });
+    } catch (e) {
+      // אותו ליד הגיע במקביל מצינור אחר (וובהוק כפול / משיכה / מסלול מיידי) —
+      // האינדקס הייחודי עצר את הכפילות; רושמים "כפול" ומצביעים על הליד שנוצר.
+      if (e instanceof ExternalIdConflict) {
+        const winner = await prisma.lead.findFirst({
+          where: { clientId: source.clientId, externalId: e.externalId },
+          select: { id: true },
+        });
+        await prisma.intakeLog.create({
+          data: {
+            sourceId: source.id,
+            clientId: source.clientId,
+            status: "duplicate",
+            leadId: winner?.id ?? null,
+            payload: rawPayload,
+          },
+        });
+        return NextResponse.json({ ok: true, duplicate: true, leadId: winner?.id ?? null });
+      }
+      throw e;
+    }
 
     await prisma.$transaction([
       prisma.intakeLog.create({

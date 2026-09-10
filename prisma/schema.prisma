@@ -358,7 +358,7 @@ model Lead {
   number     Int     @default(0)
   client     Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId   String
-  externalId String? // id in the source system (form id, call id...)
+  externalId String? // id in the source system (form id, call id...) — partial unique (clientId, externalId) via migration 0061 SQL
 
   kind String @default("form") // "form" | "call" | "whatsapp" | "manual"
 

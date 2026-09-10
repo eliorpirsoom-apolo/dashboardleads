@@ -53,6 +53,15 @@ export async function findDuplicateLead(
  * Runs in a transaction; retries on the [clientId, number] unique collision
  * so concurrent intakes can't clash.
  */
+/** אותו ליד חיצוני (externalId) כבר קיים אצל הלקוח — נזרק מהאינדקס הייחודי
+ *  (migration 0061) כששני צינורות יוצרים אותו ליד באותה שנייה. */
+export class ExternalIdConflict extends Error {
+  constructor(public readonly externalId: string) {
+    super(`ליד עם externalId ${externalId} כבר קיים`);
+    this.name = "ExternalIdConflict";
+  }
+}
+
 export async function createLeadNumbered(
   data: Omit<Prisma.LeadUncheckedCreateInput, "number">
 ) {
@@ -72,12 +81,13 @@ export async function createLeadNumbered(
       await markLeadIfDuplicate(created.id).catch(() => {});
       return created;
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002" &&
-        attempt < 4
-      ) {
-        continue; // number collided with a concurrent create — retry
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        // התנגשות externalId = אותו ליד מגיע משני צינורות במקביל — לא ריטריי.
+        const target = JSON.stringify((err.meta as { target?: unknown })?.target ?? "");
+        if (/externalId/i.test(target)) {
+          throw new ExternalIdConflict(String(data.externalId ?? ""));
+        }
+        if (attempt < 4) continue; // number collided with a concurrent create — retry
       }
       throw err;
     }
