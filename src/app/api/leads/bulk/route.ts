@@ -6,6 +6,7 @@ import { onLeadStatusChanged } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
 import { allowedProjectIds, leadProjectWhere, projectAllowed } from "@/lib/projectScope";
 import { assertNotAgent } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -35,6 +36,32 @@ export const POST = handle(async (req) => {
   if (body.action === "delete") {
     // מחיקה לצמיתות — שמור לבעלים/מנהל. הערות/פעילות בקסקייד; משימות/הודעות מנותקות.
     assertNotAgent(user, "מחיקת לידים לצמיתות");
+    // לידים מפייסבוק: מחיקה גם אצל מטא — עובדת רק על לידי בדיקה (מטא מסרבת
+    // למחוק לידים אמיתיים), ומונעת שהמשיכה המחזורית תייבא את ליד הבדיקה מחדש.
+    const external = leads.filter((l) => l.externalId).slice(0, 50);
+    if (external.length) {
+      const page = await prisma.metaPage.findFirst({
+        where: { clientId, active: true },
+        select: { pageToken: true },
+      });
+      if (page) {
+        await Promise.all(
+          external.map((l) =>
+            fetch(
+              `https://graph.facebook.com/v21.0/${l.externalId}?access_token=${encodeURIComponent(page.pageToken)}`,
+              { method: "DELETE" }
+            ).catch(() => {})
+          )
+        );
+      }
+    }
+    await audit(
+      user,
+      "leads_deleted",
+      "client",
+      clientId,
+      `${leads.length} לידים לצמיתות: ${leads.slice(0, 12).map((l) => `#${l.number}`).join(", ")}${leads.length > 12 ? " …" : ""}`
+    ).catch(() => {});
     await prisma.lead.deleteMany({ where: { id: { in: leads.map((l) => l.id) } } });
     return NextResponse.json({ ok: true, affected: leads.length, deleted: true });
   }

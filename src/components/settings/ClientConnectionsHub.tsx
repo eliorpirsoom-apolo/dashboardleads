@@ -340,16 +340,32 @@ function FormRoutingEditor({
     }
   }
 
-  // ליד בדיקה לטופס — נכנס ל-CRM דרך הוובהוק/המשיכה המחזורית ומוכיח את הצינור.
+  // ליד בדיקה לטופס — נוצר אצל מטא ומוזרם מיד לקליטה; מוכיח את כל הצינור.
+  // מטא מתירה ליד בדיקה אחד לטופס — השרת מוחק את הקודם אצל מטא לפני כל שליחה,
+  // והלידים שכבר נקלטו נשארים בטבלה (שם עם חותמת זמן) עד שמוחקים אותם.
   async function sendTestLead(formId: string) {
     setTesting(formId);
     setMsg("");
     try {
-      await api("/api/integrations/meta/test-lead", {
+      const r = await api<{
+        delivered?: boolean;
+        deliveryNote?: string | null;
+        leadNumber?: number | null;
+        projectName?: string | null;
+        cleanedPrevious?: number;
+      }>("/api/integrations/meta/test-lead", {
         method: "POST",
         json: { id: metaPageId, formId },
       });
-      setMsg("ליד בדיקה נשלח ✓ — ייכנס ל-CRM תוך עד 5 דקות, לפרויקט של הטופס");
+      if (r.delivered) {
+        setMsg(
+          `ליד בדיקה #${r.leadNumber ?? "?"} נקלט ✓` +
+            (r.projectName ? ` — פרויקט ${r.projectName}` : "") +
+            (r.cleanedPrevious ? " · ליד הבדיקה הקודם נמחק אצל מטא (מטא מתירה אחד לטופס); בטבלה הוא נשאר" : "")
+        );
+      } else {
+        setMsg(`שגיאה: הליד נוצר אצל מטא אך לא נקלט ב-CRM — ${r.deliveryNote ?? "סיבה לא ידועה"}`);
+      }
     } catch (e: any) {
       setMsg("שגיאה: " + e.message);
     } finally {
@@ -391,7 +407,7 @@ function FormRoutingEditor({
                 className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-500 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9] disabled:opacity-50"
                 title="שליחת ליד בדיקה לטופס הזה — לבדיקת כל הצינור עד ה-CRM"
               >
-                {testing === f.id ? "שולח…" : "🧪 ליד בדיקה"}
+                {testing === f.id ? "שולח… (עד 15 שנ׳)" : "🧪 ליד בדיקה"}
               </button>
             </div>
           ))}

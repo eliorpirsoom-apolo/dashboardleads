@@ -25,8 +25,9 @@ export const POST = handle(async (req) => {
   });
   if (!page) throw new ApiError(404, "החיבור לא נמצא");
 
-  // ניקוי עצמי: מטא מתירה ליד בדיקה אחד לטופס — מוחקים את הקודמים (אצל מטא
-  // וגם את הליד שנוצר מהם במערכת) כדי שאפשר יהיה לשלוח בדיקה חדשה בכל רגע.
+  // ניקוי עצמי: מטא מתירה ליד בדיקה אחד לטופס — מוחקים את הקודם אצל מטא בלבד.
+  // הליד שנוצר ממנו ב-CRM נשאר (כל בדיקה = שורה משלה, עם חותמת זמן בשם), כדי
+  // שאפשר לשלוח כמה בדיקות ברצף ולראות את כולן; המשרד מוחק אותן כשמסיים.
   let cleaned = 0;
   try {
     const prevRes = await fetch(
@@ -35,17 +36,21 @@ export const POST = handle(async (req) => {
     );
     const prev = await prevRes.json();
     for (const t of prev?.data ?? []) {
-      await fetch(`${GRAPH}/${t.id}?access_token=${encodeURIComponent(page.pageToken)}`, {
+      const del = await fetch(`${GRAPH}/${t.id}?access_token=${encodeURIComponent(page.pageToken)}`, {
         method: "DELETE",
-      }).catch(() => {});
-      await prisma.lead
-        .deleteMany({ where: { clientId: page.clientId, externalId: String(t.id) } })
-        .catch(() => {});
-      cleaned++;
+      }).catch(() => null);
+      if (del?.ok) cleaned++;
     }
   } catch {
     /* ניקוי הוא best-effort — יצירה חדשה תדווח אם עדיין חסום */
   }
+  const stamp = new Date().toLocaleString("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   // ערכי דמה לפי שאלות הטופס: בלי field_data מטא יוצרת ליד ריק (בלי שם/טלפון)
   // שהקליטה מדלגת עליו בכוונה — ליד בדיקה חייב זהות כדי לבדוק את הצינור באמת.
@@ -65,7 +70,7 @@ export const POST = handle(async (req) => {
         if (Array.isArray(q.options) && q.options.length) v = String(q.options[0]?.value ?? q.options[0]?.key ?? "בדיקה");
         else if (type.includes("PHONE") || /phone|טלפון|נייד/i.test(key)) v = `050000${rand}`;
         else if (type.includes("EMAIL") || /mail|מייל/i.test(key)) v = `test.${rand}@apolloadv.co.il`;
-        else if (type.includes("NAME") || /name|שם/i.test(key)) v = "ליד בדיקה — Apollo CRM";
+        else if (type.includes("NAME") || /name|שם/i.test(key)) v = `ליד בדיקה — Apollo CRM ${stamp}`;
         else if (/city|עיר/i.test(key)) v = "בדיקת מערכת";
         return { name: key, values: [v] };
       })
@@ -88,7 +93,7 @@ export const POST = handle(async (req) => {
     throw new ApiError(
       400,
       /already|exist/i.test(msg)
-        ? "כבר קיים ליד בדיקה פעיל לטופס הזה — נסו טופס אחר (מטא מתירה ליד בדיקה אחד פעיל לכל טופס)"
+        ? "מטא מתירה ליד בדיקה אחד לטופס, וקיים ליד בדיקה שנוצר מחוץ ל-CRM (למשל בכלי הבדיקה של מטא) שאין לנו הרשאה למחוק — מחקו אותו בכלי: developers.facebook.com/tools/lead-ads-testing ואז שלחו שוב"
         : `יצירת ליד בדיקה נכשלה: ${msg.slice(0, 200)}`
     );
   }
@@ -96,6 +101,12 @@ export const POST = handle(async (req) => {
   // הזרמה מיידית לקליטה — הוובהוק של מטא לא אמין במצב פיתוח, והמשיכה
   // המחזורית רצה רק כל כמה דקות; ככה הבדיקה מקצה-לקצה מסתיימת בלחיצה אחת.
   const delivery = await processLeadgenEvent(page.pageId, String(data.id));
+  const created = delivery.ok
+    ? await prisma.lead.findFirst({
+        where: { clientId: page.clientId, externalId: String(data.id) },
+        select: { number: true, project: { select: { name: true } } },
+      })
+    : null;
   return NextResponse.json({
     ok: true,
     leadgenId: String(data.id),
@@ -103,5 +114,7 @@ export const POST = handle(async (req) => {
     fields: fieldData.map((f) => f.name),
     delivered: delivery.ok,
     deliveryNote: delivery.ok ? null : delivery.note,
+    leadNumber: created?.number ?? null,
+    projectName: created?.project?.name ?? null,
   });
 });
