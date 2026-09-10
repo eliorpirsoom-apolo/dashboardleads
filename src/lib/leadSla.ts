@@ -102,6 +102,7 @@ export async function runLeadSlaChecks(): Promise<SlaRunResult> {
       await sendMessage({
         channel: "whatsapp",
         to: lead.assignee.whatsappPhone,
+        subject: "ליד ממתין — תזכורת למשווק",
         body,
         kind: "automation",
         clientId: lead.clientId,
@@ -125,6 +126,7 @@ export async function runLeadSlaChecks(): Promise<SlaRunResult> {
         await sendMessage({
           channel: "whatsapp",
           to,
+          subject: "ליד ללא טיפול — הסלמה למנהל",
           body,
           kind: "automation",
           clientId: lead.clientId,

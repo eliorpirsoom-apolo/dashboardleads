@@ -77,7 +77,7 @@ interface FullLead {
   unitTypeId: string | null;
   projectId: string | null;
   assigneeId: string | null;
-  assignee: { id: string; name: string } | null;
+  assignee: { id: string; name: string; phone?: string | null; whatsappPhone?: string | null } | null;
   activities: Activity[];
   callDurationSec: number | null;
   callRecordingUrl: string | null;
@@ -95,6 +95,9 @@ interface FullLead {
     status: string;
     kind: string;
     subject: string | null;
+    to?: string;
+    error?: string | null;
+    sentAt?: string | null;
     createdAt: string;
   }[];
   status: StatusOpt | null;
@@ -1125,6 +1128,14 @@ export default function LeadDrawer({
             {/* שיחת וואטסאפ מול הליד */}
             <LeadWhatsappChat leadId={lead.id} hasPhone={Boolean(lead.phone)} clientId={lead.clientId} />
 
+            {/* לוח שליחות — מה נשלח מהליד (וואטסאפ/SMS/מייל), למי ובאיזה סטטוס */}
+            <DeliveryBoard
+              messages={lead.messages || []}
+              leadPhone={lead.phone}
+              leadEmail={lead.email}
+              assignee={lead.assignee}
+            />
+
             {/* ציר פעילות (ההערות עברו למעלה, מתחת לפרטי הליד) */}
             <h3 className="mb-2 mt-6 text-sm font-bold text-slate-600">
               ציר פעילות
@@ -1300,5 +1311,132 @@ function LeadWhatsappChat({ leadId, hasPhone, clientId }: { leadId: string; hasP
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// לוח שליחות — לצפייה בלבד. כל הודעה שיצאה מהליד (וואטסאפ / SMS / מייל):
+// מה נשלח, למי (הליד עצמו / המשווק המשויך / צוות), סטטוס מסירה ושגיאה.
+// הנמען מזוהה לפי השוואת מספר/מייל לליד ולמשווק — בלי שדה נוסף ב-DB.
+// ---------------------------------------------------------------------------
+const CHANNEL_META: Record<string, { icon: string; label: string }> = {
+  whatsapp: { icon: "💬", label: "וואטסאפ" },
+  sms: { icon: "📱", label: "SMS" },
+  email: { icon: "✉️", label: "מייל" },
+};
+const DELIVERY_STATUS: Record<string, { label: string; cls: string }> = {
+  sent: { label: "נשלח ✓", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  pending: { label: "ממתין ⏳", cls: "border-amber-200 bg-amber-50 text-amber-700" },
+  failed: { label: "נכשל ✗", cls: "border-red-200 bg-red-50 text-red-600" },
+  skipped: { label: "דולג", cls: "border-slate-200 bg-slate-50 text-slate-500" },
+};
+const MESSAGE_KIND_LABELS: Record<string, string> = {
+  automation: "אוטומציה",
+  reminder: "תזכורת",
+  broadcast: "דיוור",
+  system: "הודעת מערכת",
+  chat: "שיחה עם הליד",
+};
+function phoneDigits(s?: string | null): string {
+  return (s ?? "").replace(/\D/g, "").replace(/^972/, "0");
+}
+function DeliveryBoard({
+  messages,
+  leadPhone,
+  leadEmail,
+  assignee,
+}: {
+  messages: FullLead["messages"];
+  leadPhone: string | null;
+  leadEmail: string | null;
+  assignee: FullLead["assignee"];
+}) {
+  const recipient = (m: FullLead["messages"][number]) => {
+    const to = m.to ?? "";
+    const td = phoneDigits(to);
+    if (leadEmail && to.toLowerCase() === leadEmail.toLowerCase()) return "לליד";
+    if (td && leadPhone && td === phoneDigits(leadPhone)) return "לליד";
+    if (assignee && td && (td === phoneDigits(assignee.whatsappPhone) || td === phoneDigits(assignee.phone))) {
+      return `למשווק · ${assignee.name}`;
+    }
+    if (to.endsWith("@g.us")) return "לקבוצת וואטסאפ";
+    return "לצוות";
+  };
+  const summary = (["whatsapp", "sms", "email"] as const).map((ch) => {
+    const ms = messages.filter((m) => m.channel === ch);
+    return {
+      ch,
+      total: ms.length,
+      sent: ms.filter((m) => m.status === "sent").length,
+      failed: ms.filter((m) => m.status === "failed").length,
+      pending: ms.filter((m) => m.status === "pending").length,
+    };
+  });
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return (
+    <section className="mt-6">
+      <h3 className="mb-2 text-sm font-bold text-slate-600">📡 לוח שליחות</h3>
+      <div className="mb-2 flex flex-wrap gap-2">
+        {summary.map((s) => (
+          <span
+            key={s.ch}
+            className={`rounded-full border px-2.5 py-0.5 text-xs ${
+              s.total === 0
+                ? "border-slate-200 text-slate-400"
+                : s.failed
+                  ? "border-red-200 bg-red-50 text-red-600"
+                  : s.pending && !s.sent
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            {CHANNEL_META[s.ch].icon} {CHANNEL_META[s.ch].label}:{" "}
+            {s.total === 0
+              ? "לא נשלח"
+              : [
+                  s.sent ? `${s.sent} נשלחו` : "",
+                  s.pending ? `${s.pending} ממתינים` : "",
+                  s.failed ? `${s.failed} נכשלו` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+          </span>
+        ))}
+      </div>
+      {messages.length === 0 ? (
+        <p className="text-xs text-slate-500">עדיין לא נשלחו הודעות מהליד הזה.</p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {messages.map((m) => {
+            const st = DELIVERY_STATUS[m.status] ?? { label: m.status, cls: "border-slate-200 text-slate-500" };
+            const ch = CHANNEL_META[m.channel] ?? { icon: "📨", label: m.channel };
+            const tail = phoneDigits(m.to).slice(-4) || (m.to ?? "").slice(-8);
+            return (
+              <div
+                key={m.id}
+                className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-1.5 text-xs last:border-b-0"
+              >
+                <span title={ch.label}>{ch.icon}</span>
+                <span className="font-medium text-slate-700">
+                  {m.subject || MESSAGE_KIND_LABELS[m.kind] || m.kind}
+                </span>
+                <span className="text-slate-400">
+                  {recipient(m)}
+                  {tail ? ` (…${tail})` : ""}
+                </span>
+                <span className={`rounded-full border px-2 py-0.5 ${st.cls}`}>{st.label}</span>
+                {m.error ? (
+                  <span className="text-red-500" title={m.error}>
+                    {m.error.slice(0, 70)}
+                  </span>
+                ) : null}
+                <span className="mr-auto whitespace-nowrap text-slate-500">{fmt(m.sentAt || m.createdAt)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

@@ -82,6 +82,7 @@ export async function sendLeadToMarketer(leadId: string): Promise<void> {
   await sendMessage({
     channel: "whatsapp",
     to: lead.assignee.whatsappPhone,
+    subject: "ליד חדש — למשווק",
     body,
     kind: "automation",
     clientId: lead.clientId,
@@ -114,6 +115,7 @@ export async function notifyRepeatInquiry(leadId: string, viaSource: string): Pr
   await sendMessage({
     channel: "whatsapp",
     to: lead.assignee.whatsappPhone,
+    subject: "פנייה חוזרת — למשווק",
     body,
     kind: "automation",
     clientId: lead.clientId,
