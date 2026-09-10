@@ -140,11 +140,17 @@ export default function LeadsView({
   const [assigneeId, setAssigneeId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [showArchived, setShowArchived] = useState(false);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // ברירת המחדל: "היום" — איש המכירות פותח את הטבלה על הלידים של היום וממשיך
+  // אחורה לפי הצורך (החלטת הבעלים 10.9). לא נשמר בין ביקורים בכוונה.
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const [from, setFrom] = useState(todayStr);
+  const [to, setTo] = useState(todayStr);
   // פילטר תקופה מהיר (כמו בליד מנג'ר): בחירה מציבה from/to; "טווח תאריכים"
   // חושף את שני שדות התאריך לבחירה חופשית.
-  const [datePreset, setDatePreset] = useState("all");
+  const [datePreset, setDatePreset] = useState("today");
 
   function applyDatePreset(preset: string) {
     setDatePreset(preset);
@@ -519,8 +525,20 @@ export default function LeadsView({
         ) : rows.length === 0 ? (
           <EmptyState
             icon="leads"
-            title={showArchived ? "הארכיון ריק" : "אין לידים להצגה"}
-            hint={showArchived ? undefined : "לידים חדשים ייכנסו אוטומטית מהקליטה הישירה, או הוסיפו ידנית."}
+            title={
+              showArchived
+                ? "הארכיון ריק"
+                : datePreset === "today"
+                  ? "אין לידים חדשים היום"
+                  : "אין לידים להצגה"
+            }
+            hint={
+              showArchived
+                ? undefined
+                : datePreset === "today"
+                  ? "בחרו תקופה אחרת למעלה (אתמול / 7 ימים / כל התקופה) כדי לראות לידים קודמים."
+                  : "לידים חדשים ייכנסו אוטומטית מהקליטה הישירה, או הוסיפו ידנית."
+            }
           />
         ) : (
           <div className="thin-scroll overflow-x-auto rounded-2xl">
