@@ -7,7 +7,9 @@ import { syncDesignTaskCalendar } from "@/lib/studioGcal";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/design-tasks?status&designerId&clientId — לוח הסטודיו (צד משרד).
+// GET /api/design-tasks?status&designerId&clientId&q — לוח הסטודיו (צד משרד).
+// q — חיפוש חופשי: כותרת/בריף/מפרט, לקוח, מעצב/ת, קבוצה, פרויקט, וגם שמות
+// קבצים והערות של תוצרים (המשימה חוזרת עם matchedAssets — הקבצים שנמצאו).
 export const GET = handle(async (req) => {
   await requireAdmin();
   const p = new URL(req.url).searchParams;
@@ -15,6 +17,25 @@ export const GET = handle(async (req) => {
   if (p.get("status")) where.status = p.get("status");
   if (p.get("designerId")) where.designerId = p.get("designerId");
   if (p.get("clientId")) where.clientId = p.get("clientId");
+
+  const q = (p.get("q") || "").trim().slice(0, 80);
+  const assetMatch = q
+    ? { OR: [{ fileName: { contains: q, mode: "insensitive" as const } }, { note: { contains: q, mode: "insensitive" as const } }] }
+    : null;
+  if (q && assetMatch) {
+    const c = { contains: q, mode: "insensitive" as const };
+    where.OR = [
+      { title: c },
+      { brief: c },
+      { specs: c },
+      { client: { name: c } },
+      { designer: { name: c } },
+      { group: { name: c } },
+      { project: { name: c } },
+      { assets: { some: assetMatch } },
+      { feedback: { some: { text: c } } },
+    ];
+  }
 
   const tasks = await prisma.designTask.findMany({
     where,
@@ -24,9 +45,24 @@ export const GET = handle(async (req) => {
       client: { select: { id: true, name: true, color: true } },
       designer: { select: { id: true, name: true } },
       _count: { select: { assets: true, feedback: true } },
+      ...(assetMatch
+        ? {
+            assets: {
+              where: assetMatch,
+              select: { id: true, fileName: true, kind: true },
+              orderBy: { createdAt: "desc" as const },
+              take: 6,
+            },
+          }
+        : {}),
     },
   });
-  return NextResponse.json({ tasks });
+  return NextResponse.json({
+    tasks: tasks.map((t: any) => {
+      const { assets, ...rest } = t;
+      return assetMatch ? { ...rest, matchedAssets: assets ?? [] } : rest;
+    }),
+  });
 });
 
 const RefAsset = z.object({

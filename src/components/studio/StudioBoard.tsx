@@ -43,6 +43,8 @@ interface DTask {
   client: { id: string; name: string; color: string | null } | null;
   designer: { id: string; name: string } | null;
   _count?: { assets: number; feedback: number };
+  // תוצרים/קבצים שתאמו את מילת החיפוש (מוחזר רק כשיש q).
+  matchedAssets?: { id: string; fileName: string | null; kind: string }[];
 }
 interface Group {
   id: string;
@@ -114,12 +116,22 @@ export default function StudioBoard({
     };
   }, [dragId, dragGroupId]);
   const [createGroupId, setCreateGroupId] = useState<string | null>(null); // קבוצה מוגדרת-מראש בבריף חדש
+  // חיפוש חופשי במשימות ובתוצרים — מבוצע בשרת אחרי השהיה קצרה בהקלדה.
+  const [search, setSearch] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQ(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
-    const q = designerFilter ? `?designerId=${designerFilter}` : "";
-    const d = await api<{ tasks: DTask[] }>(`/api/design-tasks${q}`);
+    const params = new URLSearchParams();
+    if (designerFilter) params.set("designerId", designerFilter);
+    if (searchQ) params.set("q", searchQ);
+    const qs = params.toString();
+    const d = await api<{ tasks: DTask[] }>(`/api/design-tasks${qs ? `?${qs}` : ""}`);
     setTasks(d.tasks);
-  }, [designerFilter]);
+  }, [designerFilter, searchQ]);
 
   const loadGroups = useCallback(async () => {
     const d = await api<{ groups: Group[] }>("/api/design-groups");
@@ -179,8 +191,8 @@ export default function StudioBoard({
       : timeSort
         ? (a.scheduledAt || "z").localeCompare(b.scheduledAt || "z") || byOrder(a, b)
         : byOrder(a, b);
-  // גרירה מושבתת בזמן סינון/מיון (שלא לשבש סדר של פריטים מוסתרים)
-  const dndEnabled = !designerFilter && !statusSort && !timeSort;
+  // גרירה מושבתת בזמן סינון/מיון/חיפוש (שלא לשבש סדר של פריטים מוסתרים)
+  const dndEnabled = !designerFilter && !statusSort && !timeSort && !searchQ;
 
   // משכי עבודה לבחירה — חצי שעה עד יום עבודה.
   const DURATIONS: { v: number; l: string }[] = [
@@ -395,6 +407,23 @@ export default function StudioBoard({
                 </button>
               </span>
             )}
+            {t.matchedAssets && t.matchedAssets.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {t.matchedAssets.map((a) => (
+                  <a
+                    key={a.id}
+                    href={`/api/design-assets/${a.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`${a.kind === "reference" ? "רפרנס" : a.kind === "feedback" ? "קובץ משוב" : "תוצר"} — פתיחה בטאב חדש`}
+                    className="max-w-[220px] truncate rounded-full border border-[#3a5bd9]/30 bg-[#3a5bd9]/5 px-2 py-0.5 text-[11px] text-[#3a5bd9] hover:bg-[#3a5bd9]/10"
+                  >
+                    📎 {a.fileName || "קובץ"}
+                  </a>
+                ))}
+              </div>
+            ) : null}
             {t.overdue || t.round > 1 ? (
               <div className="mt-1 flex gap-1">
                 {t.overdue ? <Chip color="#f87171">באיחור</Chip> : null}
@@ -667,6 +696,31 @@ export default function StudioBoard({
             </option>
           ))}
         </select>
+        <div className="relative w-72 max-w-full">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setSearch(""); }}
+            placeholder="🔍 חיפוש משימות ותוצרים…"
+            title="מחפש בכותרת, בבריף, במפרט, בלקוח, במעצב/ת, בקבוצה — וגם בשמות הקבצים של התוצרים"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pl-8 text-sm text-slate-700 placeholder-slate-400 focus:border-[#3a5bd9] focus:outline-none"
+          />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              title="ניקוי חיפוש"
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+          ) : null}
+        </div>
+        {searchQ ? (
+          <span className="rounded-full bg-[#3a5bd9]/10 px-2.5 py-1 text-xs font-medium text-[#3a5bd9]">
+            {tasks.length === 0 ? "לא נמצאו תוצאות" : `${tasks.length} תוצאות`}
+          </span>
+        ) : null}
         <div className="mr-auto flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
           <button
             onClick={() => setView("table")}
@@ -696,7 +750,9 @@ export default function StudioBoard({
             <p className="text-[11px] text-slate-500">
               {dndEnabled
                 ? "גררו משימות ⠿ בתוך/בין קבוצות · גררו כותרת קבוצה ⠿ לשינוי סדר הבלוקים"
-                : "בטלו סינון מעצב/ת כדי לגרור ולסדר"}
+                : searchQ
+                  ? "חיפוש פעיל — מוצגות רק משימות תואמות (כולל משימות שתוצר שלהן תאם); נקו את החיפוש כדי לגרור ולסדר"
+                  : "בטלו סינון מעצב/ת כדי לגרור ולסדר"}
             </p>
             <Button size="sm" variant="ghost" onClick={addGroup} className="!border-slate-300 !text-slate-600 hover:!border-[#3a5bd9] hover:!text-[#3a5bd9]">
               <Icon name="plus" className="h-4 w-4" />
@@ -736,9 +792,18 @@ export default function StudioBoard({
               הרוחב המינימלי גדל עם הרחבת עמודות (כמו באקסל) כדי שעמודת המשימה לא תימחץ. */}
           <div className="overflow-x-auto pb-1">
             <div className="flex flex-col gap-3" style={{ minWidth: 24 + colW.reduce((a, b) => a + b, 0) }}>
+              {searchQ && tasks.length === 0 ? (
+                <Card>
+                  <p className="py-8 text-center text-sm text-slate-600">
+                    לא נמצאו משימות או תוצרים עבור ״{searchQ}״.
+                  </p>
+                </Card>
+              ) : null}
               {sections.map((sec) => {
                 // מציגים את "ללא קבוצה" רק אם יש בו משימות או שאין קבוצות כלל.
                 if (sec.key === "none" && sec.items.length === 0 && groups.length > 0) return null;
+                // בחיפוש — קבוצות בלי תוצאות מוסתרות, שהתוצאות יהיו מרוכזות.
+                if (searchQ && sec.items.length === 0) return null;
                 return <Fragment key={sec.key}>{renderGroupBlock(sec)}</Fragment>;
               })}
             </div>
