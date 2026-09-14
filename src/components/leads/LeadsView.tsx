@@ -520,6 +520,44 @@ export default function LeadsView({
 
       {/* Table */}
       <div className="glass rounded-2xl p-2">
+        {/* מונה + עימוד למעלה — הכמות נראית מיד בלי לגלול (החלטת הבעלים 14.9) */}
+        {total > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 px-4 py-2.5 text-xs text-slate-500">
+            <span className="flex items-center gap-2">
+              <b className="text-sm text-slate-700">{total} לידים</b>
+              <span className="text-slate-400">· עמוד {page} מתוך {pages}</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setPageSize(v);
+                  setPage(1);
+                  try { localStorage.setItem("leadsPageSize", String(v)); } catch {}
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600 focus:border-[#3a5bd9] focus:outline-none"
+                title="כמה לידים בעמוד"
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>{n} בעמוד</option>
+                ))}
+              </select>
+            </span>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(1)} title="לעמוד הראשון">
+                « ראשון
+              </Button>
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                הקודם
+              </Button>
+              <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+                הבא
+              </Button>
+              <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage(pages)} title="לעמוד האחרון">
+                אחרון »
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {loading && rows.length === 0 ? (
           <p className="p-8 text-center text-sm text-slate-500">טוען…</p>
         ) : rows.length === 0 ? (
@@ -749,41 +787,16 @@ export default function LeadsView({
           </div>
         )}
 
-        {/* Pagination */}
-        {total > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/60 px-4 py-3 text-xs text-slate-400">
-            <span className="flex items-center gap-2">
-              {total} לידים · עמוד {page} מתוך {pages}
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setPageSize(v);
-                  setPage(1);
-                  try { localStorage.setItem("leadsPageSize", String(v)); } catch {}
-                }}
-                className="rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600 focus:border-[#3a5bd9] focus:outline-none"
-                title="כמה לידים בעמוד"
-              >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>{n} בעמוד</option>
-                ))}
-              </select>
-            </span>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(1)} title="לעמוד הראשון">
-                « ראשון
-              </Button>
-              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                הקודם
-              </Button>
-              <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
-                הבא
-              </Button>
-              <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage(pages)} title="לעמוד האחרון">
-                אחרון »
-              </Button>
-            </div>
+        {/* למטה נשארים רק כפתורי הדפדוף — נוח אחרי גלילה של עמוד ארוך */}
+        {pages > 1 ? (
+          <div className="flex items-center justify-end gap-1 border-t border-slate-200/60 px-4 py-2">
+            <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              הקודם
+            </Button>
+            <span className="px-2 text-xs text-slate-400">{page} / {pages}</span>
+            <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+              הבא
+            </Button>
           </div>
         ) : null}
       </div>
