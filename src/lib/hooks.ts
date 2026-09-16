@@ -3,7 +3,8 @@ import { sendMessage, renderTemplate, type Channel } from "./messaging";
 import { parseMsgConfig, effectiveFlags, effectiveChannels } from "./messagingConfig";
 
 // התראת "ליד חדש" למשתמשי הלקוח — לפי הרשאות הדיוור (leadAlerts + ערוצים אפקטיביים).
-async function sendNewLeadAlert(leadId: string): Promise<void> {
+// מיוצאת גם לשליחה חוזרת ידנית (POST /api/leads/[id]/resend-alerts).
+export async function sendNewLeadAlert(leadId: string): Promise<void> {
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
     include: {
@@ -24,7 +25,8 @@ async function sendNewLeadAlert(leadId: string): Promise<void> {
   const body =
     `📩 ליד חדש${lead.source?.name ? ` מ-${lead.source.name}` : ""}:\n` +
     `${lead.fullName ?? "ללא שם"}${lead.phone ? ` · ${lead.phone}` : ""}` +
-    `${lead.email ? ` · ${lead.email}` : ""}`;
+    `${lead.email ? ` · ${lead.email}` : ""}` +
+    `${lead.city ? `\nעיר: ${lead.city}` : ""}`;
   for (const ch of channels) {
     for (const u of users) {
       const to = ch === "email" ? u.email : u.phone ?? "";
