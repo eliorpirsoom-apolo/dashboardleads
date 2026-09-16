@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { handle, ApiError } from "@/lib/api";
-import { requireManager } from "@/lib/permissions";
+import { handle, ApiError, requireAdmin } from "@/lib/api";
 import { sendNewLeadAlert, sendLeadToMarketer } from "@/lib/hooks";
 import { recordActivity } from "@/lib/leadActivity";
 
@@ -9,9 +8,9 @@ export const dynamic = "force-dynamic";
 
 // POST /api/leads/[id]/resend-alerts — שליחה חוזרת של התראות "ליד חדש":
 // למשתמשי הלקוח (לפי הרשאות הדיוור) ולמשווק המשויך (וואטסאפ ייעודי).
-// מנהל משרד בלבד; נרשם בציר הפעילות. התוצאה נראית בלוח השליחות של הליד.
+// פתוח לכל צוות המשרד (כמו ניהול הלידים); נרשם בציר הפעילות ובלוח השליחות.
 export const POST = handle(async (_req, { params }: { params: { id: string } }) => {
-  const user = await requireManager();
+  const user = await requireAdmin();
   const lead = await prisma.lead.findUnique({ where: { id: params.id }, select: { id: true, number: true } });
   if (!lead) throw new ApiError(404, "ליד לא נמצא");
 
