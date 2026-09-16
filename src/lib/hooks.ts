@@ -70,6 +70,7 @@ export async function sendLeadToMarketer(leadId: string): Promise<void> {
   const details: (string | null)[] = [
     lead.fullName ? `שם: ${lead.fullName}` : null,
     lead.phone ? `טלפון: ${lead.phone}` : null,
+    lead.city ? `עיר: ${lead.city}` : null,
     lead.project?.name ? `פרויקט: ${lead.project.name}` : null,
     lead.source?.name ? `מקור: ${lead.source.name}` : null,
   ];
@@ -105,6 +106,7 @@ export async function notifyRepeatInquiry(leadId: string, viaSource: string): Pr
   const details: (string | null)[] = [
     lead.fullName ? `שם: ${lead.fullName}` : null,
     lead.phone ? `טלפון: ${lead.phone}` : null,
+    lead.city ? `עיר: ${lead.city}` : null,
     lead.project?.name ? `פרויקט: ${lead.project.name}` : null,
     `פנה שוב דרך: ${viaSource}`,
   ];
