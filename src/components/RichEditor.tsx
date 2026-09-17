@@ -37,6 +37,7 @@ export default function RichEditor({
   uploadImage,
   resetSignal = 0,
   minHeight = 120,
+  maxHeight,
   mentionUsers,
   onMention,
 }: {
@@ -46,6 +47,8 @@ export default function RichEditor({
   uploadImage?: (file: File) => Promise<string | null>;
   resetSignal?: number;
   minHeight?: number;
+  // גובה מרבי — מעליו העורך גולל פנימית במקום למתוח את הכרטיס/מודל.
+  maxHeight?: number;
   // תיוג @ (כמו במאנדיי): רשימת משתמשים לתפריט; onMention נקרא בבחירה.
   mentionUsers?: MentionUser[];
   onMention?: (u: MentionUser) => void;
@@ -149,7 +152,10 @@ export default function RichEditor({
     },
     onSelectionUpdate: ({ editor }) => detectMention(editor),
     editorProps: {
-      attributes: { class: "rich-content px-3 py-2", style: `min-height:${minHeight}px` },
+      attributes: {
+        class: "rich-content px-3 py-2",
+        style: `min-height:${minHeight}px${maxHeight ? `;max-height:${maxHeight}px;overflow-y:auto` : ""}`,
+      },
       handleKeyDown: (_view, event) => {
         const st = mentionRef.current;
         if (!st) return false;

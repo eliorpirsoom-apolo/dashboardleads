@@ -33,6 +33,15 @@ export const POST = handle(async (req) => {
     return NextResponse.json({ target, key });
   }
 
+  // תמונות/וידאו מוטבעים בבריף — namespace של המשרד, בלי תלות בלקוח.
+  if (body.category === "studio-brief") {
+    if (user.role !== "ADMIN") throw new ApiError(403, "צד משרד בלבד");
+    const safe = body.fileName.replace(/[^\w.\-֐-׿]+/g, "_").slice(-120) || "paste";
+    const key = `agency/studio-briefs/${crypto.randomUUID()}-${safe}`;
+    const target = await presignUpload(key, body.mimeType);
+    return NextResponse.json({ target, key });
+  }
+
   const clientId = scopeClientId(user, body.clientId);
   const key = makeFileKey(clientId, body.category, body.fileName);
   const target = await presignUpload(key, body.mimeType);

@@ -528,7 +528,7 @@ export default function StudioTaskDrawer({
   }
 
   // העלאת תמונה/וידאו/צילום-מסך מוטבע בבריף → R2 (לוגיקה משותפת ב-lib/studioMedia).
-  const uploadStudioMedia = (file: File) => uploadStudioMediaLib(clientId ?? "", file);
+  const uploadStudioMedia = (file: File) => uploadStudioMediaLib(file);
 
   const isHtmlEmpty = (html: string) =>
     !/<img\b|<video\b/i.test(html) && html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "") === "";
@@ -860,6 +860,7 @@ export default function StudioTaskDrawer({
                 uploadImage={uploadStudioMedia}
                 placeholder="כתבו בריף — טקסט, תמונות, צילומי מסך, קישורים…"
                 minHeight={140}
+                maxHeight={360}
               />
             ) : briefInitial ? (
               <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">

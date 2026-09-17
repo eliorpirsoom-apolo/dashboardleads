@@ -30,6 +30,12 @@ export const POST = handle(async (req) => {
     if (user.role !== "ADMIN") throw new ApiError(403, "צד משרד בלבד");
     const safe = file.name.replace(/[^\w.\-֐-׿]+/g, "_").slice(-120);
     key = `agency/quotes/${crypto.randomUUID()}-${safe}`;
+  } else if (category === "studio-brief") {
+    // תמונות/צילומי-מסך מוטבעים בבריף — namespace של המשרד, בלי תלות בלקוח,
+    // כדי שההדבקה תעבוד מיד (לפני שנבחר לקוח לבריף).
+    if (user.role !== "ADMIN") throw new ApiError(403, "צד משרד בלבד");
+    const safe = file.name.replace(/[^\w.\-֐-׿]+/g, "_").slice(-120) || "paste.png";
+    key = `agency/studio-briefs/${crypto.randomUUID()}-${safe}`;
   } else {
     const clientId = scopeClientId(user, String(form.get("clientId") ?? ""));
     key = makeFileKey(clientId, category, file.name);

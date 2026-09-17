@@ -1109,7 +1109,7 @@ function CreateBriefModal({
   }
 
   return (
-    <Modal title="בריף עיצוב חדש" onClose={onClose}>
+    <Modal title="בריף עיצוב חדש" onClose={onClose} wide>
       <form onSubmit={submit} className="flex flex-col gap-3">
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="grid grid-cols-2 gap-3">
@@ -1151,13 +1151,11 @@ function CreateBriefModal({
             key={`newbrief-${briefKey}`}
             value={form.brief}
             onChange={(html) => setForm((f) => ({ ...f, brief: html }))}
-            uploadImage={(file) => uploadStudioMedia(form.clientId, file)}
+            uploadImage={uploadStudioMedia}
             placeholder="כתבו נקודות גולמיות — ואפשר להדביק צילומי מסך (Ctrl+V) או לגרור תמונות ישירות לכאן. ואז ״נסח עם AI״ יסדר את הטקסט לבריף מלא."
             minHeight={140}
+            maxHeight={320}
           />
-          {!form.clientId ? (
-            <p className="mt-1 text-[11px] text-amber-600">בחרו לקוח למעלה כדי שאפשר יהיה לצרף צילומי מסך לבריף.</p>
-          ) : null}
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="מפרט טכני (מידות/פורמט)">

@@ -1,20 +1,19 @@
 import { api } from "./fetcher";
 
 // העלאת מדיה מוטבעת בבריף/עדכוני סטודיו (תמונה/וידאו/צילום-מסך שהודבק) →
-// R2 → קישור להגשה מאובטחת (/api/studio/media). קבצים קטנים דרך ה-API,
-// גדולים (וידאו) ישירות ל-R2 עם presign — עוקף את מגבלת ה-4MB של Vercel.
+// R2 → קישור להגשה מאובטחת (/api/studio/media). קטגוריה "studio-brief" =
+// namespace של המשרד ללא תלות בלקוח, כדי שהדבקה תעבוד מיד (גם לפני שנבחר
+// לקוח לבריף). קבצים קטנים דרך ה-API; גדולים (וידאו) ישירות ל-R2 עם presign.
 // משותף לעורך הבריף בכרטיס (StudioTaskDrawer) וביצירת בריף חדש (StudioBoard).
-export async function uploadStudioMedia(clientId: string, file: File): Promise<string | null> {
-  if (!clientId) throw new Error("בחרו קודם לקוח כדי לצרף תמונות לבריף");
+export async function uploadStudioMedia(file: File): Promise<string | null> {
   if (file.size > 3_500_000) {
     const pres = await api<{ target: { url: string; method: string; headers: Record<string, string> }; key: string }>(
       "/api/uploads/presign",
       {
         method: "POST",
         json: {
-          clientId,
-          category: "design",
-          fileName: file.name,
+          category: "studio-brief",
+          fileName: file.name || "paste.png",
           mimeType: file.type || "application/octet-stream",
           size: file.size,
         },
@@ -25,9 +24,8 @@ export async function uploadStudioMedia(clientId: string, file: File): Promise<s
     return `/api/studio/media?key=${encodeURIComponent(pres.key)}`;
   }
   const fd = new FormData();
-  fd.append("file", file);
-  fd.append("category", "design");
-  fd.append("clientId", clientId);
+  fd.append("file", file, file.name || "paste.png");
+  fd.append("category", "studio-brief");
   const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
   const uj = await up.json();
   if (!up.ok) throw new Error(uj.error || "העלאת הקובץ נכשלה");
