@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import RichEditor from "@/components/RichEditor";
+import { uploadStudioMedia as uploadStudioMediaLib } from "@/lib/studioMedia";
 import {
   DESIGN_STATUS_LABELS,
   DESIGN_STATUS_COLORS,
@@ -526,38 +527,8 @@ export default function StudioTaskDrawer({
     }
   }
 
-  // העלאת תמונה מוטבעת (בריף/עדכונים) → R2 → קישור להגשה מאובטחת.
-  // העלאת מדיה לעורך (תמונה/וידאו): קבצים קטנים דרך ה-API, גדולים (וידאו)
-  // ישירות ל-R2 עם presign — עוקף את מגבלת ה-4MB של Vercel. עד 100MB.
-  async function uploadStudioMedia(file: File): Promise<string | null> {
-    if (!clientId) return null;
-    if (file.size > 3_500_000) {
-      const pres = await api<{ target: { url: string; method: string; headers: Record<string, string> }; key: string }>(
-        "/api/uploads/presign",
-        {
-          method: "POST",
-          json: {
-            clientId,
-            category: "design",
-            fileName: file.name,
-            mimeType: file.type || "application/octet-stream",
-            size: file.size,
-          },
-        }
-      );
-      const put = await fetch(pres.target.url, { method: "PUT", headers: pres.target.headers, body: file });
-      if (!put.ok) throw new Error("העלאת הקובץ נכשלה");
-      return `/api/studio/media?key=${encodeURIComponent(pres.key)}`;
-    }
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("category", "design");
-    fd.append("clientId", clientId);
-    const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
-    const uj = await up.json();
-    if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
-    return `/api/studio/media?key=${encodeURIComponent(uj.key)}`;
-  }
+  // העלאת תמונה/וידאו/צילום-מסך מוטבע בבריף → R2 (לוגיקה משותפת ב-lib/studioMedia).
+  const uploadStudioMedia = (file: File) => uploadStudioMediaLib(clientId ?? "", file);
 
   const isHtmlEmpty = (html: string) =>
     !/<img\b|<video\b/i.test(html) && html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "") === "";

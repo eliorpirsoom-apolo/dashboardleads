@@ -8,6 +8,8 @@ import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import { DateTimeQuarter } from "@/components/DateTimeQuarter";
 import { SearchSelect } from "@/components/SearchSelect";
+import RichEditor from "@/components/RichEditor";
+import { uploadStudioMedia, splitBriefHtml } from "@/lib/studioMedia";
 import StudioTaskDrawer from "@/components/studio/StudioTaskDrawer";
 import {
   DESIGN_STATUSES,
@@ -1014,6 +1016,7 @@ function CreateBriefModal({
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState("");
+  const [briefKey, setBriefKey] = useState(0); // רימאונט של עורך הבריף אחרי עדכון תכנותי (AI)
   const [refs, setRefs] = useState<{ fileKey: string; fileName: string; mimeType: string | null }[]>([]);
   const [upBusy, setUpBusy] = useState(false);
   const refInput = useRef<HTMLInputElement>(null);
@@ -1046,9 +1049,11 @@ function CreateBriefModal({
     }
   }
 
+  // ניסוח AI על הטקסט בלבד — צילומי המסך שהודבקו נשמרים ומצורפים חזרה בסוף.
   async function aiBrief() {
-    if (!form.brief.trim()) {
-      setError("כתבו כמה נקודות ואז לחצו ״נסח עם AI״");
+    const { text, media } = splitBriefHtml(form.brief);
+    if (!text) {
+      setError("כתבו כמה נקודות (טקסט) ואז לחצו ״נסח עם AI״");
       return;
     }
     setAiBusy(true);
@@ -1056,9 +1061,14 @@ function CreateBriefModal({
     try {
       const d = await api<{ brief: string }>("/api/studio/ai-brief", {
         method: "POST",
-        json: { title: form.title, briefType: form.briefType, notes: form.brief },
+        json: { title: form.title, briefType: form.briefType, notes: text },
       });
-      if (d.brief) setForm((f) => ({ ...f, brief: d.brief }));
+      if (d.brief) {
+        const html = /</.test(d.brief) ? d.brief : `<p>${d.brief.replace(/\n/g, "<br>")}</p>`;
+        const combined = media ? `${html}<p></p>${media}` : html;
+        setForm((f) => ({ ...f, brief: combined }));
+        setBriefKey((k) => k + 1); // רענון תוכן העורך אחרי עדכון תכנותי
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -1071,13 +1081,15 @@ function CreateBriefModal({
     setBusy(true);
     setError("");
     try {
+      const briefParts = splitBriefHtml(form.brief);
+      const briefValue = briefParts.text || briefParts.media ? form.brief : null;
       await api("/api/design-tasks", {
         method: "POST",
         json: {
           clientId: form.clientId,
           title: form.title,
           briefType: form.briefType,
-          brief: form.brief || null,
+          brief: briefValue,
           specs: form.specs || null,
           priority: form.priority,
           designerId: form.designerId || null,
@@ -1135,13 +1147,17 @@ function CreateBriefModal({
               {aiBusy ? "מנסח…" : "✨ נסח עם AI"}
             </button>
           </div>
-          <textarea
+          <RichEditor
+            key={`newbrief-${briefKey}`}
             value={form.brief}
-            onChange={(e) => setForm({ ...form, brief: e.target.value })}
-            rows={5}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-            placeholder="כתבו נקודות גולמיות — ואז ״נסח עם AI״ יסדר אותן לבריף מלא. מטרה, מסר, סגנון, טקסטים, צבעים, מה חובה לכלול…"
+            onChange={(html) => setForm((f) => ({ ...f, brief: html }))}
+            uploadImage={(file) => uploadStudioMedia(form.clientId, file)}
+            placeholder="כתבו נקודות גולמיות — ואפשר להדביק צילומי מסך (Ctrl+V) או לגרור תמונות ישירות לכאן. ואז ״נסח עם AI״ יסדר את הטקסט לבריף מלא."
+            minHeight={140}
           />
+          {!form.clientId ? (
+            <p className="mt-1 text-[11px] text-amber-600">בחרו לקוח למעלה כדי שאפשר יהיה לצרף צילומי מסך לבריף.</p>
+          ) : null}
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="מפרט טכני (מידות/פורמט)">

@@ -76,7 +76,7 @@ const CreateDesignTask = z.object({
   projectId: z.string().nullable().optional(),
   title: z.string().min(1, "חסרה כותרת").max(200),
   briefType: z.enum(["landing", "logo", "post", "banner", "print", "branding"]).default("post"),
-  brief: z.string().max(5000).nullable().optional(),
+  brief: z.string().max(50000).nullable().optional(), // HTML עשיר: טקסט + תמונות מוטבעות (URL ל-R2, לא base64)
   specs: z.string().max(1000).nullable().optional(),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   designerId: z.string().nullable().optional(),

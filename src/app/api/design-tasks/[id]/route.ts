@@ -83,7 +83,7 @@ const UpdateDesignTask = z.object({
   title: z.string().min(1).max(200).optional(),
   clientId: z.string().min(1).optional(), // שינוי שיוך לקוח (אם נבחר לקוח שגוי)
   briefType: z.enum(["landing", "logo", "post", "banner", "print", "branding"]).optional(),
-  brief: z.string().max(5000).nullable().optional(),
+  brief: z.string().max(50000).nullable().optional(), // HTML עשיר: טקסט + תמונות מוטבעות (URL ל-R2, לא base64)
   specs: z.string().max(1000).nullable().optional(),
   priority: z.enum(["low", "normal", "high"]).optional(),
   designerId: z.string().nullable().optional(),
