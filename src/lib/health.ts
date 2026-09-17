@@ -16,6 +16,14 @@ const ALERT_EMAIL = process.env.HEALTH_ALERT_EMAIL || "eliorbucris@gmail.com";
 const GRAPH = "https://graph.facebook.com/v21.0";
 const BASE = (process.env.APP_BASE_URL || "https://app.apolloadv.co.il").replace(/\/$/, "");
 
+// מגבלת קצב של מטא ל-API של leadgen (#80005) — זמנית ולא אובדן לידים: הלידים
+// ממשיכים להיכנס דרך הוובהוק בזמן אמת. בבדיקות הבריאות מתייחסים אליה כדילוג,
+// לא ככשל שמתריע, כדי לא להקפיץ התראת שווא (הלידים בפועל נקלטים).
+function isMetaRateLimit(x: unknown): boolean {
+  const s = typeof x === "string" ? x : JSON.stringify(x ?? "");
+  return /\b80005\b/.test(s) || /too many leadgen api calls|rate limit|calls to this Page/i.test(s);
+}
+
 // לקוח נסתר לבדיקת צינור הקליטה מקצה-לקצה (active=false — לא מפריע ברשימות).
 const SYNTH_CLIENT_NAME = "🩺 בדיקות מערכת — אוטומטי";
 
@@ -535,6 +543,9 @@ async function checkMetaReconciliation(): Promise<HealthResult[]> {
         );
         const formsData = await formsRes.json();
         if (!formsRes.ok) {
+          if (isMetaRateLimit(formsData?.error ?? formsData)) {
+            return { status: "ok" as HealthStatus, detail: "דילוג זמני — מגבלת קצב של מטא (#80005); הלידים נכנסים דרך הוובהוק" };
+          }
           return { status: "warn" as HealthStatus, detail: "שליפת הטפסים ממטא נכשלה — לא ניתן להשוות" };
         }
         const ids: string[] = [];
@@ -583,7 +594,15 @@ async function checkUnroutedForms(): Promise<HealthResult[]> {
   for (const p of pages) {
     out.push(
       await run(`meta-forms:${p.pageId}`, `כיסוי טפסים — ${p.pageName}`, async () => {
-        const forms = await listPageForms(p.id);
+        let forms;
+        try {
+          forms = await listPageForms(p.id);
+        } catch (err) {
+          if (isMetaRateLimit((err as Error)?.message)) {
+            return { status: "ok" as HealthStatus, detail: "דילוג זמני — מגבלת קצב של מטא (#80005)" };
+          }
+          throw err;
+        }
         const routed = new Set(parseRouting(p.routing).map((r) => r.formId));
         const active = forms.filter((f) => f.status === "ACTIVE");
         const unrouted = active.filter((f) => !routed.has(f.id));
