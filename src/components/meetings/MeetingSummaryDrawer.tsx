@@ -30,6 +30,7 @@ interface Meeting {
   sentToClientAt: string | null;
   photoUrls: string[];
   hasClientGroup: boolean;
+  clientGroupChatId: string;
 }
 interface Opt { id: string; name: string }
 
@@ -107,41 +108,40 @@ export default function MeetingSummaryDrawer({
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
 
-  async function sendToClient() {
+  const [showSend, setShowSend] = useState(false);
+  const [sendGroup, setSendGroup] = useState("");
+  async function startSend() {
     if (!m) return;
-    if (!m.hasClientGroup) { setError("ללקוח לא מוגדרת קבוצת וואטסאפ — הגדירו בהגדרות הלקוח."); return; }
+    setError(""); setMsg("");
+    setShowSend(true);
+    setSendGroup(m.clientGroupChatId || "");
+    if (groups.length === 0) {
+      setGroupsLoading(true);
+      try {
+        const d = await api<{ groups: { id: string; name: string }[] }>("/api/meetings/groups");
+        setGroups(d.groups);
+      } catch { /* ריק */ } finally { setGroupsLoading(false); }
+    }
+  }
+  async function doSend() {
+    if (!m || !sendGroup) return;
     const visible = bullets.filter((b) => b.clientVisible).length;
-    if (!confirm(`לשלוח ${visible} נקודות סיכום לקבוצת הוואטסאפ של ${m.client?.name}? (המשימות הפנימיות לא נשלחות)`)) return;
+    if (!confirm(`לשלוח ${visible} נקודות סיכום לקבוצה שנבחרה? (המשימות הפנימיות לא נשלחות)`)) return;
     setBusy(true); setError(""); setMsg("");
     try {
-      if (dirty) { await api(`/api/meetings/${m.id}`, { method: "PATCH", json: { bullets, status: m.status } }); setDirty(false); }
-      const d = await api<{ sentPoints: number }>(`/api/meetings/${m.id}/send`, { method: "POST" });
+      if (dirty) { await api(`/api/meetings/${m.id}`, { method: "PATCH", json: { bullets } }); setDirty(false); }
+      const d = await api<{ sentPoints: number }>(`/api/meetings/${m.id}/send`, {
+        method: "POST",
+        json: { chatId: sendGroup, remember: true },
+      });
       setMsg(`נשלח ללקוח ✓ (${d.sentPoints} נקודות)`);
+      setShowSend(false);
       await load(); onChanged();
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
 
-  const [groupInput, setGroupInput] = useState("");
-  const [showGroup, setShowGroup] = useState(false);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
-  async function openGroupPicker() {
-    setShowGroup(true);
-    setGroupsLoading(true);
-    try {
-      const d = await api<{ groups: { id: string; name: string }[] }>("/api/meetings/groups");
-      setGroups(d.groups);
-    } catch { /* נציג קלט ידני */ } finally { setGroupsLoading(false); }
-  }
-  async function saveGroup() {
-    if (!m || !groupInput.trim()) return;
-    setBusy(true); setError(""); setMsg("");
-    try {
-      await api(`/api/clients/${m.clientId}`, { method: "PATCH", json: { whatsappGroupChatId: groupInput.trim() } });
-      setMsg("קבוצת הוואטסאפ נשמרה ✓"); setShowGroup(false);
-      await load();
-    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
-  }
 
   async function remove() {
     if (!m || !confirm("למחוק את סיכום הפגישה? המשימות שנגזרו ממנו יישארו.")) return;
@@ -263,42 +263,34 @@ export default function MeetingSummaryDrawer({
           </div>
         </div>
 
-        {/* הגדרת קבוצת וואטסאפ ללקוח (אם עוד לא הוגדרה) */}
-        {!m.hasClientGroup ? (
-          <div className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-            {showGroup ? (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span>קבוצת הוואטסאפ של {m.client?.name}:</span>
-                  {groupsLoading ? (
-                    <span className="text-amber-600">טוען קבוצות…</span>
-                  ) : groups.length > 0 ? (
-                    <Select value={groupInput} onChange={(e) => setGroupInput(e.target.value)} className="grow">
-                      <option value="">— בחרו קבוצה —</option>
-                      {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                    </Select>
-                  ) : (
-                    <input value={groupInput} onChange={(e) => setGroupInput(e.target.value)} placeholder="1203...@g.us" className="grow rounded-lg border border-amber-300 px-2 py-1 text-slate-700" />
-                  )}
-                  <Button size="sm" onClick={saveGroup} disabled={busy || !groupInput.trim()}>שמירה</Button>
-                  <button onClick={() => setShowGroup(false)} className="text-amber-600">ביטול</button>
-                </div>
-                <span className="text-[11px] text-amber-600">
-                  מוצגות רק קבוצות שהבוט של המשרד (״יעקב״) חבר בהן. אם הקבוצה חסרה — הוסיפו את מספר הבוט לקבוצת הלקוח, ורעננו.
-                </span>
-              </div>
-            ) : (
-              <button onClick={openGroupPicker} className="underline">
-                ⚠️ ללקוח לא מוגדרת קבוצת וואטסאפ — לחצו כדי לבחור (נדרש לשליחת הסיכום)
-              </button>
-            )}
+        {/* בחירת קבוצה ושליחה */}
+        {showSend ? (
+          <div className="border-t border-slate-200 bg-sky-50 px-4 py-3 text-xs text-slate-700">
+            <div className="mb-1 font-medium">בחרו את קבוצת הוואטסאפ של הלקוח לשליחת הסיכום:</div>
+            <div className="flex flex-wrap items-center gap-2">
+              {groupsLoading ? (
+                <span className="text-slate-500">טוען קבוצות…</span>
+              ) : groups.length > 0 ? (
+                <Select value={sendGroup} onChange={(e) => setSendGroup(e.target.value)} className="grow">
+                  <option value="">— בחרו קבוצה —</option>
+                  {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </Select>
+              ) : (
+                <span className="text-amber-600">לא נמצאו קבוצות שהבוט חבר בהן. הוסיפו את מספר הבוט לקבוצת הלקוח ורעננו.</span>
+              )}
+              <Button size="sm" onClick={doSend} disabled={busy || !sendGroup}>אישור ושליחה</Button>
+              <button onClick={() => setShowSend(false)} className="text-slate-500">ביטול</button>
+            </div>
+            <div className="mt-1 text-[11px] text-slate-500">
+              מוצגות רק קבוצות שהבוט (״יעקב״) חבר בהן. הבחירה נשמרת כברירת המחדל של הלקוח לפעם הבאה.
+            </div>
           </div>
         ) : null}
 
         {/* פעולות */}
         <div className="sticky bottom-0 mt-auto flex flex-wrap items-center gap-2 border-t border-slate-200 bg-white px-4 py-3">
           <Button onClick={save} disabled={busy || !dirty}>{busy ? "שומר…" : dirty ? "שמירה" : "נשמר"}</Button>
-          <Button variant="ghost" onClick={sendToClient} disabled={busy} title={m.hasClientGroup ? "שליחת הסיכום לקבוצת הוואטסאפ של הלקוח" : "אין קבוצת וואטסאפ ללקוח"}>
+          <Button variant="ghost" onClick={startSend} disabled={busy} title="בחירת קבוצה ושליחת הסיכום ללקוח">
             <Icon name="megaphone" className="h-4 w-4" /> שלח ללקוח
           </Button>
           {m.sentToClientAt ? <span className="text-[11px] text-emerald-600">נשלח ללקוח</span> : null}

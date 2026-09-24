@@ -49,6 +49,7 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       sentToClientAt: m.sentToClientAt,
       photoUrls,
       hasClientGroup: Boolean(m.client.whatsappGroupChatId),
+      clientGroupChatId: m.client.whatsappGroupChatId ?? "",
       createdAt: m.createdAt,
     },
     projects,
