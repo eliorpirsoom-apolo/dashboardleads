@@ -123,6 +123,16 @@ export default function MeetingSummaryDrawer({
 
   const [groupInput, setGroupInput] = useState("");
   const [showGroup, setShowGroup] = useState(false);
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  async function openGroupPicker() {
+    setShowGroup(true);
+    setGroupsLoading(true);
+    try {
+      const d = await api<{ groups: { id: string; name: string }[] }>("/api/meetings/groups");
+      setGroups(d.groups);
+    } catch { /* נציג קלט ידני */ } finally { setGroupsLoading(false); }
+  }
   async function saveGroup() {
     if (!m || !groupInput.trim()) return;
     setBusy(true); setError(""); setMsg("");
@@ -257,15 +267,29 @@ export default function MeetingSummaryDrawer({
         {!m.hasClientGroup ? (
           <div className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
             {showGroup ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span>מזהה קבוצת הוואטסאפ של הלקוח:</span>
-                <input value={groupInput} onChange={(e) => setGroupInput(e.target.value)} placeholder="1203...@g.us" className="grow rounded-lg border border-amber-300 px-2 py-1 text-slate-700" />
-                <Button size="sm" onClick={saveGroup} disabled={busy}>שמירה</Button>
-                <button onClick={() => setShowGroup(false)} className="text-amber-600">ביטול</button>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>קבוצת הוואטסאפ של {m.client?.name}:</span>
+                  {groupsLoading ? (
+                    <span className="text-amber-600">טוען קבוצות…</span>
+                  ) : groups.length > 0 ? (
+                    <Select value={groupInput} onChange={(e) => setGroupInput(e.target.value)} className="grow">
+                      <option value="">— בחרו קבוצה —</option>
+                      {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </Select>
+                  ) : (
+                    <input value={groupInput} onChange={(e) => setGroupInput(e.target.value)} placeholder="1203...@g.us" className="grow rounded-lg border border-amber-300 px-2 py-1 text-slate-700" />
+                  )}
+                  <Button size="sm" onClick={saveGroup} disabled={busy || !groupInput.trim()}>שמירה</Button>
+                  <button onClick={() => setShowGroup(false)} className="text-amber-600">ביטול</button>
+                </div>
+                <span className="text-[11px] text-amber-600">
+                  מוצגות רק קבוצות שהבוט של המשרד (״יעקב״) חבר בהן. אם הקבוצה חסרה — הוסיפו את מספר הבוט לקבוצת הלקוח, ורעננו.
+                </span>
               </div>
             ) : (
-              <button onClick={() => setShowGroup(true)} className="underline">
-                ⚠️ ללקוח לא מוגדרת קבוצת וואטסאפ — לחצו כדי להגדיר (נדרש לשליחת הסיכום)
+              <button onClick={openGroupPicker} className="underline">
+                ⚠️ ללקוח לא מוגדרת קבוצת וואטסאפ — לחצו כדי לבחור (נדרש לשליחת הסיכום)
               </button>
             )}
           </div>
