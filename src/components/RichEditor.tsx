@@ -57,6 +57,12 @@ export default function RichEditor({
   uploadRef.current = uploadImage;
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // תוכן התחלתי מוקפא: ב-TipTap v3 העורך מגיב לשינוי ב-content, כך שבקישור
+  // דו-כיווני (value=state, onChange מעדכן state) כל תו היה מאפס את העורך
+  // ומחזיר את הסמן להתחלה — "אי אפשר לכתוב, קופץ בכל הקלדה". מקפיאים את
+  // הערך ההתחלתי; עדכון חיצוני מכוון (למשל ניסוח AI) עובר דרך רימאונט לפי key.
+  const initialContentRef = useRef(value);
+
   // --- תיוג @: מצב התפריט. refs במקביל ל-state כי handleKeyDown נסגר פעם אחת. ---
   const [mention, setMention] = useState<{ query: string; top: number; left: number } | null>(null);
   const [mentionIdx, setMentionIdx] = useState(0);
@@ -145,7 +151,7 @@ export default function RichEditor({
       Video,
       Placeholder.configure({ placeholder }),
     ],
-    content: value,
+    content: initialContentRef.current,
     onUpdate: ({ editor }) => {
       onChange?.(editor.getHTML());
       detectMention(editor);
