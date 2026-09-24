@@ -44,6 +44,12 @@ export default function MeetingsBoard({ clients }: { clients: ClientOpt[] }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // קישור עומק מהבוט: /admin/meetings?open=<id> פותח את הסיכום ישירות.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("open");
+    if (id) setOpenId(id);
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">

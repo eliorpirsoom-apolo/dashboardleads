@@ -306,10 +306,27 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
   }
 
   const phone = chatId.replace("@c.us", "");
+  const senderName = payload?.senderData?.senderName || null;
+
+  // סיכום פגישה: צילום דף עם כיתוב "סיכום: <לקוח>" ממספר מורשה → OCR → סיכום.
+  // רץ לפני סוכן המשימות; אם ההודעה היא פקודת סיכום הוא בולע אותה.
+  try {
+    const { maybeHandleMeetingSummary } = await import("./meetingIngest");
+    const handledMeeting = await maybeHandleMeetingSummary({
+      phone,
+      body,
+      mediaUrl,
+      mediaMime,
+      idMessage,
+      senderName,
+    });
+    if (handledMeeting) return { stored: true, reason: "meeting-summary" };
+  } catch (e) {
+    console.error("[meeting-summary]", e);
+  }
 
   // סוכן משימות: הודעה ממספר מורשה → חילוץ משימות למאגר (לא נשמרת כשיחת לקוח).
   try {
-    const senderName = payload?.senderData?.senderName || null;
     const handled = await maybeHandleTaskAgent({ phone, body, senderName, idMessage, quotedText });
     if (handled) return { stored: true, reason: "task-agent" };
   } catch (e) {
