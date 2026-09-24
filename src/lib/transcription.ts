@@ -102,6 +102,12 @@ async function whisperRequest(model: string, bytes: Buffer, ext: string, mime: s
   }
 }
 
+/** תמלול הודעה קולית מכתובת (למשל voice note מהבוט) → טקסט עברי. */
+export async function transcribeVoiceFromUrl(url: string): Promise<string> {
+  const { bytes, mime, ext } = await downloadAudio(url);
+  return transcribeAudio(bytes, ext, mime);
+}
+
 /** תמלול עברית — מנסה את המודל המוגדר, ונופל אוטומטית ל-whisper-1 המוכח בכל כשל. */
 async function transcribeAudio(bytes: Buffer, ext: string, mime: string): Promise<string> {
   const primary = process.env.OPENAI_STT_MODEL || "gpt-4o-transcribe";

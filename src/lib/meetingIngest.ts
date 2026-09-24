@@ -5,9 +5,12 @@ import { sendWhatsappRaw } from "./whatsapp";
 import { putObject } from "./storage";
 import {
   extractMeetingFromImage,
+  extractMeetingFromText,
   matchClientByName,
+  findClientInText,
   buildMeetingTitle,
 } from "./meetingSummary";
+import { transcribeVoiceFromUrl } from "./transcription";
 
 const BASE = (process.env.APP_BASE_URL || "https://app.apolloadv.co.il").replace(/\/$/, "");
 
@@ -30,14 +33,69 @@ export async function maybeHandleMeetingSummary(input: {
   if (!isWhitelisted(cfg.allowedNumbers, input.phone)) return false;
 
   const caption = (input.body || "").trim();
-  const m = TRIGGER.exec(caption);
-  if (!m) return false; // לא פקודת סיכום — שמסלולים אחרים יטפלו
+  const isAudio = (input.mediaMime || "").startsWith("audio/");
+  const isImage = (input.mediaMime || "").startsWith("image/");
+  const captionMatch = TRIGGER.exec(caption);
 
   const reply = (t: string) => sendWhatsappRaw(input.phone, t).catch(() => {});
 
-  const clientName = m[1].trim().split("\n")[0].trim();
-  if (!input.mediaUrl || !(input.mediaMime || "").startsWith("image/")) {
-    await reply("📝 כדי ליצור סיכום פגישה — צרפו *צילום* של דף הפגישה, עם כיתוב כמו: ״סיכום: שם הלקוח״.");
+  // --- הודעה קולית: תמלול → זיהוי לקוח מתוך הדיבור → סיכום -------------------
+  if (isAudio && input.mediaUrl) {
+    let transcript = "";
+    try {
+      transcript = (await transcribeVoiceFromUrl(input.mediaUrl)).trim();
+    } catch (e) {
+      console.error("[meeting-voice]", e);
+    }
+    if (transcript.length < 12) {
+      await reply("🎤 לא הצלחתי לתמלל את ההודעה הקולית. נסו שוב בסביבה שקטה, ואמרו את שם הלקוח ואת נקודות הפגישה.");
+      return true;
+    }
+    // לקוח: מהכיתוב (אם יש) או מתוך הדיבור.
+    const client =
+      (captionMatch ? await matchClientByName(captionMatch[1].trim()) : null) ||
+      (await findClientInText(transcript));
+    if (!client) {
+      await reply("לא זיהיתי לקoח בהודעה. אמרו את שם הלקוח כפי שהוא מופיע במערכת, למשל: ״סיכום פגישה עם יורם בונה הארץ, סוכם ש…״.");
+      return true;
+    }
+    const recentA = await prisma.meetingSummary.findFirst({
+      where: { clientId: client.id, source: "whatsapp", createdAt: { gt: new Date(Date.now() - 3 * 60 * 1000) } },
+      select: { id: true },
+    });
+    if (recentA) return true;
+    let bullets: any[] = [];
+    try {
+      bullets = (await extractMeetingFromText(transcript)).bullets;
+    } catch (e) {
+      console.error("[meeting-voice-extract]", e);
+    }
+    const nowA = new Date();
+    const meetingA = await prisma.meetingSummary.create({
+      data: {
+        clientId: client.id,
+        title: buildMeetingTitle(client.name, nowA),
+        meetingDate: nowA,
+        rawText: transcript.slice(0, 8000),
+        bullets: JSON.stringify(bullets),
+        status: "draft",
+        source: "whatsapp",
+      },
+    });
+    const tcA = bullets.filter((x) => x.isTask).length;
+    await reply(
+      `✅ נוצר סיכום פגישה ל*${client.name}* מהודעה קולית — ${bullets.length} נקודות` +
+        (tcA ? ` (${tcA} משימות)` : "") +
+        `.\nלבדיקה, עריכה ושליחה:\n${BASE}/admin/meetings?open=${meetingA.id}`
+    );
+    return true;
+  }
+
+  if (!captionMatch) return false; // לא פקודת סיכום — שמסלולים אחרים יטפלו
+
+  const clientName = captionMatch[1].trim().split("\n")[0].trim();
+  if (!input.mediaUrl || !isImage) {
+    await reply("📝 כדי ליצור סיכום פגישה — צרפו *צילום* של דף הפגישה (עם כיתוב ״סיכום: שם הלקוח״), או שלחו *הודעה קולית* שאומרת את שם הלקוח ואת הנקודות.");
     return true;
   }
 

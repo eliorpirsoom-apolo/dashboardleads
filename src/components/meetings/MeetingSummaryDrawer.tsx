@@ -110,33 +110,54 @@ export default function MeetingSummaryDrawer({
 
   const [showSend, setShowSend] = useState(false);
   const [sendGroup, setSendGroup] = useState("");
+  const [sendChannel, setSendChannel] = useState<"whatsapp" | "email" | "both">("whatsapp");
+  const [preview, setPreview] = useState("");
+  const [previewHasEmail, setPreviewHasEmail] = useState(false);
   async function startSend() {
     if (!m) return;
     setError(""); setMsg("");
     setShowSend(true);
     setSendGroup(m.clientGroupChatId || "");
-    if (groups.length === 0) {
+    try {
+      // שמירה קודם (שהתצוגה המקדימה תשקף עריכות) ואז טעינת התצוגה + הקבוצות.
+      if (dirty) { await api(`/api/meetings/${m.id}`, { method: "PATCH", json: { bullets } }); setDirty(false); }
       setGroupsLoading(true);
-      try {
-        const d = await api<{ groups: { id: string; name: string }[] }>("/api/meetings/groups");
-        setGroups(d.groups);
-      } catch { /* ריק */ } finally { setGroupsLoading(false); }
-    }
+      const [pv, gr] = await Promise.all([
+        api<{ text: string; hasEmail: boolean }>(`/api/meetings/${m.id}/preview`),
+        groups.length === 0 ? api<{ groups: { id: string; name: string }[] }>("/api/meetings/groups") : Promise.resolve({ groups }),
+      ]);
+      setPreview(pv.text);
+      setPreviewHasEmail(pv.hasEmail);
+      if ((gr as any).groups) setGroups((gr as any).groups);
+    } catch (e: any) { setError(e.message); } finally { setGroupsLoading(false); }
   }
   async function doSend() {
-    if (!m || !sendGroup) return;
-    const visible = bullets.filter((b) => b.clientVisible).length;
-    if (!confirm(`לשלוח ${visible} נקודות סיכום לקבוצה שנבחרה? (המשימות הפנימיות לא נשלחות)`)) return;
+    if (!m) return;
+    if ((sendChannel === "whatsapp" || sendChannel === "both") && !sendGroup) { setError("בחרו קבוצת וואטסאפ"); return; }
+    if (!confirm("לשלוח את הסיכום ללקוח? (המשימות הפנימiות לא נשלחות)")) return;
+    setBusy(true); setError(""); setMsg("");
+    try {
+      const d = await api<{ sentPoints: number; channels: string[] }>(`/api/meetings/${m.id}/send`, {
+        method: "POST",
+        json: { channel: sendChannel, chatId: sendGroup, remember: true },
+      });
+      setMsg(`נשלח ללקוח ✓ (${d.sentPoints} נקודות · ${(d.channels || []).join(" + ")})`);
+      setShowSend(false);
+      await load(); onChanged();
+    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  async function createAllTasks() {
+    if (!m) return;
+    const pending = bullets.filter((b) => b.isTask && !b.taskId).length;
+    if (pending === 0) { setError("אין שורות משימה חדשות להורדה"); return; }
+    if (!confirm(`ליצור ${pending} משימות מכל השורות המסומנות כמשימה?`)) return;
     setBusy(true); setError(""); setMsg("");
     try {
       if (dirty) { await api(`/api/meetings/${m.id}`, { method: "PATCH", json: { bullets } }); setDirty(false); }
-      const d = await api<{ sentPoints: number }>(`/api/meetings/${m.id}/send`, {
-        method: "POST",
-        json: { chatId: sendGroup, remember: true },
-      });
-      setMsg(`נשלח ללקוח ✓ (${d.sentPoints} נקודות)`);
-      setShowSend(false);
-      await load(); onChanged();
+      const d = await api<{ created: number }>(`/api/meetings/${m.id}/tasks`, { method: "POST", json: { all: true } });
+      await load();
+      setMsg(`נוצרו ${d.created} משימות במודול המשימות ✓`);
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
 
@@ -231,9 +252,16 @@ export default function MeetingSummaryDrawer({
 
           {/* בולטים */}
           <div className="rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
               <span className="text-sm font-bold text-slate-600">נקודות הפגישה</span>
-              <span className="text-[11px] text-slate-400">{clientPoints} נשלחות ללקוח · {bullets.filter((b) => b.isTask).length} משימות</span>
+              <div className="flex items-center gap-2">
+                {bullets.some((b) => b.isTask && !b.taskId) ? (
+                  <button onClick={createAllTasks} disabled={busy} className="rounded-lg bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700 hover:bg-violet-200 disabled:opacity-50">
+                    ⬇ צור משימות מכל המסומנות
+                  </button>
+                ) : null}
+                <span className="text-[11px] text-slate-400">{clientPoints} ללקוח · {bullets.filter((b) => b.isTask).length} משימות</span>
+              </div>
             </div>
             <div className="divide-y divide-slate-100">
               {bullets.map((b) => (
@@ -282,26 +310,47 @@ export default function MeetingSummaryDrawer({
           </div>
         </div>
 
-        {/* בחירת קבוצה ושליחה */}
+        {/* תצוגה מקדימה, בחירת ערוץ וקבוצה, ושליחה */}
         {showSend ? (
           <div className="border-t border-slate-200 bg-sky-50 px-4 py-3 text-xs text-slate-700">
-            <div className="mb-1 font-medium">בחרו את קבוצת הוואטסאפ של הלקוח לשליחת הסיכום:</div>
-            <div className="flex flex-wrap items-center gap-2">
-              {groupsLoading ? (
-                <span className="text-slate-500">טוען קבוצות…</span>
-              ) : groups.length > 0 ? (
-                <Select value={sendGroup} onChange={(e) => setSendGroup(e.target.value)} className="grow">
-                  <option value="">— בחרו קבוצה —</option>
-                  {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </Select>
-              ) : (
-                <span className="text-amber-600">לא נמצאו קבוצות שהבוט חבר בהן. הוסיפו את מספר הבוט לקבוצת הלקוח ורעננו.</span>
-              )}
-              <Button size="sm" onClick={doSend} disabled={busy || !sendGroup}>אישור ושליחה</Button>
-              <button onClick={() => setShowSend(false)} className="text-slate-500">ביטול</button>
+            {/* תצוגה מקדימה — בדיוק מה שהלקוח יקבל */}
+            <div className="mb-2">
+              <div className="mb-1 font-medium">תצוגה מקדימה — כך זה ייראה אצל הלקוח:</div>
+              <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] leading-relaxed text-slate-700">{preview || "טוען…"}</pre>
             </div>
-            <div className="mt-1 text-[11px] text-slate-500">
-              מוצגות רק קבוצות שהבוט (״יעקב״) חבר בהן. הבחירה נשמרת כברירת המחדל של הלקוח לפעם הבאה.
+            {/* ערוץ */}
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <span className="font-medium">ערוץ:</span>
+              {([["whatsapp", "וואטסאפ"], ["email", "מייל"], ["both", "שניהם"]] as const).map(([v, l]) => (
+                <label key={v} className="flex cursor-pointer items-center gap-1">
+                  <input type="radio" name="sendch" checked={sendChannel === v} onChange={() => setSendChannel(v)} />
+                  {l}
+                </label>
+              ))}
+              {(sendChannel === "email" || sendChannel === "both") && !previewHasEmail ? (
+                <span className="text-amber-600">⚠️ ללקוח אין אימייל איש קשר</span>
+              ) : null}
+            </div>
+            {/* קבוצת וואטסאפ */}
+            {sendChannel !== "email" ? (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span>קבוצת וואטסאפ:</span>
+                {groupsLoading ? (
+                  <span className="text-slate-500">טוען…</span>
+                ) : groups.length > 0 ? (
+                  <Select value={sendGroup} onChange={(e) => setSendGroup(e.target.value)} className="grow">
+                    <option value="">— בחרו קבוצה —</option>
+                    {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </Select>
+                ) : (
+                  <span className="text-amber-600">לא נמצאו קבוצות שהבוט חבר בהן.</span>
+                )}
+              </div>
+            ) : null}
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={doSend} disabled={busy}>אישור ושליחה</Button>
+              <button onClick={() => setShowSend(false)} className="text-slate-500">ביטול</button>
+              <span className="text-[11px] text-slate-500">מוצגות רק קבוצות שהבוט (״יעקב״) חבר בהן; הבחירה נשמרת כברירת מחדל.</span>
             </div>
           </div>
         ) : null}
