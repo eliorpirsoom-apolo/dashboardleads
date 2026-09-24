@@ -42,6 +42,17 @@ export default function MeetingsBoard({ clients }: { clients: ClientOpt[] }) {
     setLoading(false);
   }, [clientFilter]);
 
+  async function removeRow(r: Row, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`למחוק את הסיכום ״${r.title}״? הפעולה אינה הפיכה (המשימות שנגזרו יישארו).`)) return;
+    setRows((rs) => rs.filter((x) => x.id !== r.id)); // הסרה אופטימית
+    try {
+      await api(`/api/meetings/${r.id}`, { method: "DELETE" });
+    } catch {
+      load();
+    }
+  }
+
   useEffect(() => { load(); }, [load]);
 
   // קישור עומק מהבוט: /admin/meetings?open=<id> פותח את הסיכום ישירות.
@@ -89,6 +100,7 @@ export default function MeetingsBoard({ clients }: { clients: ClientOpt[] }) {
                 <th className="px-3 py-2 text-right">נקודות</th>
                 <th className="px-3 py-2 text-right">משימות</th>
                 <th className="px-3 py-2 text-right">סטטוס</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -114,6 +126,15 @@ export default function MeetingsBoard({ clients }: { clients: ClientOpt[] }) {
                     <td className="px-3 py-2 text-slate-600">{r.taskCount || "—"}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full border px-2 py-0.5 text-xs ${st.cls}`}>{st.label}</span>
+                    </td>
+                    <td className="px-2 py-2 text-left">
+                      <button
+                        onClick={(e) => removeRow(r, e)}
+                        title="מחיקת סיכום"
+                        className="rounded-lg p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                      >
+                        <Icon name="trash" className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 );
