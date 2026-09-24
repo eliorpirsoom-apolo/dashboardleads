@@ -232,6 +232,8 @@ model Client {
   messagingConfig String?
   // מזהה הלקוח ב-SUMIT (מתמלא אוטומטית בסנכרון לפי התאמת מייל).
   sumitCustomerId Int?
+  // מזהה קבוצת הוואטסאפ של הלקוח — לשליחת סיכומי פגישות (מהבוט של המשרד).
+  whatsappGroupChatId String?
   // Round-robin new leads between the client's sales agents on intake.
   autoAssignLeads Boolean @default(false)
   active       Boolean  @default(true)
@@ -271,6 +273,7 @@ model Client {
   payments          ClientPayment[]
   seoActions        SeoAction[]
   seoQuota          SeoQuota?
+  meetingSummaries  MeetingSummary[]
 
   @@index([name])
   @@index([type])
@@ -1493,4 +1496,30 @@ model DesignMessage {
   sharedAt       DateTime? // מתי נשלח לאחרונה ללקוח
 
   @@index([designTaskId])
+}
+
+// סיכום פגישה עם לקוח — נקלט מצילום דף במחברת דרך בוט הוואטסאפ (OCR+AI)
+// או נוצר ידנית. נקודות הפגישה כבולטים; שורה יכולה להיות "משימה לביצוע"
+// שיורדת למודול המשימות. הסיכום (בלי המטלות הפנימיות) נשלח לקבוצת הוואטסאפ
+// של הלקוח מהבוט של המשרד.
+model MeetingSummary {
+  id             String    @id @default(cuid())
+  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId       String
+  projectId      String? // פרויקט אופציונלי — נשמר כמזהה, נפתר בקריאה
+  title          String // "סיכום פגישה | שם הלקוח | תאריך" (ניתן לעריכה)
+  meetingDate    DateTime
+  rawText        String? // הטקסט הגולמי מה-OCR (לגיבוי/בקרה)
+  bullets        String? // JSON [{id,text,isTask,assigneeId?,dueAt?,taskId?,done?}]
+  photoKeys      String? // JSON array של מפתחות תמונות המקור (R2)
+  status         String    @default("draft") // draft | approved | sent
+  source         String    @default("manual") // manual | whatsapp
+  createdById    String? // מזהה יוצר (משתמש משרד) — נפתר בקריאה
+  sentToClientAt DateTime?
+  sentChatId     String? // קבוצת הוואטסאפ שאליה נשלח
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([clientId, meetingDate])
+  @@index([status])
 }

@@ -25,6 +25,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/quotes", label: "הצעות מחיר", icon: "money", adminModule: "quotes" },
   { href: "/admin/payments", label: "תשלומים", icon: "chart", adminModule: "payments" },
   { href: "/admin/studio", label: "סטודיו", icon: "edit", adminModule: "studio" },
+  { href: "/admin/meetings", label: "סיכומי פגישות", icon: "note", adminModule: "meetings" },
   { href: "/admin/organic", label: "קידום אורגני", icon: "chart", adminModule: "organic" },
   { href: "/admin/assets", label: "נכסים דיגיטליים", icon: "building", adminModule: "assets" },
   { href: "/admin/messages", label: "הודעות", icon: "megaphone", adminModule: "messages" },
@@ -61,6 +62,7 @@ const CLIENT_NAV: (NavItem & { agentBlocked?: boolean })[] = [
   { href: "/app/broadcasts", label: "הודעות תפוצה", icon: "megaphone", module: "broadcasts", agentBlocked: true },
   { href: "/app/documents", label: "מסמכים", icon: "folder", module: "documents" },
   { href: "/app/studio", label: "עיצובים לאישור", icon: "edit" },
+  { href: "/app/meetings", label: "סיכומי פגישות", icon: "note", agentBlocked: true },
   { href: "/app/settings", label: "הגדרות", icon: "settings", agentBlocked: true },
   { href: "/app/profile", label: "החשבון שלי", icon: "users" },
 ];

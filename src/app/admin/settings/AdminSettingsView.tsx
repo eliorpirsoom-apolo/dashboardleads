@@ -32,6 +32,7 @@ const MODULE_OPTIONS: { key: string; label: string }[] = [
   { key: "documents", label: "מסמכים" },
   { key: "quotes", label: "הצעות מחיר" },
   { key: "studio", label: "סטודיו" },
+  { key: "meetings", label: "סיכומי פגישות" },
   { key: "organic", label: "קידום אורגני" },
   { key: "messages", label: "הודעות" },
   { key: "payments", label: "תשלומים" },

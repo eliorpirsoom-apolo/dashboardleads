@@ -50,6 +50,8 @@ const UpdateClient = z.object({
   birthday: z.string().max(10).nullable().optional().or(z.literal("")),
   autoAssignLeads: z.boolean().optional(),
   active: z.boolean().optional(),
+  // מזהה קבוצת הוואטסאפ של הלקוח (לשליחת סיכומי פגישות), למשל "1203...@g.us".
+  whatsappGroupChatId: z.string().max(60).nullable().optional().or(z.literal("")),
   // הרשאות דיוור שהמשרד מגדיר ("מותר").
   messagingAllowed: z
     .object({
@@ -87,6 +89,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
       ...body,
       contactEmail: body.contactEmail === "" ? null : body.contactEmail,
       birthday: body.birthday === "" ? null : body.birthday,
+      whatsappGroupChatId: body.whatsappGroupChatId === "" ? null : body.whatsappGroupChatId,
       ...(messagingConfig !== undefined ? { messagingConfig } : {}),
     },
   });

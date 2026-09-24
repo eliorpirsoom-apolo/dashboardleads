@@ -41,3 +41,45 @@ export async function aiComplete(opts: {
     return "";
   }
 }
+
+// כמו aiComplete, אך עם תמונה (OCR/ראייה). gpt-4o-mini תומך בקלט תמונה.
+// imageUrl יכול להיות data:base64 או URL ציבורי; משמש לפענוח דף פגישה מצולם.
+export async function aiVision(opts: {
+  system: string;
+  user: string;
+  imageUrl: string;
+  temperature?: number;
+  maxTokens?: number;
+  model?: string;
+}): Promise<string> {
+  if (!aiConfigured()) throw new Error("OpenAI לא מוגדר");
+  const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: opts.model || process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
+      temperature: opts.temperature ?? 0.2,
+      max_tokens: opts.maxTokens ?? 1500,
+      messages: [
+        { role: "system", content: opts.system },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: opts.user },
+            { type: "image_url", image_url: { url: opts.imageUrl } },
+          ],
+        },
+      ],
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}: ${text.slice(0, 200)}`);
+  try {
+    return JSON.parse(text).choices?.[0]?.message?.content?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
