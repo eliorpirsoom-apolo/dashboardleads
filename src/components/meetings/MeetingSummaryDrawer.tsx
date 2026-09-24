@@ -143,6 +143,17 @@ export default function MeetingSummaryDrawer({
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
 
+  async function reprocess() {
+    if (!m) return;
+    if (dirty && !confirm("יש שינויים לא שמורים בבולטים. פענוח מחדש יחליף אותם בטקסט חדש מהתמונה. להמשיך?")) return;
+    setBusy(true); setError(""); setMsg("");
+    try {
+      const d = await api<{ pointCount: number; taskCount: number }>(`/api/meetings/${m.id}/reprocess`, { method: "POST" });
+      await load();
+      setMsg(`פוענח מחדש ✓ (${d.pointCount} נקודות, ${d.taskCount} משימות)`);
+    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
+  }
+
   async function remove() {
     if (!m || !confirm("למחוק את סיכום הפגישה? המשימות שנגזרו ממנו יישארו.")) return;
     await api(`/api/meetings/${m.id}`, { method: "DELETE" });
@@ -199,14 +210,22 @@ export default function MeetingSummaryDrawer({
             </label>
           </div>
 
-          {/* תמונות מקור */}
+          {/* תמונות מקור + פענוח מחדש */}
           {m.photoUrls.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {m.photoUrls.map((u, i) => (
                 <a key={i} href={u} target="_blank" rel="noopener noreferrer" className="block">
                   <img src={u} alt={`דף פגישה ${i + 1}`} className="h-24 rounded-lg border border-slate-200 object-cover" />
                 </a>
               ))}
+              <button
+                onClick={reprocess}
+                disabled={busy}
+                title="פענוח מחדש של התמונה (gpt-4o) — מחליף את הנקודות"
+                className="flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 hover:border-[#3a5bd9] hover:text-[#3a5bd9] disabled:opacity-50"
+              >
+                <Icon name="edit" className="h-3.5 w-3.5" /> {busy ? "מפענח…" : "פענח מחדש מהתמונה"}
+              </button>
             </div>
           ) : null}
 
