@@ -8,8 +8,6 @@ import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import { DateTimeQuarter } from "@/components/DateTimeQuarter";
 import { SearchSelect } from "@/components/SearchSelect";
-import RichEditor from "@/components/RichEditor";
-import { uploadStudioMedia, splitBriefHtml } from "@/lib/studioMedia";
 import StudioTaskDrawer from "@/components/studio/StudioTaskDrawer";
 import {
   DESIGN_STATUSES,
@@ -1014,9 +1012,7 @@ function CreateBriefModal({
     dueAt: "",
   });
   const [busy, setBusy] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState("");
-  const [briefKey, setBriefKey] = useState(0); // רימאונט של עורך הבריף אחרי עדכון תכנותי (AI)
   const [refs, setRefs] = useState<{ fileKey: string; fileName: string; mimeType: string | null }[]>([]);
   const [upBusy, setUpBusy] = useState(false);
   const refInput = useRef<HTMLInputElement>(null);
@@ -1050,39 +1046,12 @@ function CreateBriefModal({
   }
 
   // ניסוח AI על הטקסט בלבד — צילומי המסך שהודבקו נשמרים ומצורפים חזרה בסוף.
-  async function aiBrief() {
-    const { text, media } = splitBriefHtml(form.brief);
-    if (!text) {
-      setError("כתבו כמה נקודות (טקסט) ואז לחצו ״נסח עם AI״");
-      return;
-    }
-    setAiBusy(true);
-    setError("");
-    try {
-      const d = await api<{ brief: string }>("/api/studio/ai-brief", {
-        method: "POST",
-        json: { title: form.title, briefType: form.briefType, notes: text },
-      });
-      if (d.brief) {
-        const html = /</.test(d.brief) ? d.brief : `<p>${d.brief.replace(/\n/g, "<br>")}</p>`;
-        const combined = media ? `${html}<p></p>${media}` : html;
-        setForm((f) => ({ ...f, brief: combined }));
-        setBriefKey((k) => k + 1); // רענון תוכן העורך אחרי עדכון תכנותי
-      }
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setAiBusy(false);
-    }
-  }
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const briefParts = splitBriefHtml(form.brief);
-      const briefValue = briefParts.text || briefParts.media ? form.brief : null;
+      const briefValue = form.brief.trim() ? form.brief.trim() : null;
       await api("/api/design-tasks", {
         method: "POST",
         json: {
@@ -1135,26 +1104,13 @@ function CreateBriefModal({
         <Field label="כותרת המשימה">
           <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
         </Field>
-        <Field label="בריף מפורט למעצב/ת">
-          <div className="mb-1 flex justify-end">
-            <button
-              type="button"
-              onClick={aiBrief}
-              disabled={aiBusy}
-              className="flex items-center gap-1 rounded-lg bg-violet-100 px-2 py-1 text-[11px] font-medium text-violet-700 hover:bg-violet-200 disabled:opacity-50"
-            >
-              <Icon name="edit" className="h-3.5 w-3.5" />
-              {aiBusy ? "מנסח…" : "✨ נסח עם AI"}
-            </button>
-          </div>
-          <RichEditor
-            key={`newbrief-${briefKey}`}
+        <Field label="בריף מפורט למעצב/ת" hint="לצירוף צילומי מסך/דוגמאות — השתמשו ב״רפרנסים / דוגמאות״ למטה.">
+          <textarea
             value={form.brief}
-            onChange={(html) => setForm((f) => ({ ...f, brief: html }))}
-            uploadImage={uploadStudioMedia}
-            placeholder="כתבו נקודות גולמיות — ואפשר להדביק צילומי מסך (Ctrl+V) או לגרור תמונות ישירות לכאן. ואז ״נסח עם AI״ יסדר את הטקסט לבריף מלא."
-            minHeight={140}
-            maxHeight={320}
+            onChange={(e) => setForm((f) => ({ ...f, brief: e.target.value }))}
+            rows={6}
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
+            placeholder="כתבו את הבריף למעצב/ת — מטרה, מסר, סגנון, טקסטים, צבעים, מה חובה לכלול…"
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
