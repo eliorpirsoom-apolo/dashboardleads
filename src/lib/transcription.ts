@@ -283,18 +283,22 @@ export interface RecordingRunResult {
 export async function downloadPendingRecordings(limit = 3): Promise<RecordingRunResult> {
   const result: RecordingRunResult = { processed: 0, saved: 0, failed: 0 };
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const pending = await prisma.lead.findMany({
-    where: {
-      kind: "call",
-      callRecordingKey: null,
-      callRecordingUrl: { startsWith: "http" },
-      createdAt: { gte: weekAgo },
-    },
-    // חדשות קודם — הקלטה ישנה שלא זמינה אצל הספק לא תחסום את האחרונות.
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    select: { id: true, callRecordingUrl: true, callTranscriptStatus: true },
-  });
+  const where = {
+    kind: "call",
+    callRecordingKey: null,
+    callRecordingUrl: { startsWith: "http" } as const,
+    createdAt: { gte: weekAgo },
+  };
+  const sel = { id: true, callRecordingUrl: true, callTranscriptStatus: true } as const;
+  // חדשות קודם — הקלטה ישנה שלא זמינה אצל הספק לא תחסום את האחרונות. אך
+  // כדי שהקלטות ישנות שנכשלו לא יורעבו בתקופה עמוסה (החדשות תמיד תופסות את
+  // הסלוטים), שומרים סלוט אחד להקלטה הישנה ביותר שעדיין ללא עותק.
+  const [fresh, oldest] = await Promise.all([
+    prisma.lead.findMany({ where, orderBy: { createdAt: "desc" }, take: limit, select: sel }),
+    prisma.lead.findMany({ where, orderBy: { createdAt: "asc" }, take: 2, select: sel }),
+  ]);
+  const seen = new Set<string>();
+  const pending = [...fresh, ...oldest].filter((l) => (seen.has(l.id) ? false : (seen.add(l.id), true)));
   for (const lead of pending) {
     result.processed++;
     try {
