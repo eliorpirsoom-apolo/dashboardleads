@@ -6,6 +6,8 @@ import { formatDateTime } from "@/lib/format";
 import { Button, Chip } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import RichEditor from "@/components/RichEditor";
+import UploadProgress from "@/components/UploadProgress";
+import { uploadFileWithProgress, newUploadId, type UploadRow } from "@/lib/uploadWithProgress";
 import { uploadStudioMedia as uploadStudioMediaLib } from "@/lib/studioMedia";
 import {
   DESIGN_STATUS_LABELS,
@@ -219,6 +221,7 @@ export default function StudioTaskDrawer({
   const [t, setT] = useState<Detail | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [uploads, setUploads] = useState<UploadRow[]>([]);
   const [qc, setQc] = useState<Record<number, boolean>>({});
   const [tab, setTab] = useState<"client" | "whatsapp" | "internal">("client");
   const [chatText, setChatText] = useState("");
@@ -376,61 +379,41 @@ export default function StudioTaskDrawer({
     chatEndRef.current?.scrollIntoView({ block: "end" });
   }, [tab, t?.messages.length, waMsgs.length]);
 
-  // העלאת קובץ בודד (בלי רענון): קטן דרך ה-API, גדול (עד 100MB) ישירות ל-R2.
-  async function uploadOne(file: File, kind: "deliverable" | "reference") {
-    if (!t?.client) return;
-    let key: string;
-    let fileName: string = file.name;
-    let mimeType: string | null = file.type || null;
-    if (file.size > 3_500_000) {
-      const pres = await api<{ target: { url: string; headers: Record<string, string> }; key: string }>(
-        "/api/uploads/presign",
-        {
-          method: "POST",
-          json: {
-            clientId: t.client.id,
-            category: "design",
-            fileName: file.name,
-            mimeType: file.type || "application/octet-stream",
-            size: file.size,
-          },
-        }
-      );
-      const put = await fetch(pres.target.url, { method: "PUT", headers: pres.target.headers, body: file });
-      if (!put.ok) throw new Error(`העלאת "${file.name}" נכשלה`);
-      key = pres.key;
-    } else {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("category", "design");
-      fd.append("clientId", t.client.id);
-      const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
-      const uj = await up.json();
-      if (!up.ok) throw new Error(uj.error || `העלאת "${file.name}" נכשלה`);
-      key = uj.key;
-      fileName = uj.fileName;
-      mimeType = uj.mimeType;
-    }
-    await api(`/api/design-tasks/${taskId}/assets`, {
-      method: "POST",
-      json: { fileKey: key, fileName, mimeType, kind },
-    });
-  }
-
-  // העלאה מרובה — בוחרים כמה קבצים ביחד; מועלים אחד-אחד ומרעננים בסוף.
+  // העלאה מרובה עם מד התקדמות אמיתי (אחוזים) לכל קובץ. קטן דרך השרת, גדול
+  // (עד 100MB) ישירות ל-R2 — שניהם עם מעקב בייטים (uploadWithProgress).
   async function upload(files: FileList | File[] | null, kind: "deliverable" | "reference" = "deliverable") {
     const list = files ? Array.from(files) : [];
-    if (list.length === 0) return;
-    setBusy(true);
+    if (list.length === 0 || !t?.client) return;
     setError("");
-    try {
-      for (const f of list) await uploadOne(f, kind);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-      await load();
+    const clientId = t.client.id;
+    const rows: UploadRow[] = list.map((f) => ({ id: newUploadId(), name: f.name, pct: 0, status: "uploading" }));
+    setUploads((u) => [...u, ...rows]);
+    const upd = (id: string, patch: Partial<UploadRow>) =>
+      setUploads((u) => u.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+
+    for (let i = 0; i < list.length; i++) {
+      const file = list[i];
+      const row = rows[i];
+      try {
+        const res = await uploadFileWithProgress(
+          file,
+          { clientId, category: "design" },
+          (pct) => upd(row.id, { pct })
+        );
+        upd(row.id, { pct: 100, status: "finalizing" });
+        await api(`/api/design-tasks/${taskId}/assets`, {
+          method: "POST",
+          json: { fileKey: res.key, fileName: res.fileName, mimeType: res.mimeType, kind },
+        });
+        upd(row.id, { status: "done" });
+      } catch (e: any) {
+        upd(row.id, { status: "error", error: e.message });
+        setError(e.message);
+      }
     }
+    await load();
+    // ניקוי השורות שהסתיימו בהצלחה אחרי רגע; שגיאות נשארות לתשומת לב.
+    setTimeout(() => setUploads((u) => u.filter((x) => x.status === "error")), 2500);
   }
 
   async function sendToClient() {
@@ -825,6 +808,12 @@ export default function StudioTaskDrawer({
       </header>
 
       {error ? <p className="border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-600">{error}</p> : null}
+
+      {uploads.length > 0 ? (
+        <div className="border-b border-slate-200 bg-slate-50 px-6 py-2">
+          <UploadProgress rows={uploads} />
+        </div>
+      ) : null}
 
       {/* Body: main + side */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">

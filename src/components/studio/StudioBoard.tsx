@@ -9,6 +9,8 @@ import Modal from "@/components/Modal";
 import { DateTimeQuarter } from "@/components/DateTimeQuarter";
 import { SearchSelect } from "@/components/SearchSelect";
 import StudioTaskDrawer from "@/components/studio/StudioTaskDrawer";
+import UploadProgress from "@/components/UploadProgress";
+import { uploadFileWithProgress, newUploadId, type UploadRow } from "@/lib/uploadWithProgress";
 import {
   DESIGN_STATUSES,
   DESIGN_STATUS_LABELS,
@@ -1015,6 +1017,7 @@ function CreateBriefModal({
   const [error, setError] = useState("");
   const [refs, setRefs] = useState<{ fileKey: string; fileName: string; mimeType: string | null }[]>([]);
   const [upBusy, setUpBusy] = useState(false);
+  const [upRows, setUpRows] = useState<UploadRow[]>([]);
   const refInput = useRef<HTMLInputElement>(null);
 
   async function uploadRefs(files: FileList) {
@@ -1024,23 +1027,33 @@ function CreateBriefModal({
     }
     setUpBusy(true);
     setError("");
+    const list = Array.from(files);
+    const rows: UploadRow[] = list.map((f) => ({ id: newUploadId(), name: f.name, pct: 0, status: "uploading" }));
+    setUpRows(rows);
+    const upd = (id: string, patch: Partial<UploadRow>) =>
+      setUpRows((u) => u.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     try {
-      const added: { fileKey: string; fileName: string; mimeType: string | null }[] = [];
-      for (const file of Array.from(files)) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("category", "design");
-        fd.append("clientId", form.clientId);
-        const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
-        const uj = await up.json();
-        if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
-        added.push({ fileKey: uj.key, fileName: uj.fileName, mimeType: uj.mimeType });
+      for (let i = 0; i < list.length; i++) {
+        const file = list[i];
+        const row = rows[i];
+        try {
+          const res = await uploadFileWithProgress(
+            file,
+            { clientId: form.clientId, category: "design" },
+            (pct) => upd(row.id, { pct })
+          );
+          upd(row.id, { status: "done" });
+          setRefs((p) => [...p, { fileKey: res.key, fileName: res.fileName, mimeType: res.mimeType }]);
+        } catch (e: any) {
+          upd(row.id, { status: "error", error: e.message });
+          throw e;
+        }
       }
-      setRefs((p) => [...p, ...added]);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setUpBusy(false);
+      setTimeout(() => setUpRows((u) => u.filter((x) => x.status === "error")), 2500);
       if (refInput.current) refInput.current.value = "";
     }
   }
@@ -1147,6 +1160,7 @@ function CreateBriefModal({
             className="hidden"
             onChange={(e) => e.target.files?.length && uploadRefs(e.target.files)}
           />
+          {upRows.length > 0 ? <div className="mb-1.5"><UploadProgress rows={upRows} /></div> : null}
           <div className="flex flex-col gap-1.5">
             {refs.map((r, i) => (
               <div
