@@ -4,7 +4,7 @@ import { getTaskAgentConfig, isWhitelisted } from "./taskAgent";
 import { sendWhatsappRaw } from "./whatsapp";
 import { putObject } from "./storage";
 import { matchClientByName } from "./meetingSummary";
-import { aiVision, aiConfigured } from "./ai";
+import { aiReadDocument, aiConfigured } from "./ai";
 
 // טריגר: "הצעה: <לקוח>" / "הצעת מחיר: <לקוח>" + צילום/קובץ של ההצעה החתומה.
 const TRIGGER = /^(?:הצעה|הצעת מחיר|הצעת-מחיר|הצעת־מחיר)\s*[:\-–]?\s*(.+)$/s;
@@ -26,21 +26,25 @@ function toShekels(v: any): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-// קריאת נושא + סכומים מצילום הצעת מחיר (best-effort; תמיד ניתן לעריכה בכרטיס).
-async function extractQuoteFromImage(
-  dataUrl: string
+// קריאת נושא + סכומים מהצעת מחיר (צילום או PDF). best-effort; תמיד ניתן לעריכה בכרטיס.
+async function extractQuoteFromDoc(
+  dataUrl: string,
+  mime: string,
+  fileName: string
 ): Promise<{ title: string | null; amountPreVat: number | null; amountTotal: number | null }> {
   if (!aiConfigured()) return { title: null, amountPreVat: null, amountTotal: null };
-  const raw = await aiVision({
-    system: "אתה קורא הצעת מחיר ישראלית מצילום ומחזיר JSON בלבד, ללא טקסט נוסף.",
+  const raw = await aiReadDocument({
+    system: "אתה קורא הצעת מחיר ישראלית (צילום או PDF) ומחזיר JSON בלבד, ללא טקסט נוסף.",
     user:
-      'קרא את הצעת המחיר בתמונה והחזר JSON יחיד בלבד: ' +
+      'קרא את הצעת המחיר במסמך והחזר JSON יחיד בלבד: ' +
       '{"title": "נושא קצר של ההצעה — על מה השירות/המוצר, עד 60 תווים בעברית", ' +
       '"amountPreVat": סכום לפני מע"מ בשקלים שלמים או null, ' +
       '"amountTotal": סכום כולל מע"מ (סה"כ לתשלום) בשקלים שלמים או null}. ' +
       'אם ערך לא מופיע בבירור — החזר null עבורו. בלי הסברים, בלי code-fences.',
-    imageUrl: dataUrl,
-    maxTokens: 300,
+    dataUrl,
+    mime,
+    fileName,
+    maxTokens: 400,
   });
   try {
     let s = raw.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -106,13 +110,13 @@ export async function maybeHandleSignedQuote(input: {
     const key = `agency/signed-quotes/${crypto.randomUUID()}-${safe}`;
     await putObject(key, bytes, mime);
 
-    // צילום → ניסיון קריאה אוטומטית של נושא + סכומים (ניתן לעריכה בכרטיס).
+    // צילום או PDF → ניסיון קריאה אוטומטית של נושא + סכומים (ניתן לעריכה בכרטיס).
     let meta = { title: null as string | null, amountPreVat: null as number | null, amountTotal: null as number | null };
-    if (mime.startsWith("image/")) {
+    if (mime.startsWith("image/") || mime === "application/pdf") {
       try {
-        meta = await extractQuoteFromImage(`data:${mime};base64,${bytes.toString("base64")}`);
+        meta = await extractQuoteFromDoc(`data:${mime};base64,${bytes.toString("base64")}`, mime, baseName);
       } catch (e) {
-        console.error("[signed-quote-vision]", e);
+        console.error("[signed-quote-extract]", e);
       }
     }
 

@@ -83,3 +83,46 @@ export async function aiVision(opts: {
     return "";
   }
 }
+
+// קריאת מסמך (תמונה או PDF) ב-gpt-4o. לתמונה שולחים image_url; ל-PDF שולחים
+// חלק תוכן מסוג file עם file_data (base64) — gpt-4o קורא PDF ישירות ב-API,
+// בלי המרה מקומית. dataUrl = "data:<mime>;base64,<...>".
+export async function aiReadDocument(opts: {
+  system: string;
+  user: string;
+  dataUrl: string;
+  mime: string;
+  fileName?: string;
+  temperature?: number;
+  maxTokens?: number;
+  model?: string;
+}): Promise<string> {
+  if (!aiConfigured()) throw new Error("OpenAI לא מוגדר");
+  const isPdf = opts.mime === "application/pdf" || /\.pdf$/i.test(opts.fileName || "");
+  const part = isPdf
+    ? { type: "file", file: { filename: opts.fileName || "document.pdf", file_data: opts.dataUrl } }
+    : { type: "image_url", image_url: { url: opts.dataUrl } };
+  const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: opts.model || process.env.OPENAI_VISION_MODEL || "gpt-4o",
+      temperature: opts.temperature ?? 0.2,
+      max_tokens: opts.maxTokens ?? 800,
+      messages: [
+        { role: "system", content: opts.system },
+        { role: "user", content: [{ type: "text", text: opts.user }, part] },
+      ],
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}: ${text.slice(0, 200)}`);
+  try {
+    return JSON.parse(text).choices?.[0]?.message?.content?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
