@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { StatCard, Card, Chip } from "@/components/ui";
 import { formatDateTime, formatCurrency } from "@/lib/format";
 import { ilMonthKey, ilMonthStart } from "@/lib/time";
 import { leadTrend } from "@/lib/trend";
 import TrendChart from "@/components/TrendChart";
+import SignedQuotesCard from "@/components/clients/SignedQuotesCard";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +64,8 @@ export default async function ClientOverview({
   });
   const cpl = monthLeads > 0 && monthSpend > 0 ? monthSpend / monthLeads : null;
   const trend = await leadTrend(client.id);
+  const me = await getSession();
+  const isManager = me?.role === "ADMIN" && me.adminRole !== "staff";
 
   return (
     <div className="flex flex-col gap-4">
@@ -126,6 +130,8 @@ export default async function ClientOverview({
           )}
         </Card>
       </div>
+
+      {isManager ? <SignedQuotesCard clientId={client.id} /> : null}
 
       {openTasks > 0 ? (
         <p className="text-xs text-slate-500">

@@ -308,6 +308,23 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
   const phone = chatId.replace("@c.us", "");
   const senderName = payload?.senderData?.senderName || null;
 
+  // הצעת מחיר חתומה: צילום/PDF עם כיתוב "הצעה: <לקוח>" ממספר מורשה → שמירה בכרטיס.
+  // רץ ראשון; אם ההודעה היא פקודת הצעה הוא בולע אותה (הטריגר לא חופף לסיכום/משימות).
+  try {
+    const { maybeHandleSignedQuote } = await import("./signedQuoteIngest");
+    const handledQuote = await maybeHandleSignedQuote({
+      phone,
+      body,
+      mediaUrl,
+      mediaMime,
+      mediaName,
+      senderName,
+    });
+    if (handledQuote) return { stored: true, reason: "signed-quote" };
+  } catch (e) {
+    console.error("[signed-quote]", e);
+  }
+
   // סיכום פגישה: צילום דף עם כיתוב "סיכום: <לקוח>" ממספר מורשה → OCR → סיכום.
   // רץ לפני סוכן המשימות; אם ההודעה היא פקודת סיכום הוא בולע אותה.
   try {

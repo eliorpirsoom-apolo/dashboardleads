@@ -274,6 +274,7 @@ model Client {
   seoActions        SeoAction[]
   seoQuota          SeoQuota?
   meetingSummaries  MeetingSummary[]
+  signedQuotes      SignedQuote[]
 
   @@index([name])
   @@index([type])
@@ -1522,4 +1523,22 @@ model MeetingSummary {
 
   @@index([clientId, meetingDate])
   @@index([status])
+}
+
+// הצעת מחיר חתומה שהלקוח החזיר — קובץ/צילום מסך, כמה לכל לקוח. גלוי למנהלים
+// בלבד (API ו-UI עם requireManager). מועלה ידנית או דרך בוט הוואטסאפ.
+model SignedQuote {
+  id           String   @id @default(cuid())
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  fileKey      String // מפתח האחסון (agency/signed-quotes/…) — הגשה מאומתת בלבד
+  fileName     String
+  mimeType     String
+  size         Int      @default(0)
+  note         String?
+  source       String   @default("manual") // manual | whatsapp
+  uploadedById String? // מזהה המעלה (נפתר בקריאה)
+  createdAt    DateTime @default(now())
+
+  @@index([clientId, createdAt])
 }
