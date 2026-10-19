@@ -1535,6 +1535,10 @@ model SignedQuote {
   fileName     String
   mimeType     String
   size         Int      @default(0)
+  title        String? // נושא ההצעה — על מה היא (נראה מבחוץ)
+  amountPreVat Int? // סכום לפני מע"מ, ש"ח שלמים
+  amountTotal  Int? // סכום כולל מע"מ, ש"ח שלמים
+  quoteDate    DateTime? // תאריך ההצעה (ברירת מחדל: תאריך העלאה)
   note         String?
   source       String   @default("manual") // manual | whatsapp
   uploadedById String? // מזהה המעלה (נפתר בקריאה)
