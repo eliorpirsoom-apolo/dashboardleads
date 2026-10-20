@@ -3,16 +3,26 @@ import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
 import { sumitListDocuments, sumitDocType, type SumitDoc } from "@/lib/integrations/sumit";
+import { importOneSumitProposal } from "@/lib/integrations/sumitSync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // GET /api/integrations/sumit/diagnose — אבחון סנכרון SUMIT. מנהל בלבד.
 //   ?number=2267  → בדיקה נקודתית: האם ההצעה נמשכה מ-SUMIT ו/או נשמרה ב-CRM.
+//   ?import=2267  → ניסיון ייבוא בפועל של ההצעה (מחזיר את השגיאה המדויקת אם נכשל).
 export const GET = handle(async (req) => {
   await requireManager();
   const t0 = Date.now();
-  const numberParam = new URL(req.url).searchParams.get("number");
+  const url = new URL(req.url);
+  const numberParam = url.searchParams.get("number");
+  const importParam = url.searchParams.get("import");
+
+  // ייבוא נקודתי (כתיבה) — מדלג על שאר האבחון, מחזיר תוצאה/שגיאה אמיתית.
+  if (importParam) {
+    const res = await importOneSumitProposal(Number(importParam));
+    return NextResponse.json({ import: res });
+  }
   const docs = await sumitListDocuments();
   const elapsedMs = Date.now() - t0;
   const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);

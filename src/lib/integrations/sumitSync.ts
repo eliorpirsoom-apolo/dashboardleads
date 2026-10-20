@@ -338,3 +338,65 @@ async function createQuoteFromSumit(clientId: string | null, d: SumitDoc) {
     })
     .catch(() => {});
 }
+
+// אבחון/תיקון נקודתי: ייבוא הצעת מחיר בודדת לפי DocumentNumber, ללא בליעת
+// שגיאות — מחזיר את הסיבה המדויקת אם נכשל. אידמפוטנטי (מדלג אם כבר קיימת).
+export async function importOneSumitProposal(documentNumber: number): Promise<{
+  found: boolean;
+  isProposal?: boolean;
+  alreadyStored?: boolean;
+  created?: boolean;
+  quoteId?: string;
+  clientId?: string | null;
+  error?: string;
+}> {
+  if (!sumitConfigured()) return { found: false, error: "SUMIT לא מוגדר" };
+  const docs = await sumitListDocuments();
+  const d = docs.find((x) => x.DocumentNumber === documentNumber);
+  if (!d) return { found: false };
+  if (sumitDocType(d.Type).category !== "proposal") return { found: true, isProposal: false };
+
+  const existing = await prisma.quote.findFirst({
+    where: { notes: { contains: `[sumit:${d.DocumentID}]` } },
+    select: { id: true },
+  });
+  if (existing) return { found: true, isProposal: true, alreadyStored: true, quoteId: existing.id };
+
+  const clients = await prisma.client.findMany({
+    select: { id: true, name: true, contactEmail: true, sumitCustomerId: true },
+  });
+  const bySumitId = new Map<number, string>();
+  const byEmail = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const c of clients) {
+    if (c.sumitCustomerId) bySumitId.set(c.sumitCustomerId, c.id);
+    if (c.contactEmail) byEmail.set(c.contactEmail.toLowerCase().trim(), c.id);
+    if (c.name) byName.set(normName(c.name), c.id);
+  }
+
+  let clientId: string | null = null;
+  try {
+    const r = await resolveOrCreateClient(d, { bySumitId, byEmail, byName, onLookup: () => {} });
+    clientId = r.clientId;
+  } catch (e: any) {
+    return { found: true, isProposal: true, error: `resolve: ${e?.message || String(e)}` };
+  }
+
+  try {
+    const label = sumitDocType(d.Type).label;
+    const q = await prisma.quote.create({
+      data: {
+        clientId,
+        recipient: d.CustomerName || "מתעניין",
+        title: d.DocumentNumber ? `${label} #${d.DocumentNumber}` : label,
+        amount: d.DocumentValue ? Math.round(exVat(d.DocumentValue)) : null,
+        status: "sent",
+        sentAt: d.Date ? new Date(d.Date) : new Date(),
+        notes: `יובא מ-SUMIT [sumit:${d.DocumentID}]`,
+      },
+    });
+    return { found: true, isProposal: true, created: true, quoteId: q.id, clientId };
+  } catch (e: any) {
+    return { found: true, isProposal: true, created: false, clientId, error: `create: ${e?.message || String(e)}` };
+  }
+}
