@@ -240,21 +240,21 @@ export default function PaymentsBoard() {
         ) : clients.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-500">אין לקוחות פעילים.</p>
         ) : (
-          <div className="thin-scroll overflow-x-auto">
+          <div className="thin-scroll max-h-[75vh] overflow-auto">
             <table className="w-full border-collapse text-right text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="sticky right-0 z-10 min-w-[150px] bg-slate-50 px-3 py-2 text-slate-600">לקוח</th>
-                  <th className="min-w-[70px] bg-slate-50 px-2 py-2 text-slate-500">סוג</th>
+                  <th className="sticky right-0 top-0 z-30 min-w-[150px] bg-slate-50 px-3 py-2 text-slate-600">לקוח</th>
+                  <th className="sticky top-0 z-20 min-w-[70px] bg-slate-50 px-2 py-2 text-slate-500">סוג</th>
                   {MONTHS.map((m, i) => (
                     <th
                       key={m}
-                      className={`min-w-[90px] px-2 py-2 text-center font-medium ${month === i + 1 ? "bg-[#3a5bd9]/10 text-[#3a5bd9]" : "text-slate-500"}`}
+                      className={`sticky top-0 z-20 min-w-[90px] px-2 py-2 text-center font-medium ${month === i + 1 ? "bg-[#ebeefb] text-[#3a5bd9]" : "bg-slate-50 text-slate-500"}`}
                     >
                       {m}
                     </th>
                   ))}
-                  <th className="min-w-[90px] px-2 py-2 text-center text-slate-600">סה״כ</th>
+                  <th className="sticky top-0 z-20 min-w-[90px] bg-slate-50 px-2 py-2 text-center text-slate-600">סה״כ</th>
                 </tr>
               </thead>
               <tbody>
