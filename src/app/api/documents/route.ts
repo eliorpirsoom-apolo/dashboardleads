@@ -2,13 +2,23 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
+import { canAccessAdminModule } from "@/lib/adminModules";
 
 export const dynamic = "force-dynamic";
+
+// עובד-משרד שהוגבל ממודול "מסמכים" נחסם גם ב-API (ההגבלה הייתה רק ב-UI).
+// חל רק על ADMIN staff — לקוחות/משווקים לא מושפעים.
+function assertDocsModule(user: Parameters<typeof canAccessAdminModule>[0]) {
+  if (user.role === "ADMIN" && !canAccessAdminModule(user, "documents")) {
+    throw new ApiError(403, "אין לך הרשאה למודול מסמכים");
+  }
+}
 
 // GET /api/documents?clientId&category&month&projectId&leadId
 // בלי leadId — מסמכי הלקוח הכלליים בלבד; עם leadId — מסמכי הליד (כרטיס הליד).
 export const GET = handle(async (req) => {
   const user = await requireUser();
+  assertDocsModule(user);
   const p = new URL(req.url).searchParams;
   const clientId = scopeClientId(user, p.get("clientId"));
 
@@ -52,6 +62,7 @@ const CreateDoc = z.object({
 // POST /api/documents — register metadata after the bytes were uploaded.
 export const POST = handle(async (req) => {
   const user = await requireUser();
+  assertDocsModule(user);
   const body = CreateDoc.parse(await readJson(req));
   const clientId = scopeClientId(user, body.clientId);
 

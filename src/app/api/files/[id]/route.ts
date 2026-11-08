@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, ApiError } from "@/lib/api";
+import { canAccessAdminModule } from "@/lib/adminModules";
 import { presignDownload, readLocalObject } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,10 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
   const doc = await prisma.document.findUnique({ where: { id: params.id } });
   if (!doc) throw new ApiError(404, "קובץ לא נמצא");
   scopeClientId(user, doc.clientId);
+  // עובד-משרד שהוגבל ממודול "מסמכים" לא יוריד קבצים גם דרך ה-API (רק ADMIN staff).
+  if (user.role === "ADMIN" && !canAccessAdminModule(user, "documents")) {
+    throw new ApiError(403, "אין לך הרשאה למודול מסמכים");
+  }
 
   // מסמך חיצוני (SUMIT) — הפניה לקישור ההורדה של הספק.
   if (doc.externalUrl) return NextResponse.redirect(doc.externalUrl);

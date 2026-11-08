@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handle, requireUser, scopeClientId, readJson, ApiError } from "@/lib/api";
 import { assertNotAgent } from "@/lib/permissions";
+import { allowedProjectIds, projectAllowed } from "@/lib/projectScope";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,11 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
 
   // סוכן מכירות רשאי רק לעדכן מלאי ("נמכרה"/"חזרה") — לא מחיר, שם או כמות.
   if (user.role === "CLIENT" && user.isAgent) {
+    // ורק בטיפוסים של פרויקט המשויך אליו (default-deny) — לא פרויקט זר של אותו לקוח.
+    const allowed = await allowedProjectIds(user);
+    if (!projectAllowed(allowed, unit.projectId)) {
+      throw new ApiError(403, "הטיפוס שייך לפרויקט שאינו משויך אליך");
+    }
     const touchesConfig =
       body.name !== undefined ||
       body.rooms !== undefined ||
