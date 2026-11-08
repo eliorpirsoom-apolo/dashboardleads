@@ -275,6 +275,7 @@ model Client {
   seoQuota          SeoQuota?
   meetingSummaries  MeetingSummary[]
   signedQuotes      SignedQuote[]
+  leadWebhooks      LeadWebhook[]
 
   @@index([name])
   @@index([type])
@@ -965,10 +966,61 @@ model Project {
   metaPages        MetaPage[]
   materials        ProjectMaterial[]
   designTasks      DesignTask[]
+  leadWebhooks     LeadWebhook[]
 
   @@unique([clientId, name])
   @@index([clientId])
   @@index([materialsReceived, materialsRequestedAt])
+}
+
+// ---------------------------------------------------------------------------
+// שיגור לידים החוצה (Outbound) — כל ליד חדש נדחף ל-API של מערכת חיצונית.
+// יעד אפשר להצמיד לפרויקט מסוים (projectId) או לכל הלקוח (projectId = null).
+// המקבילה היוצאת ל-LeadSource/intake. הטוקנים/מפתחות הם סודות — צד משרד בלבד.
+// ---------------------------------------------------------------------------
+model LeadWebhook {
+  id         String   @id @default(cuid())
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId  String? // null = כל הפרויקטים של הלקוח
+  name       String // שם מזהה: "ה-CRM של הלקוח", "GoHighLevel"
+  url        String // כתובת היעד
+  method     String   @default("POST")
+  format     String   @default("json") // "json" | "form"
+  authHeader String? // שם כותרת אימות, למשל Authorization / X-API-Key
+  authValue  String? // הערך/מפתח (מוזן ע"י המנהל בממשק)
+  secret     String? // סוד אופציונלי לחתימת HMAC → כותרת X-Apollo-Signature
+  fieldMap   String? // JSON: { destKey: sourceKey } — מיפוי לשמות שה-API של היעד דורש
+  active     Boolean  @default(true)
+  lastStatus String? // "ok" | "error" — סטטוס המסירה האחרונה
+  lastError  String?
+  lastSentAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  logs LeadForwardLog[]
+
+  @@index([clientId])
+  @@index([projectId])
+}
+
+// יומן מסירה של שיגור ליד ליעד (המקבילה היוצאת ל-IntakeLog).
+model LeadForwardLog {
+  id           String      @id @default(cuid())
+  webhook      LeadWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  webhookId    String
+  leadId       String? // מזהה הליד ששוגר (null לבדיקת חיבור)
+  status       String // "ok" | "error"
+  httpCode     Int?
+  error        String?
+  requestBody  String?
+  responseBody String?
+  attempt      Int         @default(1)
+  createdAt    DateTime    @default(now())
+
+  @@index([webhookId, createdAt])
+  @@index([leadId])
 }
 
 // פריט חומרים שנדרש מהלקוח בפרויקט (מופק מתבנית או ידני).

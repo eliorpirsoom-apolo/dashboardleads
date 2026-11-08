@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { sendMessage, renderTemplate, type Channel } from "./messaging";
 import { parseMsgConfig, effectiveFlags, effectiveChannels } from "./messagingConfig";
+import { forwardLeadOutbound } from "./leadForward";
 
 // התראת "ליד חדש" למשתמשי הלקוח — לפי הרשאות הדיוור (leadAlerts + ערוצים אפקטיביים).
 // מיוצאת גם לשליחה חוזרת ידנית (POST /api/leads/[id]/resend-alerts).
@@ -234,6 +235,8 @@ export async function onLeadCreated(leadId: string): Promise<void> {
   await fireAutomations(lead.clientId, "lead_created", leadId, null);
   await sendNewLeadAlert(leadId).catch((e) => console.error("[lead-alert]", e));
   await sendLeadToMarketer(leadId).catch((e) => console.error("[lead-marketer-wa]", e));
+  // שיגור החוצה למערכות חיצוניות (GHL / CRM אחר) — לא-חוסם.
+  await forwardLeadOutbound(leadId).catch((e) => console.error("[lead-forward]", e));
 }
 
 async function fireAutomations(
