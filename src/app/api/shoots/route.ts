@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
 import { canAccessAdminModule } from "@/lib/adminModules";
 import { SHOOT_STATUS_KEYS, SHOOT_TYPE_KEYS } from "@/lib/shoots";
+import { createShootEvent } from "@/lib/shootsGcal";
 
 export const dynamic = "force-dynamic";
 
@@ -137,5 +138,6 @@ export const POST = handle(async (req) => {
       crew: { include: { user: { select: { id: true, name: true } } } },
     },
   });
+  await createShootEvent(shoot.id).catch(() => {}); // סנכרון Google Calendar (best-effort)
   return NextResponse.json({ shoot: shape(shoot, isManager) }, { status: 201 });
 });

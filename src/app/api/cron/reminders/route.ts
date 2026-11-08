@@ -10,6 +10,7 @@ import { sendDueDesignApprovalReminders, markOverdueDesignTasks } from "@/lib/st
 import { sweepStudioCalendar } from "@/lib/studioGcal";
 import { runWhatsappBroadcast } from "@/lib/whatsappBroadcast";
 import { runLeadSlaChecks } from "@/lib/leadSla";
+import { runShootReminders } from "@/lib/shootsReminders";
 import { processBillingAlerts } from "@/lib/billingAlerts";
 import { touchCronHeartbeat, watchdogHealthCron } from "@/lib/health";
 
@@ -236,6 +237,14 @@ export async function GET(req: Request) {
     console.error("[lead-sla]", err);
   }
 
+  // 🎬 תזכורות ימי צילום — וואטסאפ לצוות ב-24 השעות שלפני הצילום.
+  let shootReminders = 0;
+  try {
+    shootReminders = await runShootReminders();
+  } catch (err) {
+    console.error("[shoot-reminders]", err);
+  }
+
   // ☀️ תקציר בוקר למשווקים (צד לקוח) — 08:30-09:30, פעם ביום, רק כשיש עבודה.
   let agentDigests = 0;
   try {
@@ -278,6 +287,7 @@ export async function GET(req: Request) {
     sumitSync,
     studio,
     leadSla,
+    shootReminders,
     agentDigests,
     billing,
     broadcast,

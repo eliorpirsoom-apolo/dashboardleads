@@ -93,7 +93,7 @@ export default function ShootsBoard({
   isManager: boolean;
 }) {
   const [shoots, setShoots] = useState<Shoot[]>([]);
-  const [view, setView] = useState<"board" | "calendar">("board");
+  const [view, setView] = useState<"board" | "calendar" | "availability">("board");
   const [filterClient, setFilterClient] = useState("");
   const [editing, setEditing] = useState<Shoot | "new" | null>(null);
   const [error, setError] = useState("");
@@ -148,6 +148,12 @@ export default function ShootsBoard({
           >
             לוח שנה
           </button>
+          <button
+            onClick={() => setView("availability")}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${view === "availability" ? "bg-[#3a5bd9] text-white" : "text-slate-600"}`}
+          >
+            זמינות צוות
+          </button>
         </div>
         <Select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="!w-48">
           <option value="">כל הלקוחות</option>
@@ -187,8 +193,10 @@ export default function ShootsBoard({
           onEdit={(s) => setEditing(s)}
           onDelete={remove}
         />
-      ) : (
+      ) : view === "calendar" ? (
         <CalendarView shoots={shoots} onEdit={(s) => setEditing(s)} />
+      ) : (
+        <AvailabilityView shoots={shoots} />
       )}
     </div>
   );
@@ -361,6 +369,74 @@ function CalendarView({ shoots, onEdit }: { shoots: Shoot[]; onEdit: (s: Shoot) 
           );
         })}
       </div>
+    </Card>
+  );
+}
+
+// --- זמינות צוות (עומס + אזהרת חפיפה) ----------------------------------------
+function AvailabilityView({ shoots }: { shoots: Shoot[] }) {
+  const now = Date.now();
+  const byUser = new Map<
+    string,
+    { name: string; items: { s: Shoot; start: number; end: number; conflict: boolean }[] }
+  >();
+  for (const s of shoots) {
+    const start = new Date(s.date).getTime();
+    if (isNaN(start) || start < now - 2 * 3600 * 1000) continue; // עתידיים בלבד
+    const end = s.endAt ? new Date(s.endAt).getTime() : start + 2 * 3600 * 1000;
+    for (const c of s.crew) {
+      const u = byUser.get(c.userId) ?? { name: c.name, items: [] };
+      u.items.push({ s, start, end, conflict: false });
+      byUser.set(c.userId, u);
+    }
+  }
+  for (const u of byUser.values()) {
+    u.items.sort((a, b) => a.start - b.start);
+    for (let i = 0; i < u.items.length - 1; i++) {
+      if (u.items[i].end > u.items[i + 1].start) {
+        u.items[i].conflict = true;
+        u.items[i + 1].conflict = true;
+      }
+    }
+  }
+  const rows = [...byUser.entries()].filter(([, u]) => u.items.length > 0);
+
+  return (
+    <Card>
+      <p className="mb-3 text-xs text-slate-500">
+        שיבוצי הצוות הקרובים. ⚠️ = חפיפה בין שני ימי צילום לאותו אדם. (לתמונה מלאה בחרו
+        &quot;כל הלקוחות&quot; בסינון למעלה.)
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-slate-500">אין שיבוצי צוות עתידיים.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {rows.map(([uid, u]) => (
+            <div key={uid} className="rounded-xl border border-slate-200 p-3">
+              <p className="mb-2 text-sm font-bold text-slate-700">
+                👤 {u.name}
+                <span className="text-xs font-normal text-slate-400"> · {u.items.length} ימי צילום</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {u.items.map((it, idx) => {
+                  const meta = shootStatusMeta(it.s.status);
+                  return (
+                    <span
+                      key={idx}
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${it.conflict ? "border-red-400 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}
+                      title={it.s.client?.name ?? ""}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ background: meta.color }} />
+                      {it.conflict ? "⚠️ " : ""}
+                      {formatDateTime(it.s.date)} · {it.s.title || it.s.client?.name || "צילום"}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

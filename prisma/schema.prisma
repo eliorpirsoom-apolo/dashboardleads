@@ -996,8 +996,9 @@ model ShootDay {
   deliverables String?
   cost         Float? // עלות — גלוי למנהלים בלבד
   notes        String?
-  gcalEventId  String? // מזהה אירוע Google Calendar (שלב 2)
-  reminderSent Boolean   @default(false) // תזכורת וואטסאפ נשלחה (שלב 2)
+  gcalEventId  String? // מזהה אירוע Google Calendar
+  gcalOwnerId  String? // ה-user שעל היומן שלו נוצר האירוע (לעדכון/מחיקה)
+  reminderSent Boolean   @default(false) // תזכורת וואטסאפ לצוות נשלחה
   createdById  String? // מי יצר (ללא FK — שורד מחיקת משתמש)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

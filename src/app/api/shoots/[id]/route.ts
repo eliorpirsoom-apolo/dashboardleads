@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, readJson, ApiError } from "@/lib/api";
 import { canAccessAdminModule } from "@/lib/adminModules";
 import { SHOOT_STATUS_KEYS, SHOOT_TYPE_KEYS } from "@/lib/shoots";
+import { syncShootEvent, deleteShootEvent } from "@/lib/shootsGcal";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     }
   });
 
+  await syncShootEvent(shoot.id).catch(() => {}); // עדכון Google Calendar (best-effort)
   const full = await prisma.shootDay.findUnique({
     where: { id: shoot.id },
     include: {
@@ -94,5 +96,6 @@ export const DELETE = handle(async (_req, { params }: { params: { id: string } }
   const shoot = await prisma.shootDay.findUnique({ where: { id: params.id } });
   if (!shoot) throw new ApiError(404, "יום צילום לא נמצא");
   await prisma.shootDay.delete({ where: { id: shoot.id } });
+  await deleteShootEvent(shoot.gcalEventId, shoot.gcalOwnerId).catch(() => {}); // מחיקת אירוע היומן
   return NextResponse.json({ ok: true, deleted: true });
 });
