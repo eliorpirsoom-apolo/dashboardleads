@@ -26,6 +26,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/payments", label: "תשלומים", icon: "chart", adminModule: "payments" },
   { href: "/admin/studio", label: "סטודיו", icon: "edit", adminModule: "studio" },
   { href: "/admin/meetings", label: "סיכומי פגישות", icon: "note", adminModule: "meetings" },
+  { href: "/admin/shoots", label: "ימי צילום", icon: "camera", adminModule: "shoots" },
   { href: "/admin/organic", label: "קידום אורגני", icon: "chart", adminModule: "organic" },
   { href: "/admin/assets", label: "נכסים דיגיטליים", icon: "building", adminModule: "assets" },
   { href: "/admin/messages", label: "הודעות", icon: "megaphone", adminModule: "messages" },

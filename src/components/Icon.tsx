@@ -22,6 +22,12 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M8 3v4M16 3v4M3 10h18" />
     </>
   ),
+  camera: (
+    <>
+      <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z" />
+      <circle cx="12" cy="12.5" r="3.3" />
+    </>
+  ),
   tasks: (
     <path d="m5 12 4 4L19 6M5 19h14" />
   ),

@@ -74,6 +74,7 @@ model User {
   engagementTasks EngagementTask[] @relation("EngagementTaskAssignee")
   notifications   Notification[]
   seoActions      SeoAction[]      @relation("SeoActionAssignee")
+  shootCrew       ShootCrew[]
 
   @@index([clientId])
   @@index([role])
@@ -276,6 +277,7 @@ model Client {
   meetingSummaries  MeetingSummary[]
   signedQuotes      SignedQuote[]
   leadWebhooks      LeadWebhook[]
+  shootDays         ShootDay[]
 
   @@index([name])
   @@index([type])
@@ -967,10 +969,57 @@ model Project {
   materials        ProjectMaterial[]
   designTasks      DesignTask[]
   leadWebhooks     LeadWebhook[]
+  shootDays        ShootDay[]
 
   @@unique([clientId, name])
   @@index([clientId])
   @@index([materialsReceived, materialsRequestedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ימי צילום — מודול פנימי למשרד: תיאום, שיבוץ צוות, ציוד, עלות וסטטוס של
+// ימי צילום ללקוחות/פרויקטים. לוח + לוח-שנה + תצוגת עומס צלמים.
+// ---------------------------------------------------------------------------
+model ShootDay {
+  id           String    @id @default(cuid())
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  project      Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId    String?
+  title        String?
+  date         DateTime // תאריך + שעת התחלה
+  endAt        DateTime? // שעת סיום (אופציונלי)
+  location     String?
+  types        String    @default("[]") // JSON array: ["stills","video","drone"]
+  status       String    @default("pending") // pending|scheduled|approved|shot|editing|delivered
+  equipment    String?
+  deliverables String?
+  cost         Float? // עלות — גלוי למנהלים בלבד
+  notes        String?
+  gcalEventId  String? // מזהה אירוע Google Calendar (שלב 2)
+  reminderSent Boolean   @default(false) // תזכורת וואטסאפ נשלחה (שלב 2)
+  createdById  String? // מי יצר (ללא FK — שורד מחיקת משתמש)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  crew ShootCrew[]
+
+  @@index([clientId])
+  @@index([date])
+  @@index([status])
+}
+
+// שיבוץ איש-צוות ליום צילום (צלם/וידאו/עורך).
+model ShootCrew {
+  id      String   @id @default(cuid())
+  shoot   ShootDay @relation(fields: [shootId], references: [id], onDelete: Cascade)
+  shootId String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  role    String? // "photographer" | "videographer" | "editor"
+
+  @@unique([shootId, userId])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

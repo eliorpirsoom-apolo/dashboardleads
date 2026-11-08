@@ -7,6 +7,7 @@ import { ilMonthKey, ilMonthStart } from "@/lib/time";
 import { leadTrend } from "@/lib/trend";
 import TrendChart from "@/components/TrendChart";
 import SignedQuotesCard from "@/components/clients/SignedQuotesCard";
+import ShootsClientCard from "@/components/clients/ShootsClientCard";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +131,8 @@ export default async function ClientOverview({
           )}
         </Card>
       </div>
+
+      <ShootsClientCard clientId={client.id} />
 
       {isManager ? <SignedQuotesCard clientId={client.id} /> : null}
 

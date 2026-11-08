@@ -1,0 +1,580 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "@/lib/fetcher";
+import { formatDateTime } from "@/lib/format";
+import { Button, Card, Chip, Field, Input, Select, Textarea } from "@/components/ui";
+import { Icon } from "@/components/Icon";
+import {
+  SHOOT_STATUSES,
+  SHOOT_TYPES,
+  shootStatusMeta,
+  shootTypeLabel,
+} from "@/lib/shoots";
+
+interface Ref {
+  id: string;
+  name: string;
+}
+interface CrewMember {
+  userId: string;
+  name: string;
+  role: string | null;
+}
+interface Shoot {
+  id: string;
+  clientId: string;
+  client: Ref | null;
+  projectId: string | null;
+  project: Ref | null;
+  title: string | null;
+  date: string;
+  endAt: string | null;
+  location: string | null;
+  types: string[];
+  status: string;
+  equipment: string | null;
+  deliverables: string | null;
+  cost: number | null;
+  notes: string | null;
+  crew: CrewMember[];
+}
+
+type Draft = {
+  clientId: string;
+  projectId: string;
+  title: string;
+  date: string;
+  endAt: string;
+  location: string;
+  types: string[];
+  status: string;
+  equipment: string;
+  deliverables: string;
+  cost: string;
+  notes: string;
+  crew: string[]; // userIds
+};
+
+const emptyDraft = (): Draft => ({
+  clientId: "",
+  projectId: "",
+  title: "",
+  date: "",
+  endAt: "",
+  location: "",
+  types: [],
+  status: "pending",
+  equipment: "",
+  deliverables: "",
+  cost: "",
+  notes: "",
+  crew: [],
+});
+
+// ISO → "YYYY-MM-DDTHH:mm" לשדה datetime-local (זמן מקומי של הדפדפן = ישראל).
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+export default function ShootsBoard({
+  clients,
+  team,
+  isManager,
+}: {
+  clients: Ref[];
+  team: Ref[];
+  isManager: boolean;
+}) {
+  const [shoots, setShoots] = useState<Shoot[]>([]);
+  const [view, setView] = useState<"board" | "calendar">("board");
+  const [filterClient, setFilterClient] = useState("");
+  const [editing, setEditing] = useState<Shoot | "new" | null>(null);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const q = filterClient ? `?clientId=${filterClient}` : "";
+      const d = await api<{ shoots: Shoot[] }>(`/api/shoots${q}`);
+      setShoots(d.shoots);
+      setError("");
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [filterClient]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function changeStatus(s: Shoot, status: string) {
+    setShoots((prev) => prev.map((x) => (x.id === s.id ? { ...x, status } : x)));
+    try {
+      await api(`/api/shoots/${s.id}`, { method: "PATCH", json: { status } });
+    } catch (e: any) {
+      setError(e.message);
+      load();
+    }
+  }
+
+  async function remove(s: Shoot) {
+    if (!confirm(`למחוק את יום הצילום${s.title ? ` "${s.title}"` : ""}? פעולה בלתי הפיכה.`)) return;
+    try {
+      await api(`/api/shoots/${s.id}`, { method: "DELETE" });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-xl border border-slate-200 bg-white p-0.5">
+          <button
+            onClick={() => setView("board")}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${view === "board" ? "bg-[#3a5bd9] text-white" : "text-slate-600"}`}
+          >
+            לוח
+          </button>
+          <button
+            onClick={() => setView("calendar")}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${view === "calendar" ? "bg-[#3a5bd9] text-white" : "text-slate-600"}`}
+          >
+            לוח שנה
+          </button>
+        </div>
+        <Select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="!w-48">
+          <option value="">כל הלקוחות</option>
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </Select>
+        <div className="mr-auto">
+          <Button onClick={() => setEditing("new")}>
+            <Icon name="plus" className="h-4 w-4" />
+            יום צילום חדש
+          </Button>
+        </div>
+      </div>
+
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+      {editing ? (
+        <ShootForm
+          initial={editing === "new" ? null : editing}
+          clients={clients}
+          team={team}
+          isManager={isManager}
+          onCancel={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            load();
+          }}
+        />
+      ) : null}
+
+      {view === "board" ? (
+        <BoardView
+          shoots={shoots}
+          isManager={isManager}
+          onStatus={changeStatus}
+          onEdit={(s) => setEditing(s)}
+          onDelete={remove}
+        />
+      ) : (
+        <CalendarView shoots={shoots} onEdit={(s) => setEditing(s)} />
+      )}
+    </div>
+  );
+}
+
+// --- לוח לפי סטטוס -----------------------------------------------------------
+function BoardView({
+  shoots,
+  isManager,
+  onStatus,
+  onEdit,
+  onDelete,
+}: {
+  shoots: Shoot[];
+  isManager: boolean;
+  onStatus: (s: Shoot, status: string) => void;
+  onEdit: (s: Shoot) => void;
+  onDelete: (s: Shoot) => void;
+}) {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {SHOOT_STATUSES.map((st) => {
+        const list = shoots.filter((s) => s.status === st.key);
+        return (
+          <div key={st.key} className="w-72 shrink-0">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: st.color }} />
+              <span className="text-sm font-bold text-slate-700">{st.label}</span>
+              <span className="text-xs text-slate-400">{list.length}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {list.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 p-3 text-center text-xs text-slate-400">—</p>
+              ) : (
+                list.map((s) => (
+                  <ShootCard key={s.id} s={s} isManager={isManager} onStatus={onStatus} onEdit={onEdit} onDelete={onDelete} />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ShootCard({
+  s,
+  isManager,
+  onStatus,
+  onEdit,
+  onDelete,
+}: {
+  s: Shoot;
+  isManager: boolean;
+  onStatus: (s: Shoot, status: string) => void;
+  onEdit: (s: Shoot) => void;
+  onDelete: (s: Shoot) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-start gap-2">
+        <span className="flex-1 text-sm font-medium text-slate-800">
+          {s.title || s.client?.name || "יום צילום"}
+        </span>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onEdit(s)} className="rounded p-1 text-slate-400 hover:text-[#3a5bd9]" title="עריכה">
+            <Icon name="edit" className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => onDelete(s)} className="rounded p-1 text-slate-400 hover:text-red-600" title="מחיקה">
+            <Icon name="trash" className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">📅 {formatDateTime(s.date)}</p>
+      {s.client ? <p className="text-xs text-slate-500">🏢 {s.client.name}{s.project ? ` · ${s.project.name}` : ""}</p> : null}
+      {s.location ? <p className="text-xs text-slate-500">📍 {s.location}</p> : null}
+      {s.types.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {s.types.map((t) => (
+            <span key={t} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{shootTypeLabel(t)}</span>
+          ))}
+        </div>
+      ) : null}
+      {s.crew.length > 0 ? (
+        <p className="mt-1 text-[11px] text-slate-500">👥 {s.crew.map((c) => c.name).join(", ")}</p>
+      ) : null}
+      {isManager && s.cost != null ? (
+        <p className="mt-1 text-[11px] font-medium text-emerald-700">💰 ₪{s.cost.toLocaleString()}</p>
+      ) : null}
+      <div className="mt-2">
+        <Select value={s.status} onChange={(e) => onStatus(s, e.target.value)} className="!py-1 text-xs">
+          {SHOOT_STATUSES.map((st) => (
+            <option key={st.key} value={st.key}>{st.label}</option>
+          ))}
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+// --- לוח שנה חודשי -----------------------------------------------------------
+function CalendarView({ shoots, onEdit }: { shoots: Shoot[]; onEdit: (s: Shoot) => void }) {
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+
+  const byDay = useMemo(() => {
+    const m = new Map<string, Shoot[]>();
+    for (const s of shoots) {
+      const d = new Date(s.date);
+      if (isNaN(d.getTime())) continue;
+      const k = dayKey(d);
+      const arr = m.get(k) ?? [];
+      arr.push(s);
+      m.set(k, arr);
+    }
+    return m;
+  }, [shoots]);
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay(); // 0=ראשון
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const monthName = cursor.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+  const todayKey = dayKey(new Date());
+  const WD = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => setCursor(new Date(year, month - 1, 1))}>← הקודם</Button>
+        <span className="text-sm font-bold text-slate-700">{monthName}</span>
+        <Button variant="ghost" size="sm" onClick={() => setCursor(new Date(year, month + 1, 1))}>הבא →</Button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-400">
+        {WD.map((w) => <div key={w} className="py-1">{w}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, i) => {
+          if (d === null) return <div key={`b${i}`} className="min-h-[72px] rounded-lg bg-slate-50/50" />;
+          const k = `${year}-${month}-${d}`;
+          const list = byDay.get(k) ?? [];
+          const isToday = k === todayKey;
+          return (
+            <div key={k} className={`min-h-[72px] rounded-lg border p-1 ${isToday ? "border-[#3a5bd9] bg-[#3a5bd9]/5" : "border-slate-100"}`}>
+              <div className="text-[11px] font-medium text-slate-500">{d}</div>
+              <div className="mt-0.5 flex flex-col gap-0.5">
+                {list.map((s) => {
+                  const meta = shootStatusMeta(s.status);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => onEdit(s)}
+                      className="truncate rounded px-1 py-0.5 text-right text-[10px] text-white"
+                      style={{ background: meta.color }}
+                      title={`${s.title || s.client?.name || "יום צילום"} · ${formatDateTime(s.date)}`}
+                    >
+                      {s.title || s.client?.name || "צילום"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// --- טופס הוספה / עריכה ------------------------------------------------------
+function ShootForm({
+  initial,
+  clients,
+  team,
+  isManager,
+  onCancel,
+  onSaved,
+}: {
+  initial: Shoot | null;
+  clients: Ref[];
+  team: Ref[];
+  isManager: boolean;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [d, setD] = useState<Draft>(() =>
+    initial
+      ? {
+          clientId: initial.clientId,
+          projectId: initial.projectId ?? "",
+          title: initial.title ?? "",
+          date: toLocalInput(initial.date),
+          endAt: toLocalInput(initial.endAt),
+          location: initial.location ?? "",
+          types: initial.types ?? [],
+          status: initial.status,
+          equipment: initial.equipment ?? "",
+          deliverables: initial.deliverables ?? "",
+          cost: initial.cost != null ? String(initial.cost) : "",
+          notes: initial.notes ?? "",
+          crew: initial.crew.map((c) => c.userId),
+        }
+      : emptyDraft()
+  );
+  const [projects, setProjects] = useState<Ref[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
+
+  // טעינת פרויקטים של הלקוח הנבחר.
+  useEffect(() => {
+    if (!d.clientId) {
+      setProjects([]);
+      return;
+    }
+    api<{ projects: { id: string; name: string; status: string }[] }>(`/api/projects?clientId=${d.clientId}`)
+      .then((r) => setProjects(r.projects.filter((p) => p.status === "active")))
+      .catch(() => setProjects([]));
+  }, [d.clientId]);
+
+  const toggleType = (t: string) =>
+    set("types", d.types.includes(t) ? d.types.filter((x) => x !== t) : [...d.types, t]);
+  const toggleCrew = (id: string) =>
+    set("crew", d.crew.includes(id) ? d.crew.filter((x) => x !== id) : [...d.crew, id]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!d.clientId) return setErr("יש לבחור לקוח");
+    if (!d.date) return setErr("יש לבחור תאריך ושעה");
+    setBusy(true);
+    setErr("");
+    const payload: Record<string, unknown> = {
+      clientId: d.clientId,
+      projectId: d.projectId || null,
+      title: d.title.trim() || null,
+      date: new Date(d.date).toISOString(),
+      endAt: d.endAt ? new Date(d.endAt).toISOString() : null,
+      location: d.location.trim() || null,
+      types: d.types,
+      status: d.status,
+      equipment: d.equipment.trim() || null,
+      deliverables: d.deliverables.trim() || null,
+      notes: d.notes.trim() || null,
+      crew: d.crew.map((userId) => ({ userId })),
+    };
+    if (isManager) payload.cost = d.cost.trim() ? Number(d.cost) : null;
+    try {
+      if (initial) await api(`/api/shoots/${initial.id}`, { method: "PATCH", json: payload });
+      else await api("/api/shoots", { method: "POST", json: payload });
+      onSaved();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <h3 className="text-base font-bold text-slate-800">{initial ? "עריכת יום צילום" : "יום צילום חדש"}</h3>
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-[180px] flex-1">
+            <Field label="לקוח">
+              <Select value={d.clientId} onChange={(e) => { set("clientId", e.target.value); set("projectId", ""); }} required>
+                <option value="">— בחר לקוח —</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div className="min-w-[160px] flex-1">
+            <Field label="פרויקט (אופציונלי)">
+              <Select value={d.projectId} onChange={(e) => set("projectId", e.target.value)} disabled={!d.clientId}>
+                <option value="">— ללא —</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        </div>
+
+        <Field label="כותרת (אופציונלי)">
+          <Input value={d.title} onChange={(e) => set("title", e.target.value)} placeholder="למשל: צילומי חוץ — פרויקט X" />
+        </Field>
+
+        <div className="flex flex-wrap gap-3">
+          <div className="flex-1">
+            <Field label="תאריך ושעה">
+              <Input type="datetime-local" value={d.date} onChange={(e) => set("date", e.target.value)} required />
+            </Field>
+          </div>
+          <div className="flex-1">
+            <Field label="שעת סיום (אופציונלי)">
+              <Input type="datetime-local" value={d.endAt} onChange={(e) => set("endAt", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <Field label="מיקום">
+          <Input value={d.location} onChange={(e) => set("location", e.target.value)} placeholder="כתובת / אתר הצילום" />
+        </Field>
+
+        <div>
+          <p className="mb-1 text-sm font-medium text-slate-600">סוג צילום</p>
+          <div className="flex flex-wrap gap-2">
+            {SHOOT_TYPES.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => toggleType(t.key)}
+                className={`rounded-lg border px-3 py-1 text-xs transition ${d.types.includes(t.key) ? "border-[#3a5bd9] bg-[#3a5bd9]/10 text-[#3a5bd9]" : "border-slate-300 text-slate-600"}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 text-sm font-medium text-slate-600">צוות</p>
+          <div className="flex flex-wrap gap-2">
+            {team.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => toggleCrew(u.id)}
+                className={`rounded-lg border px-3 py-1 text-xs transition ${d.crew.includes(u.id) ? "border-[#3a5bd9] bg-[#3a5bd9]/10 text-[#3a5bd9]" : "border-slate-300 text-slate-600"}`}
+              >
+                {u.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-[160px] flex-1">
+            <Field label="סטטוס">
+              <Select value={d.status} onChange={(e) => set("status", e.target.value)}>
+                {SHOOT_STATUSES.map((st) => (
+                  <option key={st.key} value={st.key}>{st.label}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          {isManager ? (
+            <div className="w-40">
+              <Field label="עלות (₪, מנהלים)">
+                <Input type="number" min="0" value={d.cost} onChange={(e) => set("cost", e.target.value)} placeholder="—" />
+              </Field>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-[180px] flex-1">
+            <Field label="ציוד">
+              <Textarea rows={2} value={d.equipment} onChange={(e) => set("equipment", e.target.value)} placeholder="מצלמות, עדשות, תאורה…" />
+            </Field>
+          </div>
+          <div className="min-w-[180px] flex-1">
+            <Field label="תוצרים נדרשים">
+              <Textarea rows={2} value={d.deliverables} onChange={(e) => set("deliverables", e.target.value)} placeholder="כמה תמונות / סרטונים, פורמטים…" />
+            </Field>
+          </div>
+        </div>
+
+        <Field label="הערות">
+          <Textarea rows={2} value={d.notes} onChange={(e) => set("notes", e.target.value)} />
+        </Field>
+
+        {err ? <p className="text-sm text-red-600">{err}</p> : null}
+        <div className="flex items-center gap-2">
+          <Button type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</Button>
+          <Button type="button" variant="ghost" onClick={onCancel}>ביטול</Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
