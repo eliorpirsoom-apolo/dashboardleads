@@ -433,6 +433,7 @@ export async function processPendingCallTranscriptions(
     callRecordingKey: true,
     callTargetName: true,
     callDurationSec: true,
+    updatedAt: true,
   } as const;
   const fresh = await prisma.lead.findMany({
     where: {
@@ -465,12 +466,15 @@ export async function processPendingCallTranscriptions(
   const pending = [...fresh, ...retries];
 
   for (const lead of pending) {
-    result.processed++;
-    // סימון "בתהליך" מיד — כדי שריצה מקבילה/הבאה לא תיקח אותו שוב.
-    await prisma.lead.update({
-      where: { id: lead.id },
+    // תביעה אטומית (optimistic-lock על updatedAt): רק הריצה שמצליחה לעדכן את
+    // השורה בגרסתה הנוכחית תתפוס אותה; ריצה מקבילה תקבל count=0 ותדלג — מונע
+    // תמלול כפול (עלות OpenAI) בהרצות חופפות.
+    const claim = await prisma.lead.updateMany({
+      where: { id: lead.id, updatedAt: lead.updatedAt },
       data: { callTranscriptStatus: "pending" },
     });
+    if (claim.count === 0) continue;
+    result.processed++;
     try {
       const outcome = await processLead(lead);
       if (outcome === "done") result.done++;

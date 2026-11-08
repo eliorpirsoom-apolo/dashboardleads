@@ -23,10 +23,10 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  await touchCronHeartbeat("sumit");
   if (!sumitConfigured()) return NextResponse.json({ skipped: "not-configured" });
   try {
     const result = await syncSumit();
+    await touchCronHeartbeat("sumit"); // חותמים רק אחרי סנכרון שהצליח
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error("[cron:sumit]", err);

@@ -24,8 +24,6 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  await touchCronHeartbeat("transcribe");
-
   // קודם שומרים כל הקלטה חדשה ל-R2 (בלי תלות במפתח תמלול), אז מתמללים.
   let recordings: unknown = null;
   try {
@@ -42,5 +40,7 @@ export async function GET(req: Request) {
   console.log(
     `[transcribe] recordings=${JSON.stringify(recordings)} transcriptions=${JSON.stringify(transcriptions)}`
   );
+  // חותמים heartbeat רק בסוף — אם הריצה נתקעה/קרסה, לא נראה "תקין" כוזב.
+  await touchCronHeartbeat("transcribe");
   return NextResponse.json({ recordings, transcriptions });
 }

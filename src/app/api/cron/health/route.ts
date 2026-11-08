@@ -16,7 +16,9 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  await touchCronHeartbeat("health");
   const result = await runHealthCheck();
+  // חותמים heartbeat רק אחרי שהבדיקה הסתיימה — אם runHealthCheck זרק/נתקע,
+  // ה-heartbeat יישאר ישן וה-watchdog יתריע (במקום "תקין" כוזב).
+  await touchCronHeartbeat("health");
   return NextResponse.json(result);
 }

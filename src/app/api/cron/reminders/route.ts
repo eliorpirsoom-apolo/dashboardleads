@@ -33,7 +33,6 @@ export async function GET(req: Request) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  await touchCronHeartbeat("reminders");
   // שומר לשומר: אם קרון הבריאות עצמו לא רץ 26 שעות — התראה מכאן.
   await watchdogHealthCron();
 
@@ -267,6 +266,8 @@ export async function GET(req: Request) {
     console.error("[wa-broadcast]", err);
   }
 
+  // חותמים heartbeat רק בסוף — ריצה שנתקעה/קרסה באמצע לא תיראה "תקינה".
+  await touchCronHeartbeat("reminders");
   return NextResponse.json({
     processed: due.length,
     sent,
