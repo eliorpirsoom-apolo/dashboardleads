@@ -202,7 +202,14 @@ export default function ShootsBoard({
   );
 }
 
-// --- לוח לפי סטטוס -----------------------------------------------------------
+// --- רשימה מחולקת לפי חודשים (שורה אחת לכל יום צילום, עם שינוי סטטוס) --------
+function monthKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+}
+function monthLabel(d: Date) {
+  return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+}
+
 function BoardView({
   shoots,
   isManager,
@@ -216,34 +223,49 @@ function BoardView({
   onEdit: (s: Shoot) => void;
   onDelete: (s: Shoot) => void;
 }) {
+  // ה-API מחזיר חדש-למעלה (date desc) → החודשים מופיעים מהחדש לישן בסדר השמור.
+  const map = new Map<string, Shoot[]>();
+  for (const s of shoots) {
+    const d = new Date(s.date);
+    const k = isNaN(d.getTime()) ? "unknown" : monthKey(d);
+    const arr = map.get(k);
+    if (arr) arr.push(s);
+    else map.set(k, [s]);
+  }
+  const groups = [...map.entries()].map(([key, items]) => {
+    const d = new Date(items[0].date);
+    return { key, label: isNaN(d.getTime()) ? "ללא תאריך" : monthLabel(d), items };
+  });
+
+  if (shoots.length === 0) {
+    return (
+      <Card>
+        <p className="py-6 text-center text-sm text-slate-500">אין ימי צילום עדיין — לחצו &quot;יום צילום חדש&quot;.</p>
+      </Card>
+    );
+  }
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
-      {SHOOT_STATUSES.map((st) => {
-        const list = shoots.filter((s) => s.status === st.key);
-        return (
-          <div key={st.key} className="w-72 shrink-0">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: st.color }} />
-              <span className="text-sm font-bold text-slate-700">{st.label}</span>
-              <span className="text-xs text-slate-400">{list.length}</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {list.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-slate-200 p-3 text-center text-xs text-slate-400">—</p>
-              ) : (
-                list.map((s) => (
-                  <ShootCard key={s.id} s={s} isManager={isManager} onStatus={onStatus} onEdit={onEdit} onDelete={onDelete} />
-                ))
-              )}
-            </div>
+    <div className="flex flex-col gap-5">
+      {groups.map((g) => (
+        <div key={g.key}>
+          <div className="mb-2 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-700">{g.label}</h3>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{g.items.length}</span>
           </div>
-        );
-      })}
+          <div className="flex flex-col gap-1.5">
+            {g.items.map((s) => (
+              <ShootRow key={s.id} s={s} isManager={isManager} onStatus={onStatus} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function ShootCard({
+// שורה אחת ליום צילום — כמו שורת משימה: פרטים בשורה + בורר סטטוס + עריכה/מחיקה.
+function ShootRow({
   s,
   isManager,
   onStatus,
@@ -256,43 +278,33 @@ function ShootCard({
   onEdit: (s: Shoot) => void;
   onDelete: (s: Shoot) => void;
 }) {
+  const meta = shootStatusMeta(s.status);
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex items-start gap-2">
-        <span className="flex-1 text-sm font-medium text-slate-800">
-          {s.title || s.client?.name || "יום צילום"}
-        </span>
-        <div className="flex items-center gap-1">
-          <button onClick={() => onEdit(s)} className="rounded p-1 text-slate-400 hover:text-[#3a5bd9]" title="עריכה">
-            <Icon name="edit" className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => onDelete(s)} className="rounded p-1 text-slate-400 hover:text-red-600" title="מחיקה">
-            <Icon name="trash" className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-      <p className="mt-1 text-xs text-slate-500">📅 {formatDateTime(s.date)}</p>
-      {s.client ? <p className="text-xs text-slate-500">🏢 {s.client.name}{s.project ? ` · ${s.project.name}` : ""}</p> : null}
-      {s.location ? <p className="text-xs text-slate-500">📍 {s.location}</p> : null}
-      {s.types.length > 0 ? (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {s.types.map((t) => (
-            <span key={t} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{shootTypeLabel(t)}</span>
-          ))}
-        </div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: meta.color }} title={meta.label} />
+      <span className="text-sm font-medium text-slate-800">{s.title || s.client?.name || "יום צילום"}</span>
+      <span className="text-xs text-slate-500">📅 {formatDateTime(s.date)}</span>
+      {s.client ? (
+        <span className="text-xs text-slate-500">🏢 {s.client.name}{s.project ? ` · ${s.project.name}` : ""}</span>
       ) : null}
-      {s.crew.length > 0 ? (
-        <p className="mt-1 text-[11px] text-slate-500">👥 {s.crew.map((c) => c.name).join(", ")}</p>
-      ) : null}
+      {s.location ? <span className="text-xs text-slate-500">📍 {s.location}</span> : null}
+      {s.types.length > 0 ? <span className="text-xs text-slate-400">{s.types.map(shootTypeLabel).join(", ")}</span> : null}
+      {s.crew.length > 0 ? <span className="text-xs text-slate-400">👥 {s.crew.map((c) => c.name).join(", ")}</span> : null}
       {isManager && s.cost != null ? (
-        <p className="mt-1 text-[11px] font-medium text-emerald-700">💰 ₪{s.cost.toLocaleString()}</p>
+        <span className="text-xs font-medium text-emerald-700">💰 ₪{s.cost.toLocaleString()}</span>
       ) : null}
-      <div className="mt-2">
-        <Select value={s.status} onChange={(e) => onStatus(s, e.target.value)} className="!py-1 text-xs">
+      <div className="mr-auto flex items-center gap-1">
+        <Select value={s.status} onChange={(e) => onStatus(s, e.target.value)} className="!w-28 !py-1 text-xs">
           {SHOOT_STATUSES.map((st) => (
             <option key={st.key} value={st.key}>{st.label}</option>
           ))}
         </Select>
+        <button onClick={() => onEdit(s)} className="rounded p-1.5 text-slate-400 hover:text-[#3a5bd9]" title="עריכה">
+          <Icon name="edit" className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={() => onDelete(s)} className="rounded p-1.5 text-slate-400 hover:text-red-600" title="מחיקה">
+          <Icon name="trash" className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );
