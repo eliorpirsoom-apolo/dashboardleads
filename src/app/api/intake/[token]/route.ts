@@ -319,7 +319,7 @@ export async function POST(
     // מזוהה לפי externalId (מזהה השיחה) ומעדכן את הליד הקיים במקום ליצור כפילות.
     if (extId) {
       const existing = await prisma.lead.findFirst({
-        where: { clientId: source.clientId, externalId: String(extId) },
+        where: { clientId: source.clientId, projectId: source.projectId, externalId: String(extId) },
         orderBy: { createdAt: "desc" },
       });
       if (existing) {
@@ -377,7 +377,7 @@ export async function POST(
     // (דאבל-קליק, וובהוק שנשלח פעמיים) — לא נוצרת שורה. מעבר לשעה נוצר ליד
     // שמסומן אוטומטית "כפול" (markLeadIfDuplicate בתוך createLeadNumbered).
     // לא לשיחות (כל שיחה = ליד; כפילות webhook לאותה שיחה טופלה לפי externalId).
-    const dup = source.kind === "call" ? null : await findDuplicateLead(source.clientId, phone, email, 1);
+    const dup = source.kind === "call" ? null : await findDuplicateLead(source.clientId, phone, email, 1, source.projectId);
     if (dup) {
       await prisma.intakeLog.create({
         data: {
@@ -486,7 +486,7 @@ export async function POST(
       // האינדקס הייחודי עצר את הכפילות; רושמים "כפול" ומצביעים על הליד שנוצר.
       if (e instanceof ExternalIdConflict) {
         const winner = await prisma.lead.findFirst({
-          where: { clientId: source.clientId, externalId: e.externalId },
+          where: { clientId: source.clientId, projectId: source.projectId, externalId: e.externalId },
           select: { id: true },
         });
         await prisma.intakeLog.create({

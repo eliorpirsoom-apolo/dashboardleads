@@ -178,6 +178,7 @@ export async function maybeHandleGroupAgent(input: {
   groupName?: string | null;
   body: string;
   senderName?: string | null;
+  senderPhone?: string | null;
   idMessage?: string | null;
   quotedText?: string | null;
 }): Promise<boolean> {
@@ -185,6 +186,11 @@ export async function maybeHandleGroupAgent(input: {
   if (!cfg.groupsEnabled) return false;
   const name = (cfg.name || "").trim();
   if (!name || !mentionsAgentName(input.body, name)) return false;
+  // רק שולח מורשה מפעיל את הסוכן בקבוצה — מונע הזרקת-פקודות וניצול עלות AI
+  // מכל חבר קבוצה. אם מספר השולח לא זמין בוובהוק, לא חוסמים (לא לשבור קיים).
+  if (input.senderPhone && !isWhitelisted(cfg.allowedNumbers, input.senderPhone)) {
+    return false;
+  }
 
   // דדופ מול משלוח חוזר של אותה הודעה.
   if (input.idMessage) {

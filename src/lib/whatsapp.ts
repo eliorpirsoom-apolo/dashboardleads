@@ -290,11 +290,14 @@ export async function ingestInboundWhatsapp(payload: any): Promise<{ stored: boo
   // הודעות קבוצה אינן נשמרות כשיחת לקוח.
   if (isGroup) {
     try {
+      // מספר השולח בקבוצה (ה-participant) — לבדיקת הרשאה בסוכן הקבוצתי.
+      const senderPhone = String(payload?.senderData?.sender || "").replace("@c.us", "");
       const handled = await maybeHandleGroupAgent({
         groupId: chatId,
         groupName: payload?.senderData?.chatName || null,
         body,
         senderName: payload?.senderData?.senderName || null,
+        senderPhone,
         idMessage,
         quotedText,
       });

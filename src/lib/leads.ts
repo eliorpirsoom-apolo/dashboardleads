@@ -31,7 +31,8 @@ export async function findDuplicateLead(
   clientId: string,
   phone: string | null,
   email: string | null,
-  windowHours = 24
+  windowHours = 24,
+  projectId?: string | null
 ) {
   if (!phone && !email) return null;
   const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
@@ -43,6 +44,8 @@ export async function findDuplicateLead(
       clientId,
       archived: false,
       receivedAt: { gte: since },
+      // כל פרויקט בפני עצמו — אותו מתעניין שפונה על 2 פרויקטים אינו "כפול".
+      ...(projectId !== undefined ? { projectId } : {}),
       OR: or,
     },
     orderBy: { receivedAt: "desc" },
@@ -136,6 +139,7 @@ export async function markLeadIfDuplicate(leadId: string, notify = true): Promis
   const original = await prisma.lead.findFirst({
     where: {
       clientId: lead.clientId,
+      projectId: lead.projectId, // כל פרויקט בפני עצמו — לא ממזגים בין פרויקטים
       id: { not: lead.id },
       receivedAt: { lt: lead.receivedAt },
       OR: or,
