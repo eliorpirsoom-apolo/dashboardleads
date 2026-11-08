@@ -152,7 +152,7 @@ export async function markLeadIfDuplicate(leadId: string, notify = true): Promis
   await recordActivity(lead.id, "מערכת", "status", {
     toValue: "כפול",
     note: `זוהה אוטומטית כליד כפול — אותו ${how} כמו ליד #${original.number}`,
-  }).catch(() => {});
+  }, { markHandled: false }).catch(() => {});
   // צד המקור: "פנייה חוזרת" + וואטסאפ ליד-חם למטפל (שער שעה נגד הצפה).
   // notify=false בסריקה רטרואקטיבית — אין טעם להתריע על כפולים ישנים.
   if (!notify) return true;

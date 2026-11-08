@@ -19,12 +19,17 @@ const EXT: Record<string, string> = {
   "image/heic": "heic",
 };
 
-// פענוח מספר שקלים מתוך טקסט AI ("4,500" / "4500 ₪" / 4500) → מספר שלם או null.
+// פענוח מספר שקלים מתוך טקסט AI ("4,500" / "4500.50 ₪" / 4500) → מספר שלם או null.
+// שומר על הנקודה העשרונית (parseInt היה הופך "4500.50" ל-450050 — פי 100).
 function toShekels(v: any): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return Number.isFinite(v) ? Math.round(v) : null;
-  const n = parseInt(String(v).replace(/[^\d]/g, ""), 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  let s = String(v).replace(/[^\d.,-]/g, "");
+  if (!s) return null;
+  if (s.includes(",") && s.includes(".")) s = s.replace(/,/g, ""); // פסיק=אלפים, נקודה=עשרוני
+  else if (s.includes(",")) s = /,\d{3}(\D|$)/.test(s) ? s.replace(/,/g, "") : s.replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
 // קריאת נושא + סכומים מהצעת מחיר (צילום או PDF). best-effort; תמיד ניתן לעריכה בכרטיס.

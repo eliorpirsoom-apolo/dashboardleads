@@ -18,7 +18,8 @@ export async function recordActivity(
   leadId: string,
   actorName: string,
   kind: ActivityKind,
-  extra?: { fromValue?: string | null; toValue?: string | null; note?: string }
+  extra?: { fromValue?: string | null; toValue?: string | null; note?: string },
+  opts?: { markHandled?: boolean }
 ): Promise<void> {
   try {
     await prisma.leadActivity.create({
@@ -35,8 +36,10 @@ export async function recordActivity(
     // ציר הפעילות לא מפיל את הפעולה עצמה.
     console.error("[leadActivity]", err);
   }
-  // Speed-to-Lead: שינוי סטטוס = הליד טופל (נגיעה מכירתית ראשונה).
-  if (kind === "status") await markLeadHandled(leadId);
+  // Speed-to-Lead: שינוי סטטוס = הליד טופל (נגיעה מכירתית ראשונה) — אבל לא
+  // כשהמערכת מסמנת "כפול" אוטומטית, אחרת המדד נספר כאילו טופל ב-t=0 וה-SLA
+  // משתתק לליד חוזר חם (markHandled:false מהקריאה ב-markLeadIfDuplicate).
+  if (kind === "status" && opts?.markHandled !== false) await markLeadHandled(leadId);
 }
 
 /** Speed-to-Lead: מסמן שהליד קיבל טיפול ראשון (סטטוס/הערה). אידמפוטנטי. */

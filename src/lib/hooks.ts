@@ -171,8 +171,15 @@ export async function onLeadStatusChanged(
         where: { id: lead.unitTypeId! },
       });
       if (!unit) return;
-      if (unit.soldUnits >= unit.totalUnits) {
-        // Guard: never oversell; audit the attempt instead.
+      // עדכון מותנה אטומי: מגדילים רק אם soldUnits < totalUnits. שתי עסקאות
+      // מקבילות על אותו טיפוס לא יחרגו מהמלאי — ה-WHERE מוערך תחת נעילת-שורה,
+      // בניגוד ל-read-then-write שאפשר לשתיהן לעבור את הבדיקה ולמכור-יתר.
+      const applied = await tx.unitType.updateMany({
+        where: { id: unit.id, soldUnits: { lt: unit.totalUnits } },
+        data: { soldUnits: { increment: 1 } },
+      });
+      if (applied.count === 0) {
+        // אין מלאי זמין (או מרוץ שנחסם) — מתעדים את הניסיון בלי למכור.
         await tx.inventoryEvent.create({
           data: {
             unitTypeId: unit.id,
@@ -185,10 +192,6 @@ export async function onLeadStatusChanged(
         });
         return;
       }
-      await tx.unitType.update({
-        where: { id: unit.id },
-        data: { soldUnits: { increment: 1 } },
-      });
       await tx.inventoryEvent.create({
         data: {
           unitTypeId: unit.id,

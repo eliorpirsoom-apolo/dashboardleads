@@ -109,8 +109,8 @@ export async function syncSumit(): Promise<SumitSyncResult> {
     });
     if (clientId) matchedClients.add(clientId);
     if (created) result.clientsCreated++;
-    await createQuoteFromSumit(clientId, d);
-    result.quotesLinked++;
+    // סופרים רק יצירה שהצליחה — אחרת הדיווח "נוצרו N הצעות" היה שקרי.
+    if (await createQuoteFromSumit(clientId, d)) result.quotesLinked++;
   }
 
   result.clientsMatched = matchedClients.size;
@@ -243,11 +243,17 @@ async function syncSumitInvoices(docs: SumitDoc[], maps: ClientMaps, result: Sum
       }
     }
 
-    await prisma.sumitInvoice
-      .create({ data: { documentID: d.DocumentID, clientId, year, month, retainer: retainerAmt, oneoff: oneoffAmt } })
-      .catch(() => {});
-    touched.add(`${clientId}:${year}:${month}`);
-    result.invoicesApplied++;
+    try {
+      await prisma.sumitInvoice.create({
+        data: { documentID: d.DocumentID, clientId, year, month, retainer: retainerAmt, oneoff: oneoffAmt },
+      });
+      // מעדכנים מונה ומסמנים תא לחישוב-מחדש רק אם השורה אכן נשמרה — אחרת
+      // התא היה מחושב בלי החשבונית הזו (תת-ספירה זמנית) ו-invoicesApplied שקרי.
+      touched.add(`${clientId}:${year}:${month}`);
+      result.invoicesApplied++;
+    } catch (e) {
+      console.error(`[sumit:invoice] שמירת חשבונית נכשלה DocumentID=${d.DocumentID}`, e);
+    }
   }
 
   // חישוב מחדש של התאים שנגעו בהם — סכום כל החשבוניות של אותו לקוח/חודש.
@@ -322,10 +328,10 @@ async function linkSumitId(
   await prisma.client.update({ where: { id: clientId }, data: { sumitCustomerId } }).catch(() => {});
 }
 
-async function createQuoteFromSumit(clientId: string | null, d: SumitDoc) {
+async function createQuoteFromSumit(clientId: string | null, d: SumitDoc): Promise<boolean> {
   const label = sumitDocType(d.Type).label;
-  await prisma.quote
-    .create({
+  try {
+    await prisma.quote.create({
       data: {
         clientId,
         recipient: d.CustomerName || "מתעניין",
@@ -335,8 +341,13 @@ async function createQuoteFromSumit(clientId: string | null, d: SumitDoc) {
         sentAt: d.Date ? new Date(d.Date) : new Date(),
         notes: `יובא מ-SUMIT [sumit:${d.DocumentID}]`,
       },
-    })
-    .catch(() => {});
+    });
+    return true;
+  } catch (e) {
+    // לא בולעים בשקט: שגיאה כאן הייתה גורמת ל"נעלמה הצעה" עם דיווח הצלחה (באג 2267).
+    console.error(`[sumit:quote] יצירת הצעה נכשלה DocumentID=${d.DocumentID} #${d.DocumentNumber}`, e);
+    return false;
+  }
 }
 
 // אבחון/תיקון נקודתי: ייבוא הצעת מחיר בודדת לפי DocumentNumber, ללא בליעת

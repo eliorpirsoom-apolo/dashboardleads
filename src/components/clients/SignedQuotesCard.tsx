@@ -221,8 +221,13 @@ function QuoteEditRow({ quote: q, onCancel, onSaved }: { quote: Quote; onCancel:
   const [err, setErr] = useState("");
 
   const num = (s: string) => {
-    const n = parseInt(s.replace(/[^\d]/g, ""), 10);
-    return Number.isFinite(n) ? n : null;
+    // שומר נקודה עשרונית (פסיק=אלפים) — "4500.50" לא יהפוך ל-450050.
+    let t = s.replace(/[^\d.,-]/g, "");
+    if (!t) return null;
+    if (t.includes(",") && t.includes(".")) t = t.replace(/,/g, "");
+    else if (t.includes(",")) t = /,\d{3}(\D|$)/.test(t) ? t.replace(/,/g, "") : t.replace(",", ".");
+    const n = parseFloat(t);
+    return Number.isFinite(n) ? Math.round(n) : null;
   };
 
   async function save() {
