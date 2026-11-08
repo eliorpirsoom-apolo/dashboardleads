@@ -11,6 +11,7 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
   let p = String(raw).replace(/[^\d+]/g, "");
   if (p.startsWith("+972")) p = "0" + p.slice(4);
+  else if (p.startsWith("00972")) p = "0" + p.slice(5);
   else if (p.startsWith("972")) p = "0" + p.slice(3);
   return p || null;
 }

@@ -52,6 +52,11 @@ export function verifyPassword(password: string, stored: string): boolean {
 // --- Session tokens ---------------------------------------------------------
 
 function sign(value: string): string {
+  // Fail-closed: אם AUTH_SECRET חסר בפרודקשן, המפתח הוא קבוע ציבורי וניתן
+  // לזייף סשן לכל משתמש. מסרבים לחתום/לאמת במקום לאפשר זיוף שקט.
+  if (process.env.NODE_ENV === "production" && !process.env.AUTH_SECRET) {
+    throw new Error("AUTH_SECRET is not set in production — refusing to sign sessions");
+  }
   return crypto.createHmac("sha256", SECRET).update(value).digest("hex");
 }
 

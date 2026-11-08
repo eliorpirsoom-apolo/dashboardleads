@@ -5,6 +5,7 @@ import { sendWhatsappRaw } from "./whatsapp";
 import { putObject } from "./storage";
 import { matchClientByName } from "./meetingSummary";
 import { aiReadDocument, aiConfigured } from "./ai";
+import { assertSafeExternalUrl } from "./urlSafety";
 
 // טריגר: "הצעה: <לקוח>" / "הצעת מחיר: <לקוח>" + צילום/קובץ של ההצעה החתומה.
 const TRIGGER = /^(?:הצעה|הצעת מחיר|הצעת-מחיר|הצעת־מחיר)\s*[:\-–]?\s*(.+)$/s;
@@ -97,6 +98,7 @@ export async function maybeHandleSignedQuote(input: {
   if (recent) return true;
 
   try {
+    assertSafeExternalUrl(input.mediaUrl); // הגנת SSRF לפני הורדת הקובץ מהוובהוק
     const res = await fetch(input.mediaUrl);
     if (!res.ok) throw new Error(`download ${res.status}`);
     const bytes = Buffer.from(await res.arrayBuffer());

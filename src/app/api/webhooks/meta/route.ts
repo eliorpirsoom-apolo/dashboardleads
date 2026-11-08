@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import {
   metaEnabled,
   metaVerifyToken,
@@ -19,10 +20,12 @@ export const maxDuration = 60;
 
 export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
-  if (
-    sp.get("hub.mode") === "subscribe" &&
-    sp.get("hub.verify_token") === metaVerifyToken()
-  ) {
+  // השוואת טוקן בזמן-קבוע (למניעת דליפת-תזמון).
+  const token = Buffer.from(sp.get("hub.verify_token") || "");
+  const expected = Buffer.from(metaVerifyToken());
+  const tokenOk =
+    token.length === expected.length && crypto.timingSafeEqual(token, expected);
+  if (sp.get("hub.mode") === "subscribe" && tokenOk) {
     return new Response(sp.get("hub.challenge") ?? "", { status: 200 });
   }
   return NextResponse.json({ error: "אימות נכשל" }, { status: 403 });

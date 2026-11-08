@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { getTaskAgentConfig, isWhitelisted } from "./taskAgent";
 import { sendWhatsappRaw } from "./whatsapp";
 import { putObject } from "./storage";
+import { assertSafeExternalUrl } from "./urlSafety";
 import {
   extractMeetingFromImage,
   extractMeetingFromText,
@@ -43,6 +44,7 @@ export async function maybeHandleMeetingSummary(input: {
   if (isAudio && input.mediaUrl) {
     let transcript = "";
     try {
+      assertSafeExternalUrl(input.mediaUrl); // הגנת SSRF לפני הורדת ההקלטה מהוובהוק
       transcript = (await transcribeVoiceFromUrl(input.mediaUrl)).trim();
     } catch (e) {
       console.error("[meeting-voice]", e);

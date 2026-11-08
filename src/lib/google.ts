@@ -63,6 +63,10 @@ export async function exchangeGoogleCode(
     Buffer.from(data.id_token.split(".")[1], "base64url").toString("utf8")
   );
   if (!payload.email) throw new Error("Google id_token missing email");
+  // דחיית מייל לא-מאומת — מונע התחברות/קישור חשבון עם זהות שלא הוכחה.
+  if (payload.email_verified === false) {
+    throw new Error("Google email not verified");
+  }
   return {
     sub: String(payload.sub),
     email: String(payload.email).toLowerCase(),

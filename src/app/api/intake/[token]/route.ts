@@ -58,6 +58,9 @@ async function alertOnRepeatedFailures(sourceId: string, sourceName: string) {
 }
 
 export const dynamic = "force-dynamic";
+// שיגור הלידים החוצה רץ בתוך onLeadCreated על מסלול התגובה — נותנים מרווח
+// כדי שיעד איטי לא יפיל את הקליטה ב-timeout לפני שהליד נרשם ומגיב.
+export const maxDuration = 30;
 
 // ---------------------------------------------------------------------------
 // PUBLIC intake endpoint — one URL per source token:
@@ -99,6 +102,11 @@ function expandBracketKeys(params: URLSearchParams): Record<string, any> {
     const path = rawKey.includes("[")
       ? rawKey.replace(/\]/g, "").split("[").filter(Boolean)
       : [rawKey];
+    // הגנת prototype-pollution: מתעלמים ממפתחות עם __proto__/constructor/prototype
+    // (גוף כמו fields[__proto__][x]=y היה מזהם את Object.prototype הגלובלי).
+    if (path.some((seg) => seg === "__proto__" || seg === "constructor" || seg === "prototype")) {
+      continue;
+    }
     let node = root;
     for (let i = 0; i < path.length - 1; i++) {
       if (typeof node[path[i]] !== "object" || node[path[i]] === null) {

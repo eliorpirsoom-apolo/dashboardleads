@@ -94,23 +94,27 @@ export async function runLeadSlaChecks(): Promise<SlaRunResult> {
     const where = lead.project?.name || lead.client?.name || "";
 
     // שלב 1 — תזכורת למשווק המשויך.
-    if (!lead.slaMarketerRemindedAt && lead.assignee?.whatsappPhone && lead.assignee.active) {
-      const body =
-        `⏰ תזכורת: ליד ממתין לך כבר ${ageMin} דקות!\n\n` +
-        `${who}${lead.phone ? ` · ${lead.phone}` : ""}\n` +
-        (where ? `פרויקט: ${where}\n` : "") +
-        `\n☎️ ליד חם מתקרר מהר — חייג עכשיו ועדכן סטטוס.`;
-      await sendMessage({
-        channel: "whatsapp",
-        to: lead.assignee.whatsappPhone,
-        subject: "ליד ממתין — תזכורת למשווק",
-        body,
-        kind: "automation",
-        clientId: lead.clientId,
-        leadId: lead.id,
-      }).catch(() => {});
+    if (!lead.slaMarketerRemindedAt) {
+      // שולחים רק אם למשווק יש מספר וואטסאפ פעיל — אבל מסמנים את הדגל בכל מקרה,
+      // אחרת ליד בלי משווק/בלי מספר נבחר מחדש כל 5 דק׳ וממלא את ה-batch (starvation).
+      if (lead.assignee?.whatsappPhone && lead.assignee.active) {
+        const body =
+          `⏰ תזכורת: ליד ממתין לך כבר ${ageMin} דקות!\n\n` +
+          `${who}${lead.phone ? ` · ${lead.phone}` : ""}\n` +
+          (where ? `פרויקט: ${where}\n` : "") +
+          `\n☎️ ליד חם מתקרר מהר — חייג עכשיו ועדכן סטטוס.`;
+        await sendMessage({
+          channel: "whatsapp",
+          to: lead.assignee.whatsappPhone,
+          subject: "ליד ממתין — תזכורת למשווק",
+          body,
+          kind: "automation",
+          clientId: lead.clientId,
+          leadId: lead.id,
+        }).catch(() => {});
+        result.marketerReminders++;
+      }
       await prisma.lead.update({ where: { id: lead.id }, data: { slaMarketerRemindedAt: new Date() } });
-      result.marketerReminders++;
     }
 
     // שלב 2 — הסלמה למנהלים אצל הלקוח (אין נמענים ⇒ מסומן בלי לשלוח,

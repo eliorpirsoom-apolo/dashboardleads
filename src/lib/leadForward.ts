@@ -12,8 +12,10 @@ import { prisma } from "./prisma";
 // וכל מסירה נרשמת ב-LeadForwardLog.
 // ---------------------------------------------------------------------------
 
-const TIMEOUT_MS = 10_000;
-const MAX_ATTEMPTS = 3;
+// השיגור רץ על מסלול התגובה של הקליטה (onLeadCreated) — חוסמים זמן קצר
+// כדי שיעד איטי/מת לא יפיל את בקשת הקליטה. כשלים נרשמים וניתנים לשליחה חוזרת.
+const TIMEOUT_MS = 8_000;
+const MAX_ATTEMPTS = 2;
 
 type LeadWebhookRow = {
   id: string;
