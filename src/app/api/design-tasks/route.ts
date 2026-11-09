@@ -15,6 +15,9 @@ export const GET = handle(async (req) => {
   const p = new URL(req.url).searchParams;
   const where: Record<string, unknown> = {};
   if (p.get("status")) where.status = p.get("status");
+  // active=1 — לוח העבודה: מסתירים משימות שאושרו (הן עוברות לארכיון "הושלמו"),
+  // כדי שה-cap לא יתמלא בהן ומשימות פעילות ייפלו מהרשימה.
+  else if (p.get("active") === "1") where.status = { not: "approved" };
   if (p.get("designerId")) where.designerId = p.get("designerId");
   if (p.get("clientId")) where.clientId = p.get("clientId");
 

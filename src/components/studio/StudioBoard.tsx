@@ -72,7 +72,7 @@ export default function StudioBoard({
   const [showCreate, setShowCreate] = useState(false);
   const [designerFilter, setDesignerFilter] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [view, setView] = useState<"table" | "capacity">("table");
+  const [view, setView] = useState<"lanes" | "table" | "completed">("lanes");
   const [groups, setGroups] = useState<Group[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [dragId, setDragId] = useState<string | null>(null);
@@ -128,6 +128,7 @@ export default function StudioBoard({
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
+    params.set("active", "1"); // לוח העבודה מציג משימות פעילות; "אושר/הושלם" עובר ל״הושלמו״
     if (designerFilter) params.set("designerId", designerFilter);
     if (searchQ) params.set("q", searchQ);
     const qs = params.toString();
@@ -725,16 +726,25 @@ export default function StudioBoard({
         ) : null}
         <div className="mr-auto flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
           <button
-            onClick={() => setView("table")}
-            className={`rounded px-2.5 py-1 ${view === "table" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
+            onClick={() => setView("lanes")}
+            className={`rounded px-2.5 py-1 ${view === "lanes" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
+            title="מסלול עבודה לכל מעצב/ת, לפי שבוע"
           >
-            טבלה
+            מסלולים
           </button>
           <button
-            onClick={() => setView("capacity")}
-            className={`rounded px-2.5 py-1 ${view === "capacity" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
+            onClick={() => setView("table")}
+            className={`rounded px-2.5 py-1 ${view === "table" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
+            title="לוח הקבוצות (כמו Monday)"
           >
-            עומס מעצבות
+            קבוצות
+          </button>
+          <button
+            onClick={() => setView("completed")}
+            className={`rounded px-2.5 py-1 ${view === "completed" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
+            title="ארכיון משימות שאושרו + התוצרים"
+          >
+            הושלמו
           </button>
         </div>
       </div>
@@ -811,8 +821,16 @@ export default function StudioBoard({
             </div>
           </div>
         </div>
+      ) : view === "lanes" ? (
+        <LanesView
+          tasks={tasks}
+          designers={designers}
+          onOpen={setOpenId}
+          onReload={load}
+          onStatus={(id, status) => patch(id, { status })}
+        />
       ) : (
-        <CapacityView tasks={tasks} designers={designers} onOpen={setOpenId} />
+        <CompletedView onOpen={setOpenId} />
       )}
 
       {showCreate ? (
@@ -913,74 +931,354 @@ function QuickAddTask({
   );
 }
 
-function CapacityView({
+// ---------------------------------------------------------------------------
+// עזרי שבוע — שבוע עבודה מתחיל ביום ראשון (00:00 מקומי). הגלגול והתצוגה
+// מתבססים על חלון של 7 ימים מיום ראשון.
+// ---------------------------------------------------------------------------
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+function startOfWeek(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - x.getDay()); // ראשון = 0
+  return x;
+}
+const fmtDayMonth = (d: Date) =>
+  new Intl.DateTimeFormat("he-IL", { day: "2-digit", month: "2-digit" }).format(d);
+const fmtSlot = (iso: string | null) =>
+  iso
+    ? new Intl.DateTimeFormat("he-IL", {
+        timeZone: "Asia/Jerusalem",
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(iso))
+    : "ללא מועד";
+
+// כרטיס משימה במסלול מעצב/ת — כותרת (פתיחה), לקוח, מועד, ושינוי סטטוס בשורה.
+function LaneCard({
+  t,
+  onOpen,
+  onStatus,
+}: {
+  t: DTask;
+  onOpen: (id: string) => void;
+  onStatus: (id: string, status: string) => void;
+}) {
+  return (
+    <div
+      className={`rounded-lg border px-2.5 py-2 text-right text-xs transition ${
+        t.overdue ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white hover:border-[#3a5bd9]/40"
+      }`}
+    >
+      <div className="flex items-start gap-1">
+        <button
+          onClick={() => onOpen(t.id)}
+          title={t.title}
+          className="min-w-0 flex-1 truncate text-right font-medium text-slate-800 hover:text-[#3a5bd9]"
+        >
+          {t.title}
+        </button>
+        {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
+      </div>
+      {t.client ? (
+        <div className="mt-0.5 truncate text-[11px] font-medium" style={{ color: t.client.color ?? "#64748b" }} title={t.client.name}>
+          {t.client.name}
+        </div>
+      ) : null}
+      <div className="mt-1 flex items-center justify-between gap-1">
+        <span className="text-[10px] text-slate-500" dir="ltr">
+          {fmtSlot(t.scheduledAt)}
+        </span>
+        {t.overdue ? <span className="text-[10px] font-bold text-rose-500">באיחור</span> : null}
+      </div>
+      <select
+        value={t.status}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onStatus(t.id, e.target.value)}
+        className="mt-1.5 w-full rounded-md border px-1.5 py-1 text-[11px] font-medium"
+        style={{
+          borderColor: DESIGN_STATUS_COLORS[t.status],
+          color: DESIGN_STATUS_COLORS[t.status],
+          backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}14`,
+        }}
+      >
+        {DESIGN_STATUSES.map((s) => (
+          <option key={s} value={s} style={{ color: "#0f172a" }}>
+            {DESIGN_STATUS_LABELS[s]}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// מסלול עבודה לכל מעצב/ת, מסונן לשבוע. פס "באיחור / ללא מועד" תמיד גלוי בראש
+// כל מסלול כדי ששום דבר לא יתפספס, וכפתור "גלגל לשבוע הבא" מזיז את הפתוחות קדימה.
+function LanesView({
   tasks,
   designers,
   onOpen,
+  onReload,
+  onStatus,
 }: {
   tasks: DTask[];
   designers: Opt[];
   onOpen: (id: string) => void;
+  onReload: () => void;
+  onStatus: (id: string, status: string) => void;
 }) {
-  const active = tasks.filter((t) => t.status !== "approved");
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
+  const [rolling, setRolling] = useState(false);
+  const weekEndMs = weekStart.getTime() + WEEK_MS;
+  const isThisWeek = startOfWeek(new Date()).getTime() === weekStart.getTime();
+  const weekLabel = `${fmtDayMonth(weekStart)} – ${fmtDayMonth(new Date(weekStart.getTime() + 6 * DAY_MS))}`;
+
   const cols = [...designers.map((d) => ({ id: d.id, name: d.name })), { id: "", name: "לא משויך" }];
-  // תאריך + שעה — הרשימה ממוינת כרונולוגית, והשעה מוצגת כדי שרואים את הרצף.
-  const fmt = (iso: string | null) =>
-    iso
-      ? new Intl.DateTimeFormat("he-IL", {
-          timeZone: "Asia/Jerusalem",
-          day: "2-digit",
-          month: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        }).format(new Date(iso))
-      : "ללא מועד";
-  const dur = (min: number | null) => {
-    const m = min ?? 60;
-    return m % 60 === 0 ? `${m / 60} ש׳` : `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")} ש׳`;
-  };
+
+  // לכל מעצב/ת: "פתוחות" (ללא מועד או מועד לפני השבוע שנבחר) + "השבוע".
+  function split(list: DTask[]) {
+    const backlog: DTask[] = [];
+    const week: DTask[] = [];
+    for (const t of list) {
+      if (!t.scheduledAt) {
+        backlog.push(t);
+        continue;
+      }
+      const ms = new Date(t.scheduledAt).getTime();
+      if (ms < weekStart.getTime()) backlog.push(t);
+      else if (ms < weekEndMs) week.push(t);
+      // עתידי (שבוע הבא ואילך) — ייראה בניווט קדימה
+    }
+    const byTime = (a: DTask, b: DTask) => (a.scheduledAt || "z").localeCompare(b.scheduledAt || "z");
+    return { backlog: backlog.sort(byTime), week: week.sort(byTime) };
+  }
+
+  async function rollover() {
+    if (
+      !confirm(
+        `לגלגל את כל המשימות הפתוחות מהשבוע (${weekLabel}) לשבוע הבא?\n\n` +
+          `כל משימה שלא אושרה תזוז לאותו יום+שעה, שבוע קדימה, ותסתנכרן מחדש ליומן ה-Google של המעצב/ת.`
+      )
+    )
+      return;
+    setRolling(true);
+    try {
+      const r = await api<{ moved: number }>("/api/design-tasks/rollover", {
+        method: "POST",
+        json: { weekStart: weekStart.toISOString() },
+      });
+      onReload();
+      alert(r.moved > 0 ? `✅ ${r.moved} משימות גולגלו לשבוע הבא.` : "אין משימות פתוחות לגלגול בשבוע הזה.");
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setRolling(false);
+    }
+  }
+
   return (
-    <div className="overflow-x-auto pb-1">
-    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(230px,1fr))` }}>
-      {cols.map((c) => {
-        const mine = active
-          .filter((t) => (t.designer?.id ?? "") === c.id)
-          .sort((a, b) => (a.scheduledAt || "z").localeCompare(b.scheduledAt || "z"));
-        return (
-          <Card key={c.id || "none"}>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-700">{c.name}</h3>
-              <Chip color={mine.length > 4 ? "#f87171" : "#34d399"}>{mine.length}</Chip>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {mine.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => onOpen(t.id)}
-                  className={`rounded-lg border px-2 py-1.5 text-right text-xs transition hover:border-cyan-500/40 ${
-                    t.overdue ? "border-rose-700/50 bg-rose-50" : "border-slate-200 bg-slate-50"
-                  }`}
-                >
-                  <div className="truncate font-medium text-slate-700">{t.title}</div>
-                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
-                    <span dir="ltr">{fmt(t.scheduledAt)}</span>
-                    {t.scheduledAt ? <span>· {dur(t.durationMin)}</span> : null}·
-                    <span
-                      className="rounded-full px-1.5 py-px font-medium"
-                      style={{ color: DESIGN_STATUS_COLORS[t.status], backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}1a` }}
-                    >
-                      {DESIGN_STATUS_LABELS[t.status]}
-                    </span>
-                    {t.overdue ? <span className="text-rose-400">· באיחור</span> : null}
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-0.5 rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
+          <button
+            onClick={() => setWeekStart(new Date(weekStart.getTime() - WEEK_MS))}
+            className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100"
+          >
+            ← שבוע קודם
+          </button>
+          <button
+            onClick={() => setWeekStart(startOfWeek(new Date()))}
+            className={`rounded px-2.5 py-1 font-medium ${isThisWeek ? "bg-[#3a5bd9] text-white" : "text-slate-600 hover:bg-slate-100"}`}
+          >
+            השבוע
+          </button>
+          <button
+            onClick={() => setWeekStart(new Date(weekStart.getTime() + WEEK_MS))}
+            className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100"
+          >
+            שבוע הבא →
+          </button>
+        </div>
+        <span className="text-sm font-semibold text-slate-700" dir="ltr">
+          {weekLabel}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={rollover}
+          disabled={rolling}
+          className="mr-auto !border-amber-300 !text-amber-700 hover:!bg-amber-50"
+          title="מזיז את כל המשימות שלא הושלמו מהשבוע שנבחר לשבוע שאחריו"
+        >
+          {rolling ? "מגלגל…" : "⤼ גלגל משימות פתוחות לשבוע הבא"}
+        </Button>
+      </div>
+
+      <div className="overflow-x-auto pb-1">
+        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(240px,1fr))` }}>
+          {cols.map((c) => {
+            const mine = tasks.filter((t) => (t.designer?.id ?? "") === c.id);
+            const { backlog, week } = split(mine);
+            return (
+              <Card key={c.id || "none"} className="!p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-700">{c.name}</h3>
+                  <div className="flex items-center gap-1">
+                    {backlog.length > 0 ? <Chip color="#f87171">{backlog.length} פתוחות</Chip> : null}
+                    <Chip color={week.length > 5 ? "#f59e0b" : "#34d399"}>{week.length}</Chip>
                   </div>
-                </button>
+                </div>
+                {backlog.length > 0 ? (
+                  <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/60 p-1.5">
+                    <p className="mb-1 px-1 text-[10px] font-bold text-rose-500">⚠️ באיחור / ללא מועד</p>
+                    <div className="flex flex-col gap-1.5">
+                      {backlog.map((t) => (
+                        <LaneCard key={t.id} t={t} onOpen={onOpen} onStatus={onStatus} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex flex-col gap-1.5">
+                  {week.map((t) => (
+                    <LaneCard key={t.id} t={t} onOpen={onOpen} onStatus={onStatus} />
+                  ))}
+                  {week.length === 0 ? (
+                    <p className="py-2 text-center text-[11px] text-slate-400">
+                      {backlog.length === 0 ? "אין משימות" : "אין משימות השבוע"}
+                    </p>
+                  ) : null}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// תוצר בודד בארכיון — צ'יפ עם קישור הורדה.
+interface CompletedTask {
+  id: string;
+  title: string;
+  approvedAt: string | null;
+  dueAt: string | null;
+  client: { id: string; name: string; color: string | null } | null;
+  designer: { id: string; name: string } | null;
+  assets: { id: string; fileName: string | null; kind: string; round: number }[];
+}
+
+// ארכיון "הושלמו" — משימות שאושרו עם התוצרים, מקובצות לפי לקוח, חדש-למעלה,
+// עם חיפוש. המשימות לא נמחקות — רק ירדו מלוח העבודה.
+function CompletedView({ onOpen }: { onOpen: (id: string) => void }) {
+  const [tasks, setTasks] = useState<CompletedTask[]>([]);
+  const [q, setQ] = useState("");
+  const [qDeb, setQDeb] = useState("");
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setQDeb(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+  useEffect(() => {
+    setLoading(true);
+    const qs = qDeb ? `?q=${encodeURIComponent(qDeb)}` : "";
+    api<{ tasks: CompletedTask[] }>(`/api/design-tasks/completed${qs}`)
+      .then((d) => setTasks(d.tasks))
+      .finally(() => setLoading(false));
+  }, [qDeb]);
+
+  // קיבוץ לפי לקוח — סדר הלקוחות לפי המשימה האחרונה שאושרה (המערך כבר ממוין desc).
+  const byClient: { id: string; name: string; color: string | null; items: CompletedTask[] }[] = [];
+  const idx = new Map<string, number>();
+  for (const t of tasks) {
+    const key = t.client?.id ?? "none";
+    if (!idx.has(key)) {
+      idx.set(key, byClient.length);
+      byClient.push({ id: key, name: t.client?.name ?? "ללא לקוח", color: t.client?.color ?? null, items: [] });
+    }
+    byClient[idx.get(key)!].items.push(t);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="relative w-80 max-w-full">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && setQ("")}
+          placeholder="🔍 חיפוש בארכיון — משימה / לקוח / מעצב/ת / קובץ…"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pl-8 text-sm text-slate-700 placeholder-slate-400 focus:border-[#3a5bd9] focus:outline-none"
+        />
+        {q ? (
+          <button
+            type="button"
+            onClick={() => setQ("")}
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            ✕
+          </button>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <Card>
+          <p className="py-8 text-center text-sm text-slate-500">טוען…</p>
+        </Card>
+      ) : tasks.length === 0 ? (
+        <Card>
+          <p className="py-8 text-center text-sm text-slate-600">
+            {qDeb ? `לא נמצאו תוצאות עבור ״${qDeb}״.` : "עדיין אין משימות שאושרו. ברגע שמשימה עוברת ל״אושר/הושלם״ היא תופיע כאן עם התוצרים."}
+          </p>
+        </Card>
+      ) : (
+        byClient.map((g) => (
+          <Card key={g.id} className="!p-0 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2.5" style={{ boxShadow: `inset 4px 0 0 ${g.color ?? "#64748b"}` }}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color ?? "#64748b" }} />
+              <span className="font-bold text-slate-800">{g.name}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{g.items.length}</span>
+            </div>
+            <div className="border-t border-slate-200 px-3 py-1">
+              {g.items.map((t) => (
+                <div key={t.id} className="border-b border-slate-100 py-2.5 last:border-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={() => onOpen(t.id)} className="font-medium text-slate-800 hover:text-[#3a5bd9]">
+                      {t.title}
+                    </button>
+                    {t.designer ? <span className="text-[11px] text-slate-400">· {t.designer.name}</span> : null}
+                    {t.approvedAt ? (
+                      <span className="mr-auto text-[11px] text-slate-400" dir="ltr">
+                        אושר {fmtDayMonth(new Date(t.approvedAt))}
+                      </span>
+                    ) : null}
+                  </div>
+                  {t.assets.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {t.assets.map((a) => (
+                        <a
+                          key={a.id}
+                          href={`/api/design-assets/${a.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="פתיחת התוצר בטאב חדש"
+                          className="max-w-[240px] truncate rounded-full border border-[#3a5bd9]/30 bg-[#3a5bd9]/5 px-2 py-0.5 text-[11px] text-[#3a5bd9] hover:bg-[#3a5bd9]/10"
+                        >
+                          📎 {a.fileName || "קובץ"}
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="mt-1 block text-[11px] text-slate-400">אין תוצרים מצורפים</span>
+                  )}
+                </div>
               ))}
-              {mine.length === 0 ? <p className="text-[11px] text-slate-600">אין משימות פעילות.</p> : null}
             </div>
           </Card>
-        );
-      })}
-    </div>
+        ))
+      )}
     </div>
   );
 }
