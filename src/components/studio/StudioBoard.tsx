@@ -272,6 +272,14 @@ export default function StudioBoard({
     if (!id || !dndEnabled) return;
     await moveTask(id, targetGroupId, beforeTaskId);
   }
+  // שחרור משימה נגררת על צ'יפ מעצב/ת בסרגל הצף → שיוך המשימה אליו/ה.
+  async function reassignDragged(designerId: string | null) {
+    const id = dragId;
+    setDragId(null);
+    setDragOver(null);
+    if (!id || !dndEnabled) return;
+    await patch(id, { designerId });
+  }
   function toLocalInput(iso: string | null): string {
     if (!iso) return "";
     const d = new Date(iso);
@@ -839,6 +847,23 @@ export default function StudioBoard({
                     style={{ borderColor: sec.color }}
                   >
                     {sec.group ? sec.group.name : "ללא קבוצה"}
+                  </span>
+                ))}
+                {/* שיוך למעצב/ת תוך כדי גרירה — שחרור על הצ'יפ משייך את המשימה */}
+                <span className="mx-1 h-4 w-px bg-slate-200" />
+                <span className="text-[11px] font-medium text-slate-500">או למעצב/ת:</span>
+                {[...designers.map((d) => ({ id: d.id, name: d.name })), { id: "", name: "לא משויך" }].map((d) => (
+                  <span
+                    key={d.id || "none"}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(`des:${d.id}`); }}
+                    onDragLeave={() => setDragOver((v) => (v === `des:${d.id}` ? null : v))}
+                    onDrop={(e) => { e.preventDefault(); reassignDragged(d.id || null); }}
+                    className={`cursor-copy rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                      dragOver === `des:${d.id}` ? "scale-110 bg-emerald-600 text-white" : "bg-white text-slate-700"
+                    }`}
+                    style={{ borderColor: "#34d399" }}
+                  >
+                    👤 {d.name}
                   </span>
                 ))}
               </div>
