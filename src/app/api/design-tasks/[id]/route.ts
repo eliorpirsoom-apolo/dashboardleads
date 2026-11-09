@@ -7,8 +7,30 @@ import { deleteTaskEvent } from "@/lib/gcal";
 import { syncDesignTaskCalendar } from "@/lib/studioGcal";
 import { sendMessage } from "@/lib/messaging";
 import { parseMsgConfig, effectiveFlags } from "@/lib/messagingConfig";
-import { ensureApprovalToken, clientApprovalUrl } from "@/lib/studioLinks";
+import { ensureApprovalToken, clientApprovalUrl, STUDIO_APP_URL } from "@/lib/studioLinks";
 import { sanitizeRich } from "@/lib/sanitizeHtml";
+
+// התראת וואטסאפ למאשרי הסטודיו (אליאור + בר — מסומנים "מאשר/ת סטודיו" בהגדרות
+// משתמש) כשמשימה נכנסת לבקרת איכות. יוצאת מהמופע של הסוכנות.
+async function notifyStudioQcApprovers(task: { id: string; title: string; clientId: string }): Promise<void> {
+  const approvers = await prisma.user.findMany({
+    where: { isStudioApprover: true, active: true },
+    select: { whatsappPhone: true, phone: true },
+  });
+  const client = await prisma.client.findUnique({ where: { id: task.clientId }, select: { name: true } });
+  const link = `${STUDIO_APP_URL}/admin/studio?task=${task.id}`;
+  const body =
+    `🎨 תוצר בסטודיו ממתין לאישורך (בקרת איכות):\n` +
+    `"${task.title}"${client?.name ? ` — ${client.name}` : ""}\n\n` +
+    `לצפייה ולאישור/החזרה לתיקונים: ${link}`;
+  const seen = new Set<string>();
+  for (const a of approvers) {
+    const to = a.whatsappPhone || a.phone;
+    if (!to || seen.has(to)) continue;
+    seen.add(to);
+    await sendMessage({ channel: "whatsapp", to, body, kind: "automation", clientId: task.clientId }).catch(() => {});
+  }
+}
 
 // התראה ללקוח שיש עיצוב הממתין לאישור (מייל תמיד; וואטסאפ אם הופעל אצל הלקוח).
 async function notifyClientForApproval(task: any): Promise<void> {
@@ -146,6 +168,10 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
     if (b.status === "qc") {
       data.qcById = user.id;
     }
+    // החזרה מבקרת איכות לתיקונים → סבב חדש (round++) כדי שהמעצב/ת יראה שזה תיקון.
+    if (b.status === "in_progress" && cur.status === "qc") {
+      data.round = (cur.round ?? 1) + 1;
+    }
   }
 
   const task = await prisma.designTask.update({ where: { id: params.id }, data });
@@ -158,6 +184,10 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   // פעולת סטטוס: נשלח ללקוח לאישור → התראה ללקוח.
   if (b.status === "sent_to_client" && cur.status !== "sent_to_client") {
     await notifyClientForApproval(task).catch((e) => console.error("[studio:notify]", e));
+  }
+  // נכנס לבקרת איכות → התראת וואטסאפ למאשרי הסטודיו (אליאור + בר).
+  if (b.status === "qc" && cur.status !== "qc") {
+    await notifyStudioQcApprovers(task).catch((e) => console.error("[studio:qc-notify]", e));
   }
 
   return NextResponse.json({ task });

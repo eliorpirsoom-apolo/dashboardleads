@@ -20,6 +20,7 @@ interface AdminUser {
   googleId: string | null;
   moduleAccess: string | null;
   isDesigner: boolean;
+  isStudioApprover: boolean;
 }
 
 // מודולים הניתנים להגבלה לעובד. חובה לשמור מסונכרן 1:1 עם ADMIN_MODULES
@@ -143,6 +144,7 @@ export default function AdminSettingsView() {
                 {u.adminRole === "staff" ? "עובד משרד" : "מנהל משרד"}
               </Chip>
               {u.isDesigner ? <Chip color="#ec4899">מעצב/ת 🎨</Chip> : null}
+              {u.isStudioApprover ? <Chip color="#25d366">מאשר/ת סטודיו ✓</Chip> : null}
               {u.googleId ? <Chip color="#38bdf8">Google</Chip> : null}
               {!u.active ? <Chip color="#f87171">מושבת</Chip> : null}
               <span className="mr-auto text-[11px] text-slate-600">
@@ -1062,6 +1064,7 @@ function EditAdminModal({
   const [adminRole, setAdminRole] = useState(user.adminRole);
   const [active, setActive] = useState(user.active);
   const [isDesigner, setIsDesigner] = useState(user.isDesigner);
+  const [isStudioApprover, setIsStudioApprover] = useState(user.isStudioApprover);
   const [password, setPassword] = useState("");
   const [modules, setModules] = useState<Set<string>>(() => {
     try {
@@ -1093,6 +1096,7 @@ function EditAdminModal({
         adminRole,
         active,
         isDesigner,
+        isStudioApprover,
         // מנהל רואה הכל (null); לעובד — הרשימה שנבחרה.
         moduleAccess: adminRole === "staff" ? Array.from(modules) : null,
       };
@@ -1149,6 +1153,11 @@ function EditAdminModal({
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={isDesigner} onChange={(e) => setIsDesigner(e.target.checked)} className="h-4 w-4" />
           מעצב/ת בסטודיו 🎨 <span className="text-xs text-slate-400">(רק מסומנים מופיעים כמעצבים בלוח הסטודיו)</span>
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={isStudioApprover} onChange={(e) => setIsStudioApprover(e.target.checked)} className="h-4 w-4" />
+          מאשר/ת סטודיו ✓ <span className="text-xs text-slate-400">(מקבל/ת התראת וואטסאפ לאישור תוצרים כשמשימה נכנסת לבקרת איכות)</span>
         </label>
 
         <Field label="איפוס סיסמה" hint="השאירו ריק כדי לא לשנות. שינוי מנתק את כל החיבורים הפעילים.">

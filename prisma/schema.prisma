@@ -42,6 +42,8 @@ model User {
   isAgent      Boolean   @default(false)
   // מעצב/ת בסטודיו — רק משתמשים מסומנים מופיעים כמעצבים בלוח הסטודיו.
   isDesigner   Boolean   @default(false)
+  // מקבל/ת התראת וואטסאפ לאישור תוצרים כשמשימת סטודיו נכנסת לבקרת איכות.
+  isStudioApprover Boolean @default(false)
   googleId     String?   @unique
   phone        String?
   // וואטסאפ להתראות לידים (משווקים): נפרד מהטלפון — מספר המענה לרוב וירטואלי

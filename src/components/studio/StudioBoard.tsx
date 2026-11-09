@@ -71,8 +71,9 @@ export default function StudioBoard({
   const [tasks, setTasks] = useState<DTask[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [designerFilter, setDesignerFilter] = useState("");
+  const [clientFilter, setClientFilter] = useState(""); // סינון-לקוח גלובלי — חל על כל הלשוניות
   const [openId, setOpenId] = useState<string | null>(null);
-  const [view, setView] = useState<"lanes" | "table" | "completed">("lanes");
+  const [view, setView] = useState<"lanes" | "table" | "qc" | "completed">("lanes");
   const [groups, setGroups] = useState<Group[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [dragId, setDragId] = useState<string | null>(null);
@@ -130,11 +131,12 @@ export default function StudioBoard({
     const params = new URLSearchParams();
     params.set("active", "1"); // לוח העבודה מציג משימות פעילות; "אושר/הושלם" עובר ל״הושלמו״
     if (designerFilter) params.set("designerId", designerFilter);
+    if (clientFilter) params.set("clientId", clientFilter);
     if (searchQ) params.set("q", searchQ);
     const qs = params.toString();
     const d = await api<{ tasks: DTask[] }>(`/api/design-tasks${qs ? `?${qs}` : ""}`);
     setTasks(d.tasks);
-  }, [designerFilter, searchQ]);
+  }, [designerFilter, clientFilter, searchQ]);
 
   const loadGroups = useCallback(async () => {
     const d = await api<{ groups: Group[] }>("/api/design-groups");
@@ -161,6 +163,23 @@ export default function StudioBoard({
     if (!confirm("למחוק את משימת העיצוב?")) return;
     await api(`/api/design-tasks/${id}`, { method: "DELETE" });
     load();
+  }
+  // סגירה מרוכזת — שינוי סטטוס לכל המשימות המוצגות (כשמסונן לפי לקוח). רץ
+  // ברצף כדי לא להציף את השרת/היומן. משמש את המעצב/ת לסגור לקוח בבת אחת.
+  const [bulkBusy, setBulkBusy] = useState(false);
+  async function bulkStatus(status: string) {
+    const ids = tasks.map((t) => t.id);
+    if (ids.length === 0 || bulkBusy) return;
+    if (!confirm(`לשנות את הסטטוס של ${ids.length} המשימות המוצגות ל״${DESIGN_STATUS_LABELS[status]}״?`)) return;
+    setBulkBusy(true);
+    try {
+      for (const id of ids) {
+        await api(`/api/design-tasks/${id}`, { method: "PATCH", json: { status } }).catch(() => {});
+      }
+    } finally {
+      setBulkBusy(false);
+      load();
+    }
   }
 
   async function addGroup() {
@@ -699,6 +718,15 @@ export default function StudioBoard({
             </option>
           ))}
         </select>
+        {/* סינון-לקוח גלובלי — חל על כל הלשוניות (מסלולים/קבוצות/בקרת איכות/הושלמו) */}
+        <div className="w-56 max-w-full">
+          <SearchSelect
+            value={clientFilter}
+            onChange={(id) => setClientFilter(id)}
+            options={clients}
+            placeholder="🏢 כל הלקוחות"
+          />
+        </div>
         <div className="relative w-72 max-w-full">
           <input
             value={search}
@@ -740,6 +768,13 @@ export default function StudioBoard({
             קבוצות
           </button>
           <button
+            onClick={() => setView("qc")}
+            className={`rounded px-2.5 py-1 ${view === "qc" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
+            title="משימות שנכנסו לבקרת איכות — אישור או החזרה לתיקונים"
+          >
+            בקרת איכות
+          </button>
+          <button
             onClick={() => setView("completed")}
             className={`rounded px-2.5 py-1 ${view === "completed" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
             title="ארכיון משימות שאושרו + התוצרים"
@@ -754,6 +789,16 @@ export default function StudioBoard({
           ⚠️ יומן Google לא מחובר עבור: <b>{unlinked.map((d) => d.name).join(", ")}</b>. התזמון יופיע
           בלו״ז המערכת, אך לא יסתנכרן ליומן ה-Google שלהן. לחיבור — כל מעצב/ת מתחבר/ת פעם אחת דרך ״הגדרות ← יומן Google״.
         </div>
+      ) : null}
+
+      {/* סגירה מרוכזת ללקוח — מופיע כשמסונן לפי לקוח בלוח הפעיל (מסלולים/קבוצות) */}
+      {clientFilter && (view === "lanes" || view === "table") && tasks.length > 0 ? (
+        <BulkStatusBar
+          count={tasks.length}
+          clientName={clients.find((c) => c.id === clientFilter)?.name ?? ""}
+          busy={bulkBusy}
+          onApply={bulkStatus}
+        />
       ) : null}
 
       {view === "table" ? (
@@ -828,9 +873,12 @@ export default function StudioBoard({
           onOpen={setOpenId}
           onReload={load}
           onStatus={(id, status) => patch(id, { status })}
+          onReassign={(id, designerId) => patch(id, { designerId })}
         />
+      ) : view === "qc" ? (
+        <QcView clientId={clientFilter} onOpen={setOpenId} />
       ) : (
-        <CompletedView onOpen={setOpenId} />
+        <CompletedView clientId={clientFilter} designers={designers} onOpen={setOpenId} />
       )}
 
       {showCreate ? (
@@ -960,20 +1008,46 @@ const fmtSlot = (iso: string | null) =>
 // כרטיס משימה במסלול מעצב/ת — כותרת (פתיחה), לקוח, מועד, ושינוי סטטוס בשורה.
 function LaneCard({
   t,
+  designers,
   onOpen,
   onStatus,
+  onReassign,
+  onDragStartCard,
+  onDragEndCard,
+  dragging,
 }: {
   t: DTask;
+  designers: Opt[];
   onOpen: (id: string) => void;
   onStatus: (id: string, status: string) => void;
+  onReassign: (id: string, designerId: string | null) => void;
+  onDragStartCard: (id: string) => void;
+  onDragEndCard: () => void;
+  dragging: boolean;
 }) {
+  // גרירה מתחילה רק מהידית ⠿ (ref סינכרוני) — כך ה-selects שבכרטיס לא נלחמים בגרירה.
+  const armed = useRef(false);
   return (
     <div
-      className={`rounded-lg border px-2.5 py-2 text-right text-xs transition ${
+      draggable
+      onDragStart={(e) => {
+        if (!armed.current) { e.preventDefault(); return; }
+        onDragStartCard(t.id);
+      }}
+      onDragEnd={() => { armed.current = false; onDragEndCard(); }}
+      className={`rounded-lg border px-2.5 py-2 text-right text-xs transition ${dragging ? "opacity-40" : ""} ${
         t.overdue ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white hover:border-[#3a5bd9]/40"
       }`}
     >
       <div className="flex items-start gap-1">
+        <span
+          onMouseDown={() => { armed.current = true; }}
+          onMouseUp={() => { armed.current = false; }}
+          title="גרירה — העברה למעצב/ת אחר/ת"
+          className="shrink-0 cursor-grab select-none text-slate-400 transition hover:text-[#3a5bd9]"
+        >
+          ⠿
+        </span>
         <button
           onClick={() => onOpen(t.id)}
           title={t.title}
@@ -994,11 +1068,24 @@ function LaneCard({
         </span>
         {t.overdue ? <span className="text-[10px] font-bold text-rose-500">באיחור</span> : null}
       </div>
+      {/* פליפ מעצב/ת — החלפה מהירה בלי גרירה */}
+      <select
+        value={t.designer?.id ?? ""}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onReassign(t.id, e.target.value || null)}
+        className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-1.5 py-1 text-[11px] text-slate-600"
+        title="החלפת מעצב/ת"
+      >
+        <option value="">👤 — לא משויך —</option>
+        {designers.map((d) => (
+          <option key={d.id} value={d.id}>👤 {d.name}</option>
+        ))}
+      </select>
       <select
         value={t.status}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => onStatus(t.id, e.target.value)}
-        className="mt-1.5 w-full rounded-md border px-1.5 py-1 text-[11px] font-medium"
+        className="mt-1 w-full rounded-md border px-1.5 py-1 text-[11px] font-medium"
         style={{
           borderColor: DESIGN_STATUS_COLORS[t.status],
           color: DESIGN_STATUS_COLORS[t.status],
@@ -1016,22 +1103,27 @@ function LaneCard({
 }
 
 // מסלול עבודה לכל מעצב/ת, מסונן לשבוע. פס "באיחור / ללא מועד" תמיד גלוי בראש
-// כל מסלול כדי ששום דבר לא יתפספס, וכפתור "גלגל לשבוע הבא" מזיז את הפתוחות קדימה.
+// כל מסלול כדי ששום דבר לא יתפספס, כפתור "גלגל לשבוע הבא", וגרירת משימה בין
+// מסלולים = העברת מעצב/ת (וגם פליפ בכרטיס).
 function LanesView({
   tasks,
   designers,
   onOpen,
   onReload,
   onStatus,
+  onReassign,
 }: {
   tasks: DTask[];
   designers: Opt[];
   onOpen: (id: string) => void;
   onReload: () => void;
   onStatus: (id: string, status: string) => void;
+  onReassign: (id: string, designerId: string | null) => void;
 }) {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [rolling, setRolling] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overLane, setOverLane] = useState<string | null>(null);
   const weekEndMs = weekStart.getTime() + WEEK_MS;
   const isThisWeek = startOfWeek(new Date()).getTime() === weekStart.getTime();
   const weekLabel = `${fmtDayMonth(weekStart)} – ${fmtDayMonth(new Date(weekStart.getTime() + 6 * DAY_MS))}`;
@@ -1054,6 +1146,16 @@ function LanesView({
     }
     const byTime = (a: DTask, b: DTask) => (a.scheduledAt || "z").localeCompare(b.scheduledAt || "z");
     return { backlog: backlog.sort(byTime), week: week.sort(byTime) };
+  }
+
+  function dropOnLane(laneId: string) {
+    const id = dragId;
+    setDragId(null);
+    setOverLane(null);
+    if (!id) return;
+    const task = tasks.find((t) => t.id === id);
+    if (!task || (task.designer?.id ?? "") === laneId) return; // אותו מעצב/ת — אין שינוי
+    onReassign(id, laneId || null);
   }
 
   async function rollover() {
@@ -1122,36 +1224,53 @@ function LanesView({
           {cols.map((c) => {
             const mine = tasks.filter((t) => (t.designer?.id ?? "") === c.id);
             const { backlog, week } = split(mine);
+            const cardProps = (t: DTask) => ({
+              t,
+              designers,
+              onOpen,
+              onStatus,
+              onReassign,
+              onDragStartCard: setDragId,
+              onDragEndCard: () => { setDragId(null); setOverLane(null); },
+              dragging: dragId === t.id,
+            });
             return (
-              <Card key={c.id || "none"} className="!p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-700">{c.name}</h3>
-                  <div className="flex items-center gap-1">
-                    {backlog.length > 0 ? <Chip color="#f87171">{backlog.length} פתוחות</Chip> : null}
-                    <Chip color={week.length > 5 ? "#f59e0b" : "#34d399"}>{week.length}</Chip>
-                  </div>
-                </div>
-                {backlog.length > 0 ? (
-                  <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/60 p-1.5">
-                    <p className="mb-1 px-1 text-[10px] font-bold text-rose-500">⚠️ באיחור / ללא מועד</p>
-                    <div className="flex flex-col gap-1.5">
-                      {backlog.map((t) => (
-                        <LaneCard key={t.id} t={t} onOpen={onOpen} onStatus={onStatus} />
-                      ))}
+              <div
+                key={c.id || "none"}
+                onDragOver={(e) => { if (dragId) { e.preventDefault(); setOverLane(c.id); } }}
+                onDragLeave={() => setOverLane((v) => (v === c.id ? null : v))}
+                onDrop={(e) => { if (dragId) { e.preventDefault(); dropOnLane(c.id); } }}
+              >
+                <Card className={`!p-3 transition ${overLane === c.id && dragId ? "ring-2 ring-[#3a5bd9]/60" : ""}`}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-700">{c.name}</h3>
+                    <div className="flex items-center gap-1">
+                      {backlog.length > 0 ? <Chip color="#f87171">{backlog.length} פתוחות</Chip> : null}
+                      <Chip color={week.length > 5 ? "#f59e0b" : "#34d399"}>{week.length}</Chip>
                     </div>
                   </div>
-                ) : null}
-                <div className="flex flex-col gap-1.5">
-                  {week.map((t) => (
-                    <LaneCard key={t.id} t={t} onOpen={onOpen} onStatus={onStatus} />
-                  ))}
-                  {week.length === 0 ? (
-                    <p className="py-2 text-center text-[11px] text-slate-400">
-                      {backlog.length === 0 ? "אין משימות" : "אין משימות השבוע"}
-                    </p>
+                  {backlog.length > 0 ? (
+                    <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50/60 p-1.5">
+                      <p className="mb-1 px-1 text-[10px] font-bold text-rose-500">⚠️ באיחור / ללא מועד</p>
+                      <div className="flex flex-col gap-1.5">
+                        {backlog.map((t) => (
+                          <LaneCard key={t.id} {...cardProps(t)} />
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
-                </div>
-              </Card>
+                  <div className="flex min-h-[40px] flex-col gap-1.5">
+                    {week.map((t) => (
+                      <LaneCard key={t.id} {...cardProps(t)} />
+                    ))}
+                    {week.length === 0 ? (
+                      <p className="py-2 text-center text-[11px] text-slate-400">
+                        {dragId ? "שחררו כאן" : backlog.length === 0 ? "אין משימות" : "אין משימות השבוע"}
+                      </p>
+                    ) : null}
+                  </div>
+                </Card>
+              </div>
             );
           })}
         </div>
@@ -1160,124 +1279,389 @@ function LanesView({
   );
 }
 
-// תוצר בודד בארכיון — צ'יפ עם קישור הורדה.
-interface CompletedTask {
+// סרגל סגירה מרוכזת — מופיע כשהלוח הפעיל מסונן לפי לקוח: שינוי סטטוס לכל
+// המשימות המוצגות בבת אחת (למשל סגירת לקוח שלם).
+function BulkStatusBar({
+  count,
+  clientName,
+  busy,
+  onApply,
+}: {
+  count: number;
+  clientName: string;
+  busy: boolean;
+  onApply: (status: string) => void;
+}) {
+  const [status, setStatus] = useState("qc");
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#3a5bd9]/30 bg-[#3a5bd9]/5 px-4 py-2.5">
+      <span className="text-sm font-bold text-slate-700">🏢 {clientName}</span>
+      <span className="text-xs text-slate-500">· {count} משימות מוצגות · סגירה מרוכזת:</span>
+      <select
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        className="rounded-lg border px-2 py-1 text-xs font-medium"
+        style={{
+          borderColor: DESIGN_STATUS_COLORS[status],
+          color: DESIGN_STATUS_COLORS[status],
+          backgroundColor: `${DESIGN_STATUS_COLORS[status]}14`,
+        }}
+      >
+        {DESIGN_STATUSES.map((s) => (
+          <option key={s} value={s} style={{ color: "#0f172a" }}>
+            {DESIGN_STATUS_LABELS[s]}
+          </option>
+        ))}
+      </select>
+      <Button size="sm" onClick={() => onApply(status)} disabled={busy}>
+        {busy ? "מעדכן…" : "החל על כל המשימות"}
+      </Button>
+    </div>
+  );
+}
+
+// משימה בארכיון/בקרת-איכות — כוללת את כל שדות הסקלר (status/scheduledAt/approvedAt…)
+// כי ה-API מחזיר אותם ב-include, + התוצרים.
+interface ArchiveTask {
   id: string;
   title: string;
+  status: string;
   approvedAt: string | null;
+  scheduledAt: string | null;
+  updatedAt: string | null;
   dueAt: string | null;
+  round: number;
   client: { id: string; name: string; color: string | null } | null;
   designer: { id: string; name: string } | null;
   assets: { id: string; fileName: string | null; kind: string; round: number }[];
 }
 
-// ארכיון "הושלמו" — משימות שאושרו עם התוצרים, מקובצות לפי לקוח, חדש-למעלה,
-// עם חיפוש. המשימות לא נמחקות — רק ירדו מלוח העבודה.
-function CompletedView({ onOpen }: { onOpen: (id: string) => void }) {
-  const [tasks, setTasks] = useState<CompletedTask[]>([]);
-  const [q, setQ] = useState("");
-  const [qDeb, setQDeb] = useState("");
+// צ'יפים של תוצרים (קישורי הורדה).
+function DeliverableChips({ assets }: { assets: ArchiveTask["assets"] }) {
+  if (assets.length === 0) return <span className="mt-1 block text-[11px] text-slate-400">אין תוצרים מצורפים</span>;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      {assets.map((a) => (
+        <a
+          key={a.id}
+          href={`/api/design-assets/${a.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="פתיחת התוצר בטאב חדש"
+          className="max-w-[240px] truncate rounded-full border border-[#3a5bd9]/30 bg-[#3a5bd9]/5 px-2 py-0.5 text-[11px] text-[#3a5bd9] hover:bg-[#3a5bd9]/10"
+        >
+          📎 {a.fileName || "קובץ"}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+// לשונית "בקרת איכות" — משימות שנכנסו ל-qc. לכל משימה 2 פעולות: החזרה
+// לתיקונים (→ בעבודה, סבב חדש) או אישור לעלייה לאוויר (→ מאושר לעלות לאוויר → הושלמו).
+function QcView({ clientId, onOpen }: { clientId: string; onOpen: (id: string) => void }) {
+  const [tasks, setTasks] = useState<ArchiveTask[]>([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const t = setTimeout(() => setQDeb(q.trim()), 300);
-    return () => clearTimeout(t);
-  }, [q]);
-  useEffect(() => {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const load = useCallback(() => {
     setLoading(true);
-    const qs = qDeb ? `?q=${encodeURIComponent(qDeb)}` : "";
-    api<{ tasks: CompletedTask[] }>(`/api/design-tasks/completed${qs}`)
+    const qs = clientId ? `?clientId=${clientId}` : "";
+    api<{ tasks: ArchiveTask[] }>(`/api/design-tasks/qc${qs}`)
       .then((d) => setTasks(d.tasks))
       .finally(() => setLoading(false));
-  }, [qDeb]);
+  }, [clientId]);
+  useEffect(() => { load(); }, [load]);
 
-  // קיבוץ לפי לקוח — סדר הלקוחות לפי המשימה האחרונה שאושרה (המערך כבר ממוין desc).
-  const byClient: { id: string; name: string; color: string | null; items: CompletedTask[] }[] = [];
+  async function setStatus(id: string, status: string) {
+    setBusyId(id);
+    try {
+      await api(`/api/design-tasks/${id}`, { method: "PATCH", json: { status } });
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const byClient = groupByClient(tasks);
+
+  if (loading) return <Card><p className="py-8 text-center text-sm text-slate-500">טוען…</p></Card>;
+  if (tasks.length === 0)
+    return (
+      <Card>
+        <p className="py-8 text-center text-sm text-slate-600">
+          אין משימות בבקרת איכות. ברגע שמשימה עוברת לסטטוס ״בקרת איכות״ היא תופיע כאן לאישור.
+        </p>
+      </Card>
+    );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] text-slate-500">
+        משימות שהגיעו לבקרת איכות. אישור ← עובר ל״מאושר לעלות לאוויר״ (לשונית הושלמו). החזרה ← חוזר למעצב/ת לתיקונים.
+      </p>
+      {byClient.map((g) => (
+        <Card key={g.id} className="!p-0 overflow-hidden">
+          <ClientGroupHeader name={g.name} color={g.color} count={g.items.length} />
+          <div className="border-t border-slate-200 px-3 py-1">
+            {g.items.map((t) => (
+              <div key={t.id} className="border-b border-slate-100 py-2.5 last:border-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button onClick={() => onOpen(t.id)} className="font-medium text-slate-800 hover:text-[#3a5bd9]">
+                    {t.title}
+                  </button>
+                  {t.designer ? <span className="text-[11px] text-slate-400">· {t.designer.name}</span> : null}
+                  {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
+                </div>
+                <DeliverableChips assets={t.assets} />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busyId === t.id}
+                    onClick={() => setStatus(t.id, "in_progress")}
+                    className="!border-orange-300 !text-orange-700 hover:!bg-orange-50"
+                  >
+                    ↩ החזר לתיקונים
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={busyId === t.id}
+                    onClick={() => setStatus(t.id, "ready_to_publish")}
+                  >
+                    ✓ מאשר לעלייה לאוויר
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// קיבוץ לפי לקוח — סדר הלקוחות לפי המשימה האחרונה (המערך כבר ממוין desc בשרת).
+function groupByClient(tasks: ArchiveTask[]) {
+  const out: { id: string; name: string; color: string | null; items: ArchiveTask[] }[] = [];
   const idx = new Map<string, number>();
   for (const t of tasks) {
     const key = t.client?.id ?? "none";
     if (!idx.has(key)) {
-      idx.set(key, byClient.length);
-      byClient.push({ id: key, name: t.client?.name ?? "ללא לקוח", color: t.client?.color ?? null, items: [] });
+      idx.set(key, out.length);
+      out.push({ id: key, name: t.client?.name ?? "ללא לקוח", color: t.client?.color ?? null, items: [] });
     }
-    byClient[idx.get(key)!].items.push(t);
+    out[idx.get(key)!].items.push(t);
   }
+  return out;
+}
+
+function ClientGroupHeader({ name, color, count }: { name: string; color: string | null; count: number }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2.5" style={{ boxShadow: `inset 4px 0 0 ${color ?? "#64748b"}` }}>
+      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color ?? "#64748b" }} />
+      <span className="font-bold text-slate-800">{name}</span>
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{count}</span>
+    </div>
+  );
+}
+
+// שורת משימה בארכיון — כותרת, מעצב/ת, סטטוס (ממתין-לאוויר/הושלם), תוצרים,
+// וכפתור "עלה לאוויר" ל-ready_to_publish.
+function ArchiveRow({
+  t,
+  busy,
+  onOpen,
+  onApprove,
+}: {
+  t: ArchiveTask;
+  busy: boolean;
+  onOpen: (id: string) => void;
+  onApprove: (id: string) => void;
+}) {
+  const pending = t.status === "ready_to_publish";
+  return (
+    <div className="border-b border-slate-100 py-2.5 last:border-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={() => onOpen(t.id)} className="font-medium text-slate-800 hover:text-[#3a5bd9]">
+          {t.title}
+        </button>
+        {t.designer ? <span className="text-[11px] text-slate-400">· {t.designer.name}</span> : null}
+        <span
+          className="rounded-full px-1.5 py-px text-[10px] font-medium"
+          style={{ color: DESIGN_STATUS_COLORS[t.status], backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}1a` }}
+        >
+          {DESIGN_STATUS_LABELS[t.status]}
+        </span>
+        <span className="mr-auto text-[11px] text-slate-400" dir="ltr">
+          {t.approvedAt ? `אושר ${fmtDayMonth(new Date(t.approvedAt))}` : t.updatedAt ? fmtDayMonth(new Date(t.updatedAt)) : ""}
+        </span>
+      </div>
+      <DeliverableChips assets={t.assets} />
+      {pending ? (
+        <div className="mt-2">
+          <Button size="sm" disabled={busy} onClick={() => onApprove(t.id)} className="!bg-emerald-600 hover:!bg-emerald-700">
+            🚀 עלה לאוויר → אושר/הושלם
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// לשונית "הושלמו" — "מאושר לעלות לאוויר" + "אושר/הושלם", עם התוצרים. שתי תצוגות:
+// לפי לקוח (חדש-למעלה) או לפי מעצב+שבוע (כמו לוח המעצבים). חיפוש + סינון-לקוח גלובלי.
+function CompletedView({
+  clientId,
+  designers,
+  onOpen,
+}: {
+  clientId: string;
+  designers: Opt[];
+  onOpen: (id: string) => void;
+}) {
+  const [tasks, setTasks] = useState<ArchiveTask[]>([]);
+  const [q, setQ] = useState("");
+  const [qDeb, setQDeb] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"client" | "designer">("client");
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
+
+  useEffect(() => {
+    const t = setTimeout(() => setQDeb(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (qDeb) params.set("q", qDeb);
+    if (clientId) params.set("clientId", clientId);
+    const qs = params.toString();
+    api<{ tasks: ArchiveTask[] }>(`/api/design-tasks/completed${qs ? `?${qs}` : ""}`)
+      .then((d) => setTasks(d.tasks))
+      .finally(() => setLoading(false));
+  }, [qDeb, clientId]);
+  useEffect(() => { load(); }, [load]);
+
+  async function approve(id: string) {
+    setBusyId(id);
+    try {
+      await api(`/api/design-tasks/${id}`, { method: "PATCH", json: { status: "approved" } });
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const byClient = groupByClient(tasks);
+  const weekEndMs = weekStart.getTime() + WEEK_MS;
+  const isThisWeek = startOfWeek(new Date()).getTime() === weekStart.getTime();
+  const weekLabel = `${fmtDayMonth(weekStart)} – ${fmtDayMonth(new Date(weekStart.getTime() + 6 * DAY_MS))}`;
+  const cols = [...designers.map((d) => ({ id: d.id, name: d.name })), { id: "", name: "לא משויך" }];
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative w-80 max-w-full">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Escape" && setQ("")}
-          placeholder="🔍 חיפוש בארכיון — משימה / לקוח / מעצב/ת / קובץ…"
-          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pl-8 text-sm text-slate-700 placeholder-slate-400 focus:border-[#3a5bd9] focus:outline-none"
-        />
-        {q ? (
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-72 max-w-full">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setQ("")}
+            placeholder="🔍 חיפוש בארכיון — משימה / לקוח / מעצב/ת / קובץ…"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pl-8 text-sm text-slate-700 placeholder-slate-400 focus:border-[#3a5bd9] focus:outline-none"
+          />
+          {q ? (
+            <button type="button" onClick={() => setQ("")} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>
+          ) : null}
+        </div>
+        <div className="mr-auto flex rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
           <button
-            type="button"
-            onClick={() => setQ("")}
-            className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            onClick={() => setMode("client")}
+            className={`rounded px-2.5 py-1 ${mode === "client" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
           >
-            ✕
+            🏢 לפי לקוח
           </button>
-        ) : null}
+          <button
+            onClick={() => setMode("designer")}
+            className={`rounded px-2.5 py-1 ${mode === "designer" ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            👤 לפי מעצב/שבוע
+          </button>
+        </div>
       </div>
 
+      {mode === "designer" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-lg border border-slate-300 bg-white p-0.5 text-xs">
+            <button onClick={() => setWeekStart(new Date(weekStart.getTime() - WEEK_MS))} className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100">← שבוע קודם</button>
+            <button onClick={() => setWeekStart(startOfWeek(new Date()))} className={`rounded px-2.5 py-1 font-medium ${isThisWeek ? "bg-[#3a5bd9] text-white" : "text-slate-600 hover:bg-slate-100"}`}>השבוע</button>
+            <button onClick={() => setWeekStart(new Date(weekStart.getTime() + WEEK_MS))} className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100">שבוע הבא →</button>
+          </div>
+          <span className="text-sm font-semibold text-slate-700" dir="ltr">{weekLabel}</span>
+        </div>
+      ) : null}
+
       {loading ? (
-        <Card>
-          <p className="py-8 text-center text-sm text-slate-500">טוען…</p>
-        </Card>
+        <Card><p className="py-8 text-center text-sm text-slate-500">טוען…</p></Card>
       ) : tasks.length === 0 ? (
         <Card>
           <p className="py-8 text-center text-sm text-slate-600">
-            {qDeb ? `לא נמצאו תוצאות עבור ״${qDeb}״.` : "עדיין אין משימות שאושרו. ברגע שמשימה עוברת ל״אושר/הושלם״ היא תופיע כאן עם התוצרים."}
+            {qDeb ? `לא נמצאו תוצאות עבור ״${qDeb}״.` : "עדיין אין משימות שהושלמו. משימה שאושרה בבקרת איכות תופיע כאן עם התוצרים."}
           </p>
         </Card>
-      ) : (
+      ) : mode === "client" ? (
         byClient.map((g) => (
           <Card key={g.id} className="!p-0 overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-2.5" style={{ boxShadow: `inset 4px 0 0 ${g.color ?? "#64748b"}` }}>
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color ?? "#64748b" }} />
-              <span className="font-bold text-slate-800">{g.name}</span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{g.items.length}</span>
-            </div>
+            <ClientGroupHeader name={g.name} color={g.color} count={g.items.length} />
             <div className="border-t border-slate-200 px-3 py-1">
               {g.items.map((t) => (
-                <div key={t.id} className="border-b border-slate-100 py-2.5 last:border-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button onClick={() => onOpen(t.id)} className="font-medium text-slate-800 hover:text-[#3a5bd9]">
-                      {t.title}
-                    </button>
-                    {t.designer ? <span className="text-[11px] text-slate-400">· {t.designer.name}</span> : null}
-                    {t.approvedAt ? (
-                      <span className="mr-auto text-[11px] text-slate-400" dir="ltr">
-                        אושר {fmtDayMonth(new Date(t.approvedAt))}
-                      </span>
-                    ) : null}
-                  </div>
-                  {t.assets.length > 0 ? (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {t.assets.map((a) => (
-                        <a
-                          key={a.id}
-                          href={`/api/design-assets/${a.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="פתיחת התוצר בטאב חדש"
-                          className="max-w-[240px] truncate rounded-full border border-[#3a5bd9]/30 bg-[#3a5bd9]/5 px-2 py-0.5 text-[11px] text-[#3a5bd9] hover:bg-[#3a5bd9]/10"
-                        >
-                          📎 {a.fileName || "קובץ"}
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="mt-1 block text-[11px] text-slate-400">אין תוצרים מצורפים</span>
-                  )}
-                </div>
+                <ArchiveRow key={t.id} t={t} busy={busyId === t.id} onOpen={onOpen} onApprove={approve} />
               ))}
             </div>
           </Card>
         ))
+      ) : (
+        <div className="overflow-x-auto pb-1">
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(240px,1fr))` }}>
+            {cols.map((c) => {
+              const mine = tasks.filter((t) => {
+                if ((t.designer?.id ?? "") !== c.id) return false;
+                if (!t.scheduledAt) return false;
+                const ms = new Date(t.scheduledAt).getTime();
+                return ms >= weekStart.getTime() && ms < weekEndMs;
+              }).sort((a, b) => (a.scheduledAt || "").localeCompare(b.scheduledAt || ""));
+              return (
+                <Card key={c.id || "none"} className="!p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-700">{c.name}</h3>
+                    <Chip color="#34d399">{mine.length}</Chip>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {mine.map((t) => (
+                      <div key={t.id} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => onOpen(t.id)} className="min-w-0 flex-1 truncate text-right font-medium text-slate-800 hover:text-[#3a5bd9]">{t.title}</button>
+                          <span className="rounded-full px-1.5 py-px text-[10px] font-medium" style={{ color: DESIGN_STATUS_COLORS[t.status], backgroundColor: `${DESIGN_STATUS_COLORS[t.status]}1a` }}>{DESIGN_STATUS_LABELS[t.status]}</span>
+                        </div>
+                        <span className="mt-0.5 block text-[10px] text-slate-500" dir="ltr">{fmtSlot(t.scheduledAt)}</span>
+                        <DeliverableChips assets={t.assets} />
+                        {t.status === "ready_to_publish" ? (
+                          <Button size="sm" disabled={busyId === t.id} onClick={() => approve(t.id)} className="mt-2 !bg-emerald-600 hover:!bg-emerald-700">🚀 עלה לאוויר</Button>
+                        ) : null}
+                      </div>
+                    ))}
+                    {mine.length === 0 ? <p className="py-2 text-center text-[11px] text-slate-400">אין משימות השבוע</p> : null}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );

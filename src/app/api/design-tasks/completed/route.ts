@@ -4,14 +4,18 @@ import { handle, requireAdmin } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/design-tasks/completed?q — ארכיון "הושלמו": משימות עיצוב שאושרו,
-// עם התוצרים (הקבצים) שלהן. חדש-למעלה (לפי מועד האישור). חיפוש חופשי אופציונלי
-// על כותרת/לקוח/מעצב/ת ושמות קבצים. המשימות לא נמחקות לעולם — רק יורדות מהלוח.
+// GET /api/design-tasks/completed?q&clientId — לשונית "הושלמו": משימות עיצוב
+// שסיימו את מסלול העבודה — "מאושר לעלות לאוויר" (ready_to_publish, ממתינות
+// לעלייה לאוויר) + "אושר/הושלם" (approved). עם התוצרים, חדש-למעלה (לפי מועד
+// עדכון אחרון — המשימה האחרונה למעלה), חיפוש וסינון-לקוח. אף משימה לא נמחקת.
 export const GET = handle(async (req) => {
   await requireAdmin();
-  const q = (new URL(req.url).searchParams.get("q") || "").trim().slice(0, 80);
+  const sp = new URL(req.url).searchParams;
+  const q = (sp.get("q") || "").trim().slice(0, 80);
+  const clientId = sp.get("clientId") || "";
 
-  const where: Record<string, unknown> = { status: "approved" };
+  const where: Record<string, unknown> = { status: { in: ["ready_to_publish", "approved"] } };
+  if (clientId) where.clientId = clientId;
   if (q) {
     const c = { contains: q, mode: "insensitive" as const };
     where.OR = [
@@ -24,12 +28,12 @@ export const GET = handle(async (req) => {
 
   const tasks = await prisma.designTask.findMany({
     where,
-    orderBy: [{ approvedAt: "desc" }, { updatedAt: "desc" }],
-    take: 400,
+    // חדש-למעלה: לפי מועד העדכון האחרון (המשימה האחרונה למעלה, הישנה למטה).
+    orderBy: [{ updatedAt: "desc" }],
+    take: 500,
     include: {
       client: { select: { id: true, name: true, color: true } },
       designer: { select: { id: true, name: true } },
-      // תוצרים בלבד (מה שהמעצב/ת מסר/ה) — זה מה שחשוב בארכיון.
       assets: {
         where: { kind: "deliverable" },
         select: { id: true, fileName: true, kind: true, round: true, createdAt: true },

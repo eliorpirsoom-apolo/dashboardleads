@@ -13,6 +13,7 @@ const UpdateUser = z.object({
   password: z.string().min(6, "סיסמה קצרה מדי").optional(),
   isAgent: z.boolean().optional(),
   isDesigner: z.boolean().optional(), // מעצב/ת בסטודיו
+  isStudioApprover: z.boolean().optional(), // מקבל/ת התראת אישור תוצרי סטודיו
   adminRole: z.enum(["manager", "staff"]).optional(),
   phone: z.string().max(30).nullable().optional(),
   whatsappPhone: z.string().max(30).nullable().optional(), // וואטסאפ להתראות לידים (משווקים)
@@ -44,6 +45,7 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
       name: body.name,
       isAgent: body.isAgent,
       ...(body.isDesigner !== undefined ? { isDesigner: body.isDesigner } : {}),
+      ...(body.isStudioApprover !== undefined ? { isStudioApprover: body.isStudioApprover } : {}),
       ...(target.role === "ADMIN" && body.adminRole
         ? { adminRole: body.adminRole }
         : {}),
