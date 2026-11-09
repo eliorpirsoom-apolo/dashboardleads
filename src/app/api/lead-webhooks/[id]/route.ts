@@ -21,7 +21,7 @@ const Patch = z.object({
   projectId: z.string().min(1).nullable().optional(),
   name: z.string().min(1).max(120).optional(),
   url: z.string().url("כתובת לא תקינה").max(1000).optional(),
-  method: z.enum(["POST", "PUT", "PATCH"]).optional(),
+  method: z.enum(["POST", "GET", "PUT", "PATCH"]).optional(),
   format: z.enum(["json", "form"]).optional(),
   authHeader: z.string().max(100).nullable().optional(),
   authValue: z.string().max(4000).nullable().optional(),

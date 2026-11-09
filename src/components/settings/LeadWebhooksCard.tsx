@@ -378,6 +378,7 @@ function WebhookForm({
           <Field label="שיטה">
             <Select value={d.method} onChange={(e) => set("method", e.target.value)}>
               <option value="POST">POST</option>
+              <option value="GET">GET</option>
               <option value="PUT">PUT</option>
               <option value="PATCH">PATCH</option>
             </Select>

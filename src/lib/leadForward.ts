@@ -263,15 +263,21 @@ async function deliver(
   hook: LeadWebhookRow,
   body: Record<string, unknown>
 ): Promise<DeliverOutcome> {
+  const method = (hook.method || "POST").toUpperCase();
+  // GET/HEAD — אין גוף; כל השדות נכנסים ל-query string של הכתובת (כמו API של n2u).
+  const isGet = method === "GET" || method === "HEAD";
   const isForm = hook.format === "form";
-  const payload = isForm ? toFormBody(body) : JSON.stringify(body);
-  const headers: Record<string, string> = {
-    "Content-Type": isForm ? "application/x-www-form-urlencoded" : "application/json",
-  };
+  const query = toFormBody(body); // k=v&k=v, מקודד URL
+  const url = isGet && query ? hook.url + (hook.url.includes("?") ? "&" : "?") + query : hook.url;
+  const payload = isGet ? undefined : isForm ? toFormBody(body) : JSON.stringify(body);
+  const headers: Record<string, string> = {};
+  if (!isGet) headers["Content-Type"] = isForm ? "application/x-www-form-urlencoded" : "application/json";
   if (hook.authHeader && hook.authValue) headers[hook.authHeader] = hook.authValue;
   if (hook.secret) {
+    // חתימת HMAC על מה שנשלח בפועל (query עבור GET, הגוף אחרת).
+    const signed = isGet ? query : (payload as string);
     headers["X-Apollo-Signature"] =
-      "sha256=" + crypto.createHmac("sha256", hook.secret).update(payload).digest("hex");
+      "sha256=" + crypto.createHmac("sha256", hook.secret).update(signed).digest("hex");
   }
 
   let last: DeliverOutcome = { ok: false, httpCode: null, error: "לא בוצע ניסיון", responseBody: null, attempt: 0 };
@@ -281,8 +287,8 @@ async function deliver(
       const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
       let res: Response;
       try {
-        res = await fetch(hook.url, {
-          method: (hook.method || "POST").toUpperCase(),
+        res = await fetch(url, {
+          method,
           headers,
           body: payload,
           signal: ctrl.signal,

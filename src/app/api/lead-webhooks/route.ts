@@ -44,7 +44,7 @@ const Create = z.object({
   projectId: z.string().min(1).nullable().optional(),
   name: z.string().min(1, "חסר שם יעד").max(120),
   url: z.string().url("כתובת לא תקינה").max(1000),
-  method: z.enum(["POST", "PUT", "PATCH"]).default("POST"),
+  method: z.enum(["POST", "GET", "PUT", "PATCH"]).default("POST"),
   format: z.enum(["json", "form"]).default("json"),
   authHeader: z.string().max(100).nullable().optional(),
   authValue: z.string().max(4000).nullable().optional(),
