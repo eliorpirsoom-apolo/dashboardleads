@@ -72,11 +72,13 @@ const EMPTY_DRAFT: Draft = {
   fieldMap: "",
 };
 
-const MAP_PLACEHOLDER = `(אופציונלי) מיפוי לשמות שה-API דורש, לדוגמה:
+const MAP_PLACEHOLDER = `(אופציונלי) מיפוי לשמות שה-API דורש. ערך רגיל = שדה מהליד;
+ערך שמתחיל ב-= הוא קבוע (לפרמטרים קבועים כמו מפתח/מזהה פרויקט):
 {
-  "first_name": "firstName",
-  "last_name": "lastName",
-  "phone": "phoneE164",
+  "apikey": "=<הדביקו-כאן-מפתח>",
+  "projectid": "=<מזהה>",
+  "fullname": "fullName",
+  "phone": "phone",
   "email": "email",
   "utm_source": "custom.utm_source"
 }`;

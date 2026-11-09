@@ -198,13 +198,17 @@ function buildEnvelope(lead: LeadForEnvelope): Record<string, unknown> {
 }
 
 // החלת מיפוי-שדות: אם הוגדר, הגוף נבנה אך ורק מהמפתחות שה-API של היעד דורש.
-// { "first_name": "firstName", "Phone": "phoneE164", "utm": "custom.utm_source" }
+// ערך המיפוי יכול להיות:
+//   "firstName"          → נתיב בתוך מעטפת הליד (ברירת מחדל)
+//   "=bsbro554"          → ערך קבוע (מתחיל ב-=) — לפרמטרים קבועים כמו globalpass/projectid
+//   { from, map, default } → מיפוי-ערך: לוקח ערך מהמעטפת וממיר לפי טבלה (למשל מקור→publisher)
+// דוגמה: { "globalpass": "=bsbro554", "fullname": "fullName", "phone": "phone" }
 function applyFieldMap(
   env: Record<string, unknown>,
   fieldMap: string | null
 ): Record<string, unknown> {
   if (!fieldMap) return env;
-  let map: Record<string, string>;
+  let map: Record<string, unknown>;
   try {
     map = JSON.parse(fieldMap);
   } catch {
@@ -214,9 +218,24 @@ function applyFieldMap(
     return env;
   }
   const out: Record<string, unknown> = {};
-  for (const [destKey, srcKey] of Object.entries(map)) {
-    const v = getPath(env, String(srcKey));
-    out[destKey] = v === undefined ? null : v;
+  for (const [destKey, spec] of Object.entries(map)) {
+    if (typeof spec === "string") {
+      if (spec.startsWith("=")) {
+        out[destKey] = spec.slice(1); // ערך קבוע
+      } else {
+        const v = getPath(env, spec);
+        out[destKey] = v === undefined ? null : v;
+      }
+    } else if (spec && typeof spec === "object" && !Array.isArray(spec) && "from" in spec) {
+      // מיפוי-ערך: { from: "platform", map: { facebook: "11967", google: "11965" }, default: "12678" }
+      const s = spec as { from?: unknown; map?: unknown; default?: unknown };
+      const raw = getPath(env, String(s.from ?? ""));
+      const table = s.map && typeof s.map === "object" ? (s.map as Record<string, unknown>) : {};
+      const key = raw == null ? "" : String(raw);
+      out[destKey] = key in table ? table[key] : s.default ?? null;
+    } else {
+      out[destKey] = null;
+    }
   }
   return out;
 }
