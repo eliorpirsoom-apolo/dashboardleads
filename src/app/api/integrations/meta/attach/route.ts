@@ -5,21 +5,25 @@ import { handle, ApiError, requireAdmin } from "@/lib/api";
 import crypto from "crypto";
 import {
   getPageToken,
-  subscribePageToLeadgen,
+  syncPageSubscription,
   verifyUserToken,
 } from "@/lib/integrations/metaLeads";
+import { connectSocialAccount } from "@/lib/social/accounts";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST /api/integrations/meta/attach — חיבור העמוד הנבחר לפרויקט:
-// טוקן עמוד ← מקור קליטה ייעודי ← רישום לוובהוק leadgen.
+// POST /api/integrations/meta/attach — חיבור העמוד הנבחר:
+//   purpose=leads  (ברירת מחדל): טוקן עמוד ← מקור קליטה ייעודי ← רישום לוובהוק leadgen.
+//   purpose=social: טוקן עמוד (מוצפן) ← חשבון IG מקושר ← רישום לוובהוק feed/messages
+//                   (באיחוד עם leadgen אם הדף מחובר גם ללידים) ← SocialAccount.
 export const POST = handle(async (req) => {
   const user = await requireAdmin();
   const form = await req.formData();
+  const purpose = String(form.get("purpose") ?? "") === "social" ? "social" : "leads";
   const pageId = String(form.get("pageId") ?? "");
   const pageNameRaw = String(form.get("pageName") ?? "");
-  const projectId = String(form.get("projectId") ?? "");
+  const projectId = purpose === "leads" ? String(form.get("projectId") ?? "") : "";
   const clientId = String(form.get("clientId") ?? "");
   const blob = String(form.get("blob") ?? "");
 
@@ -32,6 +36,22 @@ export const POST = handle(async (req) => {
     select: { id: true },
   });
   if (!client) throw new ApiError(404, "לקוח לא נמצא");
+  const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
+
+  // --- תיבת מענה חברתי --------------------------------------------------------
+  if (purpose === "social") {
+    const r = await connectSocialAccount({
+      clientId,
+      pageId,
+      pageNameHint: pageNameRaw,
+      userToken,
+      userId: user.id,
+    });
+    const q = new URLSearchParams({ social: "connected", ig: r.igLinked ? "linked" : "none" });
+    return NextResponse.redirect(`${base}/admin/clients/${clientId}/settings?${q}`, { status: 303 });
+  }
+
+  // --- לידים (Lead Ads) ---------------------------------------------------------
   // חיבור ברמת הלקוח: projectId ריק. מלא = פרויקט ברירת מחדל (תאימות לאחור).
   const project = projectId
     ? await prisma.project.findUnique({
@@ -47,9 +67,11 @@ export const POST = handle(async (req) => {
   if (existing) throw new ApiError(409, "העמוד כבר מחובר");
 
   // טוקן העמוד + רישום לוובהוק — לפני כתיבה ל-DB, שלא יישאר חיבור מת.
+  // leads:true כי רשומת MetaPage עוד לא קיימת; שדות התיבה החברתית (אם הדף
+  // מחובר אליה) נשמרים באיחוד.
   const page = await getPageToken(pageId, userToken);
   const pageName = page.name || pageNameRaw || pageId;
-  await subscribePageToLeadgen(pageId, page.token);
+  await syncPageSubscription(pageId, page.token, { leads: true });
 
   // מקור קליטה ייעודי לעמוד — הלידים נכנסים דרך צינור הקליטה הרגיל.
   // בלי פרויקט: לידים מטפסים לא-משויכים נשמרים ברמת הלקוח וממתינים לשיוך.
@@ -76,7 +98,6 @@ export const POST = handle(async (req) => {
     },
   });
 
-  const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
   return NextResponse.redirect(
     project
       ? `${base}/admin/clients/${clientId}/projects/${project.id}?meta=connected`

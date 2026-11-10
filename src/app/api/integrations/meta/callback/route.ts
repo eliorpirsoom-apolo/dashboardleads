@@ -17,6 +17,8 @@ function esc(s: string): string {
 
 // GET /api/integrations/meta/callback — חזרה מדיאלוג Meta: מחליפים קוד בטוקן,
 // שולפים את העמודים שהמשתמש מנהל ומציגים מסך בחירה (העמוד ← הפרויקט).
+// purpose=social (מה-state): אותו מסך, אבל "כבר מחובר" נבדק מול תיבת המענה
+// והטופס ממשיך ל-attach עם purpose=social.
 export async function GET(req: Request) {
   const user = await getSession();
   if (!user || user.role !== "ADMIN") {
@@ -28,15 +30,17 @@ export async function GET(req: Request) {
   if (!code || !state) {
     return NextResponse.redirect(new URL("/admin?meta_error=state", req.url));
   }
+  const social = state.purpose === "social";
   // חיבור חדש חי ברמת הלקוח (projectId ריק ב-state); projectId מלא = תאימות
   // לאחור, והפרויקט יהיה ברירת המחדל לטפסים לא-משויכים.
-  const project = state.projectId
-    ? await prisma.project.findUnique({
-        where: { id: state.projectId },
-        select: { id: true, name: true, clientId: true },
-      })
-    : null;
-  if (state.projectId && (!project || project.clientId !== state.clientId)) {
+  const project =
+    !social && state.projectId
+      ? await prisma.project.findUnique({
+          where: { id: state.projectId },
+          select: { id: true, name: true, clientId: true },
+        })
+      : null;
+  if (!social && state.projectId && (!project || project.clientId !== state.clientId)) {
     return NextResponse.redirect(new URL("/admin?meta_error=project", req.url));
   }
   const client = await prisma.client.findUnique({
@@ -50,10 +54,16 @@ export async function GET(req: Request) {
   try {
     const userToken = await exchangeCodeForUserToken(code);
     const pages = await listUserPages(userToken);
-    const connected = await prisma.metaPage.findMany({
-      where: { pageId: { in: pages.map((p) => p.id) } },
-      select: { pageId: true },
-    });
+    const pageIds = pages.map((p) => p.id);
+    const connected = social
+      ? await prisma.socialAccount.findMany({
+          where: { pageId: { in: pageIds }, active: true },
+          select: { pageId: true },
+        })
+      : await prisma.metaPage.findMany({
+          where: { pageId: { in: pageIds } },
+          select: { pageId: true },
+        });
     const connectedIds = new Set(connected.map((c) => c.pageId));
     const blob = signUserToken(userToken);
 
@@ -68,10 +78,19 @@ export async function GET(req: Request) {
       })
       .join("\n");
 
+    const title = social
+      ? `חיבור דף לתיבת המענה — ${esc(client.name)}`
+      : `חיבור עמוד פייסבוק — ${esc(project ? project.name : client.name)}`;
+    const intro = social
+      ? "בחרו את הדף שהתגובות וההודעות שלו (פייסבוק, ואינסטגרם אם מקושר לדף) ייכנסו לתיבת המענה החברתי. בשלב זה המערכת קוראת בלבד — שום דבר לא נשלח החוצה. חיבור הלידים של הדף (אם קיים) לא נפגע."
+      : project
+        ? "בחרו את העמוד שהלידים שלו ייכנסו לפרויקט הזה. מרגע החיבור כל ליד חדש מטפסי הפייסבוק של העמוד ייקלט אוטומטית תוך שניות."
+        : "העמוד מתחבר ברמת הלקוח — אחרי החיבור מנתבים כל טופס פייסבוק לפרויקט שלו (🗂 ניתוב טפסים). ליד מטופס שטרם שויך נשמר אצל הלקוח וממתין לשיוך.";
+
     const html = `<!doctype html>
 <html dir="rtl" lang="he"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>בחירת עמוד פייסבוק</title>
+<title>${social ? "בחירת דף לתיבת המענה" : "בחירת עמוד פייסבוק"}</title>
 <style>
   body{font-family:system-ui,-apple-system,"Segoe UI",Arial;background:#f6f7fb;color:#1e293b;margin:0;padding:24px}
   .card{max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px}
@@ -86,14 +105,11 @@ export async function GET(req: Request) {
   .empty{padding:16px;text-align:center;color:#94a3b8;font-size:13px}
 </style></head><body>
 <div class="card">
-  <h1>חיבור עמוד פייסבוק — ${esc(project ? project.name : client.name)}</h1>
-  <p>${
-    project
-      ? "בחרו את העמוד שהלידים שלו ייכנסו לפרויקט הזה. מרגע החיבור כל ליד חדש מטפסי הפייסבוק של העמוד ייקלט אוטומטית תוך שניות."
-      : "העמוד מתחבר ברמת הלקוח — אחרי החיבור מנתבים כל טופס פייסבוק לפרויקט שלו (🗂 ניתוב טפסים). ליד מטופס שטרם שויך נשמר אצל הלקוח וממתין לשיוך."
-  }</p>
+  <h1>${title}</h1>
+  <p>${intro}</p>
   <form method="POST" action="/api/integrations/meta/attach" onsubmit="var c=document.querySelector('input[name=pageId]:checked'); if(c) document.getElementById('pn').value=c.dataset.name;">
     ${rows || '<div class="empty">לא נמצאו עמודים שאתם מנהלים בחשבון הזה.</div>'}
+    <input type="hidden" name="purpose" value="${social ? "social" : "leads"}">
     <input type="hidden" name="projectId" value="${esc(project?.id ?? "")}">
     <input type="hidden" name="clientId" value="${esc(client.id)}">
     <input type="hidden" name="blob" value="${esc(blob)}">

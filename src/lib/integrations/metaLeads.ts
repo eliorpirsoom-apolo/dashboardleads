@@ -43,23 +43,38 @@ export function metaVerifyToken(): string {
 
 // --- state / blob חתומים (כמו ב-Google OAuth) -------------------------------
 
-export function packMetaState(clientId: string, projectId: string): string {
-  const payload = `${clientId}.${projectId}.${Date.now()}`;
+// purpose: לְמה מחברים את הדף — "leads" (Lead Ads, ברירת המחדל) או "social"
+// (תיבת המענה החברתי). נכלל ב-state החתום כדי שה-callback ידע לאן להמשיך.
+export type MetaPurpose = "leads" | "social";
+
+export function packMetaState(
+  clientId: string,
+  projectId: string,
+  purpose: MetaPurpose = "leads"
+): string {
+  const payload = `${clientId}.${projectId}.${purpose}.${Date.now()}`;
   const sig = crypto.createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 24);
   return Buffer.from(`${payload}.${sig}`).toString("base64url");
 }
 
 export function unpackMetaState(
   state: string
-): { clientId: string; projectId: string } | null {
+): { clientId: string; projectId: string; purpose: MetaPurpose } | null {
   try {
     const raw = Buffer.from(state, "base64url").toString("utf8");
-    const [clientId, projectId, ts, sig] = raw.split(".");
-    const payload = `${clientId}.${projectId}.${ts}`;
+    const parts = raw.split(".");
+    // פורמט נוכחי: clientId.projectId.purpose.ts.sig
+    // פורמט קודם (חיבורים שהתחילו רגע לפני הפריסה): clientId.projectId.ts.sig
+    if (parts.length !== 5 && parts.length !== 4) return null;
+    const sig = parts[parts.length - 1];
+    const ts = parts[parts.length - 2];
+    const payload = parts.slice(0, -1).join(".");
     const expected = crypto.createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 24);
     if (sig !== expected) return null;
     if (Date.now() - Number(ts) > 15 * 60 * 1000) return null;
-    return { clientId, projectId };
+    const purpose = parts.length === 5 ? parts[2] : "leads";
+    if (purpose !== "leads" && purpose !== "social") return null;
+    return { clientId: parts[0], projectId: parts[1], purpose };
   } catch {
     return null;
   }
@@ -192,13 +207,41 @@ export async function getPageToken(
   return { token: data.access_token, name: data.name ?? "" };
 }
 
-/** רישום האפליקציה לקבלת leadgen מהעמוד. */
-export async function subscribePageToLeadgen(pageId: string, pageToken: string): Promise<void> {
+/** שדות הוובהוק של תיבת המענה החברתי (תגובות + הודעות). */
+export const SOCIAL_SUBSCRIBED_FIELDS = ["feed", "messages", "messaging_postbacks"] as const;
+
+/**
+ * סנכרון רישום האפליקציה לשדות הוובהוק של הדף.
+ * ⚠️ Meta מחליפה את רשימת השדות בכל קריאה ל-subscribed_apps (לא מוסיפה) —
+ * רישום "feed" בלבד היה מוחק את "leadgen" ומפסיק לידים. לכן תמיד מחשבים
+ * איחוד של כל מה שמחובר לדף הזה: leadgen אם יש MetaPage פעיל, feed/messages אם
+ * יש SocialAccount פעיל. override מאפשר לחשב את המצב "אחרי" חיבור/ניתוק לפני
+ * שהרשומה נכתבה או כובתה. רשימה ריקה → ביטול הרישום של האפליקציה בדף.
+ * מחזיר את השדות שנרשמו.
+ */
+export async function syncPageSubscription(
+  pageId: string,
+  pageToken: string,
+  override: { leads?: boolean; social?: boolean } = {}
+): Promise<string[]> {
+  const leads =
+    override.leads ??
+    Boolean(await prisma.metaPage.findFirst({ where: { pageId, active: true }, select: { id: true } }));
+  const social =
+    override.social ??
+    Boolean(
+      await prisma.socialAccount.findFirst({ where: { pageId, active: true }, select: { id: true } })
+    );
+  const fields = [...(leads ? ["leadgen"] : []), ...(social ? SOCIAL_SUBSCRIBED_FIELDS : [])];
+  if (fields.length === 0) {
+    await unsubscribePage(pageId, pageToken);
+    return [];
+  }
   const res = await fetch(`${GRAPH}/${pageId}/subscribed_apps`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      subscribed_fields: "leadgen",
+      subscribed_fields: fields.join(","),
       access_token: pageToken,
     }),
   });
@@ -206,6 +249,7 @@ export async function subscribePageToLeadgen(pageId: string, pageToken: string):
   if (!res.ok || !data.success) {
     throw new Error(`רישום הוובהוק לעמוד נכשל: ${JSON.stringify(data.error ?? data).slice(0, 200)}`);
   }
+  return fields;
 }
 
 export async function unsubscribePage(pageId: string, pageToken: string): Promise<void> {

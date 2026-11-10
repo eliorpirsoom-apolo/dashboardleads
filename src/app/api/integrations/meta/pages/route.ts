@@ -2,18 +2,31 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, ApiError } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
-import { metaEnabled, metaVerifyToken, unsubscribePage } from "@/lib/integrations/metaLeads";
+import { metaEnabled, metaVerifyToken, syncPageSubscription } from "@/lib/integrations/metaLeads";
+import { SOCIAL_ACCOUNT_PUBLIC, disconnectSocialAccount } from "@/lib/social/accounts";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/integrations/meta/pages?clientId= — העמודים המחוברים של הלקוח
 // (?projectId= נתמך לתאימות לאחור) + פרטי ההגדרה למנהל (וובהוק לקונסולת Meta).
+// ?purpose=social — הדפים המחוברים לתיבת המענה החברתי (בלי טוקנים).
 export const GET = handle(async (req) => {
   const user = await requireAdmin();
   const sp = new URL(req.url).searchParams;
   const clientId = sp.get("clientId");
   const projectId = sp.get("projectId");
   if (!clientId && !projectId) throw new ApiError(400, "חסר clientId");
+
+  if (sp.get("purpose") === "social") {
+    if (!clientId) throw new ApiError(400, "חסר clientId");
+    const accounts = await prisma.socialAccount.findMany({
+      where: { clientId },
+      orderBy: { createdAt: "desc" },
+      select: SOCIAL_ACCOUNT_PUBLIC,
+    });
+    return NextResponse.json({ enabled: metaEnabled(), accounts });
+  }
+
   const pages = await prisma.metaPage.findMany({
     where: clientId ? { clientId } : { projectId },
     orderBy: { createdAt: "desc" },
@@ -48,14 +61,26 @@ export const GET = handle(async (req) => {
 
 // DELETE /api/integrations/meta/pages?id= — ניתוק עמוד (מנהל בלבד).
 // המקור נשאר עם הלידים ההיסטוריים — רק מכובה.
+// ?purpose=social&id= — ניתוק מתיבת המענה (הרשומה מכובה, השרשורים נשארים).
 export const DELETE = handle(async (req) => {
   await requireManager();
-  const id = new URL(req.url).searchParams.get("id");
+  const sp = new URL(req.url).searchParams;
+  const id = sp.get("id");
   if (!id) throw new ApiError(400, "חסר id");
+
+  if (sp.get("purpose") === "social") {
+    await disconnectSocialAccount(id);
+    return NextResponse.json({ ok: true });
+  }
+
   const page = await prisma.metaPage.findUnique({ where: { id } });
   if (!page) throw new ApiError(404, "עמוד לא נמצא");
 
-  await unsubscribePage(page.pageId, page.pageToken);
+  // סנכרון הרישום בלי leadgen — שדות תיבת המענה (אם הדף מחובר אליה) נשארים.
+  // כשל ב-Graph לא חוסם את הניתוק.
+  await syncPageSubscription(page.pageId, page.pageToken, { leads: false }).catch((err) => {
+    console.error("[meta disconnect] subscription sync failed", page.pageId, String(err).slice(0, 200));
+  });
   await prisma.$transaction([
     prisma.leadSource.update({ where: { id: page.sourceId }, data: { active: false } }),
     prisma.metaPage.delete({ where: { id } }),

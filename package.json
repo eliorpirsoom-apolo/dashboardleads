@@ -17,7 +17,7 @@
     "test:smoke": "node scripts/smoke-test.mjs",
     "receipts:upload": "node scripts/receipts-uploader.mjs",
     "import:legacy": "node --experimental-sqlite scripts/import-legacy.mjs",
-    "test:social": "tsx scripts/social-webhook-test.ts"
+    "test:social": "tsx scripts/social-subscription-test.ts && tsx scripts/social-webhook-test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.620.0",

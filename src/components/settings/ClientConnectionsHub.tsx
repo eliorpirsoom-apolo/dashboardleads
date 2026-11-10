@@ -25,6 +25,20 @@ interface MetaPageRow {
   source: { name: string; _count: { leads: number } } | null;
 }
 
+// דף מחובר לתיבת המענה החברתי (SocialAccount) — בלי טוקן.
+interface SocialAccountRow {
+  id: string;
+  pageId: string;
+  pageName: string;
+  igUserId: string | null;
+  igUsername: string | null;
+  tokenValid: boolean;
+  active: boolean;
+  lastError: string | null;
+  lastEventAt: string | null;
+  _count: { threads: number };
+}
+
 interface Source {
   id: string;
   name: string;
@@ -51,6 +65,7 @@ const KIND_META: Record<string, { label: string; icon: string }> = {
 export default function ClientConnectionsHub({ clientId }: { clientId: string }) {
   const [collapsed, toggleCollapse] = useCollapse("client-connections");
   const [pages, setPages] = useState<MetaPageRow[]>([]);
+  const [social, setSocial] = useState<SocialAccountRow[]>([]);
   const [metaEnabled, setMetaEnabled] = useState(true);
   const [sources, setSources] = useState<Source[]>([]);
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
@@ -61,12 +76,14 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
 
   const load = useCallback(async () => {
     try {
-      const [m, s, p] = await Promise.all([
+      const [m, so, s, p] = await Promise.all([
         api<{ enabled: boolean; pages: MetaPageRow[] }>(`/api/integrations/meta/pages?clientId=${clientId}`),
+        api<{ accounts: SocialAccountRow[] }>(`/api/integrations/meta/pages?clientId=${clientId}&purpose=social`),
         api<{ sources: Source[] }>(`/api/sources?clientId=${clientId}`),
         api<{ projects: ProjectOpt[] }>(`/api/projects?clientId=${clientId}`),
       ]);
       setPages(m.pages);
+      setSocial(so.accounts);
       setMetaEnabled(m.enabled);
       setSources(s.sources);
       setProjects(p.projects.filter((x) => x.status === "active"));
@@ -83,6 +100,21 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
     if (!confirm(`לנתק את העמוד "${p.pageName}"? לידים חדשים מפייסבוק יפסיקו להיכנס. הלידים הקיימים נשארים.`)) return;
     try {
       await api(`/api/integrations/meta/pages?id=${p.id}`, { method: "DELETE" });
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function disconnectSocial(a: SocialAccountRow) {
+    if (
+      !confirm(
+        `לנתק את הדף "${a.pageName}" מתיבת המענה? תגובות והודעות חדשות יפסיקו להיכנס. השרשורים הקיימים נשארים, וחיבור הלידים של הדף (אם קיים) לא נפגע.`
+      )
+    )
+      return;
+    try {
+      await api(`/api/integrations/meta/pages?purpose=social&id=${a.id}`, { method: "DELETE" });
       await load();
     } catch (e: any) {
       setError(e.message);
@@ -135,7 +167,7 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
   return (
     <Card>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <h3 className="text-base font-bold text-slate-800">🔌 חיבורים — פייסבוק ו-Webhooks</h3>
+        <h3 className="text-base font-bold text-slate-800">🔌 חיבורים — פייסבוק, תיבת מענה ו-Webhooks</h3>
         <CollapseBtn collapsed={collapsed} onClick={toggleCollapse} />
       </div>
       {collapsed ? null : (
@@ -193,6 +225,61 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
                 חיבור Meta טרם הוגדר בסביבה (META_APP_ID/SECRET) — פנו למנהל המערכת.
               </p>
             )}
+          </div>
+
+          {/* תיבת מענה חברתי — דפים מחוברים (נפרד מחיבור הלידים; אפשר שניהם על אותו דף) */}
+          <div className="mb-4">
+            <p className="mb-1 text-sm font-bold text-slate-700">💬 תיבת מענה חברתי</p>
+            <p className="mb-2 text-xs text-slate-500">
+              תגובות והודעות מהדף (פייסבוק, ואינסטגרם אם מקושר לדף) נכנסות ל
+              <Link href="/admin/social" className="font-medium text-[#3a5bd9] hover:underline">
+                תיבת המענה
+              </Link>
+              . חיבור נפרד מחיבור הלידים — אפשר לחבר את אותו דף לשניהם.
+            </p>
+            {social.filter((a) => a.active).length === 0 ? (
+              <p className="mb-2 text-xs text-slate-400">אין דף מחובר לתיבת המענה עדיין.</p>
+            ) : (
+              <div className="mb-2 flex flex-col gap-2">
+                {social
+                  .filter((a) => a.active)
+                  .map((a) => (
+                    <div key={a.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-slate-700">💬 {a.pageName}</span>
+                        {!a.tokenValid ? (
+                          <Chip color="#f87171">טוקן לא תקף</Chip>
+                        ) : a.lastError ? (
+                          <Chip color="#f59e0b">שגיאה</Chip>
+                        ) : (
+                          <Chip color="#34d399">מחובר</Chip>
+                        )}
+                        {a.igUserId ? (
+                          <Chip color="#e1306c">📷 {a.igUsername ? `@${a.igUsername}` : "אינסטגרם מקושר"}</Chip>
+                        ) : (
+                          <Chip color="#94a3b8">ללא אינסטגרם</Chip>
+                        )}
+                        <span className="text-xs text-slate-500">
+                          {a._count.threads} פניות
+                          {a.lastEventAt ? ` · אירוע אחרון ${formatDateTime(a.lastEventAt)}` : " · טרם התקבלו אירועים"}
+                        </span>
+                        <div className="mr-auto flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => disconnectSocial(a)}>ניתוק</Button>
+                        </div>
+                      </div>
+                      {a.lastError ? <p className="mt-1 text-[11px] text-amber-700">{a.lastError}</p> : null}
+                    </div>
+                  ))}
+              </div>
+            )}
+            {metaEnabled ? (
+              <a
+                href={`/api/integrations/meta/connect?clientId=${clientId}&purpose=social`}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#3a5bd9] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#2f4bc0]"
+              >
+                + חיבור דף לתיבת המענה
+              </a>
+            ) : null}
           </div>
 
           {/* כל מקורות הקליטה — טבלה אחת */}

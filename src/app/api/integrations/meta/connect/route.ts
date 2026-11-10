@@ -6,16 +6,34 @@ import { metaEnabled, metaRedirectUri, packMetaState } from "@/lib/integrations/
 
 export const dynamic = "force-dynamic";
 
+// הרשאות לחיבור לידים (Lead Ads).
+// pages_manage_ads — נדרש לקריאת רשימת טפסי הלידים (משיכת לידים אחורה).
+// business_management — דפים ששותפו לתיק העסקי (שיתוף שותף מלקוח) לא חוזרים
+// מ-/me/accounts; ההרשאה הזו מאפשרת לאסוף אותם דרך התיקים העסקיים.
+const LEADS_SCOPE =
+  "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads,leads_retrieval,business_management";
+
+// הרשאות לתיבת המענה החברתי (SOCIAL_INBOX_PLAN.md §7).
+// pages_read_user_content — בלעדיה Meta לא מעבירה תוכן של תגובות שמשתמשים כתבו.
+// pages_manage_engagement / pages_messaging / instagram_manage_* — נדרשות
+// לשליחה (שלב 1c); מבקשים כבר עכשיו כדי לא לחבר את הדף פעמיים.
+const SOCIAL_SCOPE =
+  "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_read_user_content," +
+  "pages_manage_engagement,pages_messaging,instagram_basic,instagram_manage_comments," +
+  "instagram_manage_messages,business_management";
+
 // GET /api/integrations/meta/connect?clientId=... — תחילת חיבור עמוד פייסבוק
 // ברמת הלקוח (מנהל בלבד). מפנה לדיאלוג ההרשאות של Meta.
 // ?projectId= נתמך לתאימות לאחור — הפרויקט הופך לברירת המחדל לטפסים לא-משויכים.
+// ?purpose=social — חיבור לתיבת המענה החברתי (תגובות/הודעות) במקום ללידים.
 export const GET = handle(async (req) => {
   await requireAdmin();
   if (!metaEnabled()) {
     throw new ApiError(400, "חיבור Meta לא מוגדר (META_APP_ID/SECRET חסרים בסביבה)");
   }
   const sp = new URL(req.url).searchParams;
-  const projectId = sp.get("projectId");
+  const purpose = sp.get("purpose") === "social" ? "social" : "leads";
+  const projectId = purpose === "leads" ? sp.get("projectId") : null;
   const clientIdParam = sp.get("clientId");
   let clientId = "";
   let defaultProjectId = "";
@@ -41,11 +59,8 @@ export const GET = handle(async (req) => {
   const params = new URLSearchParams({
     client_id: process.env.META_APP_ID!,
     redirect_uri: metaRedirectUri(),
-    state: packMetaState(clientId, defaultProjectId),
-    // pages_manage_ads — נדרש לקריאת רשימת טפסי הלידים (משיכת לידים אחורה).
-    // business_management — דפים ששותפו לתיק העסקי (שיתוף שותף מלקוח) לא חוזרים
-    // מ-/me/accounts; ההרשאה הזו מאפשרת לאסוף אותם דרך התיקים העסקיים.
-    scope: "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_ads,leads_retrieval,business_management",
+    state: packMetaState(clientId, defaultProjectId, purpose),
+    scope: purpose === "social" ? SOCIAL_SCOPE : LEADS_SCOPE,
     response_type: "code",
   });
   return NextResponse.redirect(`https://www.facebook.com/v21.0/dialog/oauth?${params}`);
