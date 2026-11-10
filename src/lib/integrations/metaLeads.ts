@@ -264,15 +264,17 @@ export async function listPageForms(
 }
 
 /** טוקן הקליטה לליד לפי הטופס שלו: כלל ניתוב → מקור פייסבוק של פרויקט היעד
- *  (נוצר אוטומטית בפעם הראשונה); בלי כלל → המקור של החיבור. */
+ *  (נוצר אוטומטית בפעם הראשונה); בלי כלל → המקור של החיבור, אלא אם החיבור
+ *  מוגדר "רק טפסים מנותבים" (routedOnly) ואז מוחזר null = דלג על הטופס. */
 async function resolveTokenForForm(
-  page: { id: string; clientId: string; pageName: string; routing: string | null },
+  page: { id: string; clientId: string; pageName: string; routing: string | null; routedOnly?: boolean },
   formId: string | null | undefined,
   fallbackToken: string
-): Promise<string> {
-  if (!formId) return fallbackToken;
+): Promise<string | null> {
+  // טופס ללא כלל (או ליד ללא מזהה טופס) כשהחיבור "רק מנותבים" → לא נקלט.
+  if (!formId) return page.routedOnly ? null : fallbackToken;
   const rule = parseRouting(page.routing).find((r) => r.formId === String(formId));
-  if (!rule) return fallbackToken;
+  if (!rule) return page.routedOnly ? null : fallbackToken;
   const existing = await prisma.leadSource.findFirst({
     where: { projectId: rule.projectId, channel: "facebook", kind: "form", active: true },
     select: { token: true },
@@ -391,6 +393,8 @@ export async function pullRecentLeads(
     out.forms++;
     // ניתוב: לידים של הטופס הזה נשלחים למקור של פרויקט היעד (אם הוגדר כלל).
     const formToken = await resolveTokenForForm(page, form.id, page.source.token);
+    // חיבור "רק טפסים מנותבים" + טופס ללא כלל → דלג לגמרי (לא מושכים אפילו).
+    if (!formToken) continue;
     let url =
       `${GRAPH}/${form.id}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_name,campaign_name,platform&limit=100&access_token=${encodeURIComponent(page.pageToken)}`;
     for (let i = 0; i < 3 && url; i++) {
@@ -520,6 +524,8 @@ export async function processLeadgenEvent(
     const payload = mapToIntakePayload(lead, { formName, pageName: page.pageName });
     // ניתוב לפי הטופס שממנו הגיע הליד (form_id מהמשיכה).
     const token = await resolveTokenForForm(page, lead.form_id, page.source.token);
+    // חיבור "רק טפסים מנותבים" + טופס ללא כלל → לא נקלט (ok=true, בלי שגיאה/ריטריי).
+    if (!token) return { ok: true, note: `טופס ${lead.form_id ?? "?"} לא מנותב — דולג (routedOnly)` };
     const base = process.env.APP_BASE_URL || "https://app.apolloadv.co.il";
     const res = await fetch(`${base.replace(/\/$/, "")}/api/intake/${token}`, {
       method: "POST",

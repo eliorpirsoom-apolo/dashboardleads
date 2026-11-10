@@ -521,6 +521,9 @@ model MetaPage {
   // ניתוב לפי טופס: JSON [{formId, formName, projectId}] — כל טופס Lead Ads
   // מנותב לפרויקט משלו; טופס ללא כלל נופל לפרויקט של החיבור.
   routing       String?
+  // true = קולטים רק טפסים שיש להם כלל ניתוב מפורש; טופס ללא כלל מדולג
+  // לחלוטין (לא נמשך ולא נקלט). false = התנהגות ברירת המחדל (קולטים הכול).
+  routedOnly    Boolean    @default(false)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 

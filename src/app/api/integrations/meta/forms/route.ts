@@ -27,7 +27,7 @@ export const GET = handle(async (req) => {
     const pages = await prisma.metaPage.findMany({
       where: { clientId: project.clientId, active: true },
       orderBy: { createdAt: "desc" },
-      select: { id: true, pageName: true, projectId: true, routing: true },
+      select: { id: true, pageName: true, projectId: true, routing: true, routedOnly: true },
     });
     const out = [];
     for (const p of pages) {
@@ -37,6 +37,7 @@ export const GET = handle(async (req) => {
           id: p.id,
           pageName: p.pageName,
           defaultProjectId: p.projectId,
+          routedOnly: p.routedOnly,
           routing: parseRouting(p.routing),
           forms,
         });
@@ -50,7 +51,7 @@ export const GET = handle(async (req) => {
   if (!id) throw new ApiError(400, "חסר מזהה חיבור");
   const page = await prisma.metaPage.findUnique({
     where: { id },
-    select: { id: true, clientId: true, projectId: true, routing: true, pageName: true },
+    select: { id: true, clientId: true, projectId: true, routing: true, routedOnly: true, pageName: true },
   });
   if (!page) throw new ApiError(404, "החיבור לא נמצא");
   const [forms, projects] = await Promise.all([
@@ -64,6 +65,7 @@ export const GET = handle(async (req) => {
   return NextResponse.json({
     pageName: page.pageName,
     defaultProjectId: page.projectId,
+    routedOnly: page.routedOnly,
     forms,
     routing: parseRouting(page.routing),
     projects,
@@ -84,6 +86,8 @@ const SaveRouting = z.object({
   // ברירת מחדל לטפסים לא-משויכים: undefined = בלי שינוי; null = ללא פרויקט
   // (לידים נשמרים ללקוח וממתינים לשיוך); מזהה = פרויקט ברירת המחדל.
   defaultProjectId: z.string().min(1).nullable().optional(),
+  // true = קולטים רק טפסים מנותבים (השאר מדולגים). undefined = בלי שינוי.
+  routedOnly: z.boolean().optional(),
 });
 
 // POST — שמירת כללי הניתוב (טופס → פרויקט) + ברירת המחדל של החיבור.
@@ -110,6 +114,7 @@ export const POST = handle(async (req) => {
       data: {
         routing: b.routing.length ? JSON.stringify(b.routing) : null,
         ...(touchDefault ? { projectId: b.defaultProjectId } : {}),
+        ...(b.routedOnly !== undefined ? { routedOnly: b.routedOnly } : {}),
       },
     }),
     // המקור של החיבור קולט את הלידים מטפסים ללא כלל — הפרויקט שלו חייב

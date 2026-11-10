@@ -296,9 +296,11 @@ function FormRoutingEditor({
     routing: { formId: string; formName?: string; projectId: string }[];
     projects: { id: string; name: string }[];
     defaultProjectId: string | null;
+    routedOnly?: boolean;
   } | null>(null);
   const [map, setMap] = useState<Record<string, string>>({});
   const [defaultProject, setDefaultProject] = useState("");
+  const [routedOnly, setRoutedOnly] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [testing, setTesting] = useState("");
@@ -311,6 +313,7 @@ function FormRoutingEditor({
         for (const r of d.routing) m[r.formId] = r.projectId;
         setMap(m);
         setDefaultProject(d.defaultProjectId ?? "");
+        setRoutedOnly(Boolean(d.routedOnly));
       })
       .catch((e) => setMsg("שגיאה: " + e.message));
   }, [metaPageId]);
@@ -329,9 +332,13 @@ function FormRoutingEditor({
         }));
       await api("/api/integrations/meta/forms", {
         method: "POST",
-        json: { id: metaPageId, routing, defaultProjectId: defaultProject || null },
+        json: { id: metaPageId, routing, defaultProjectId: defaultProject || null, routedOnly },
       });
-      setMsg("הניתוב נשמר ✓ — לידים חדשים ינותבו לפי הטבלה");
+      setMsg(
+        routedOnly
+          ? "הניתוב נשמר ✓ — ייקלטו רק הטפסים שניתבת, השאר יידלגו"
+          : "הניתוב נשמר ✓ — לידים חדשים ינותבו לפי הטבלה"
+      );
       onSaved();
     } catch (e: any) {
       setMsg("שגיאה: " + e.message);
@@ -413,19 +420,37 @@ function FormRoutingEditor({
           ))}
         </div>
       )}
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs">
-        <span className="font-medium text-slate-600">טופס חדש / ללא שיוך ←</span>
-        <select
-          value={defaultProject}
-          onChange={(e) => setDefaultProject(e.target.value)}
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
-        >
-          <option value="">ללא פרויקט — הלידים ממתינים לשיוך אצל הלקוח</option>
-          {data.projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-      </div>
+      <label className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-2.5 text-xs text-slate-700">
+        <input
+          type="checkbox"
+          checked={routedOnly}
+          onChange={(e) => setRoutedOnly(e.target.checked)}
+          className="mt-0.5 h-3.5 w-3.5 accent-[#3a5bd9]"
+        />
+        <span>
+          <span className="font-bold">קלוט רק טפסים שניתבתי</span> — טופס ללא שיוך בטבלה יידלג
+          לחלוטין ולא ייקלט למערכת. מומלץ כשבעמוד יש גם טפסים של קמפיינים אחרים.
+        </span>
+      </label>
+      {routedOnly ? (
+        <p className="mt-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700">
+          ⚠️ רק {Object.values(map).filter(Boolean).length} טפסים מנותבים ייקלטו. כל שאר הטפסים בעמוד לא ייכנסו למערכת.
+        </p>
+      ) : (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-medium text-slate-600">טופס חדש / ללא שיוך ←</span>
+          <select
+            value={defaultProject}
+            onChange={(e) => setDefaultProject(e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#3a5bd9] focus:outline-none"
+          >
+            <option value="">ללא פרויקט — הלידים ממתינים לשיוך אצל הלקוח</option>
+            {data.projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="mt-3 flex items-center gap-2">
         <Button size="sm" disabled={busy} onClick={save}>{busy ? "שומר…" : "שמירת ניתוב"}</Button>
         <Button size="sm" variant="ghost" onClick={onClose}>סגירה</Button>
