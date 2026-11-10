@@ -6,16 +6,19 @@ import {
   verifyMetaSignature,
   processLeadgenEvent,
 } from "@/lib/integrations/metaLeads";
+import { ingestSocialEvents } from "@/lib/social/ingest";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // ---------------------------------------------------------------------------
-// וובהוק Meta (Facebook Lead Ads):
+// וובהוק Meta (Facebook Lead Ads + תיבת מענה חברתי):
 //   GET  — אימות חד-פעמי בעת הגדרת הוובהוק בקונסולת המפתחים (hub.challenge).
 //   POST — אירועי leadgen בזמן אמת; חתימת X-Hub-Signature-256 מאומתת מול
 //          ה-App Secret לפני כל עיבוד. לכל אירוע: משיכת הליד מ-Graph והזרמה
 //          לצינור הקליטה של העמוד המחובר.
+//          אירועי feed / comments / messaging (תגובות והודעות) נקלטים לתיבת
+//          המענה החברתי (lib/social/ingest) — דף לא מחובר לתיבה מתעלמים ממנו.
 // ---------------------------------------------------------------------------
 
 export async function GET(req: Request) {
@@ -57,5 +60,8 @@ export async function POST(req: Request) {
       results.push(await processLeadgenEvent(pageId, leadgenId));
     }
   }
-  return NextResponse.json({ ok: true, processed: results.length });
+  // תיבת מענה חברתי (שלב 1a): תגובות והודעות. לא תלוי בלידים — דף יכול
+  // להיות מחובר לאחד מהם, לשניהם או לאף אחד.
+  const social = await ingestSocialEvents(body);
+  return NextResponse.json({ ok: true, processed: results.length, social });
 }

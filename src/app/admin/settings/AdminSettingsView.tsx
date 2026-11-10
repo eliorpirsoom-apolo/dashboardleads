@@ -37,6 +37,7 @@ const MODULE_OPTIONS: { key: string; label: string }[] = [
   { key: "shoots", label: "ימי צילום" },
   { key: "organic", label: "קידום אורגני" },
   { key: "messages", label: "הודעות" },
+  { key: "social", label: "תיבת מענה" },
   { key: "payments", label: "תשלומים" },
   { key: "settings", label: "הגדרות" },
 ];
