@@ -4,8 +4,23 @@
     {
       "name": "pnina-landing",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve", "-l", "8123", "C:/Users/ASUS/Desktop/Projects/pninatrahelmesika"],
+      "runtimeArgs": [
+        "--yes",
+        "serve",
+        "-l",
+        "8123",
+        "C:/Users/ASUS/Desktop/Projects/pninatrahelmesika"
+      ],
       "port": 8123
+    },
+    {
+      "name": "dashboard-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }
