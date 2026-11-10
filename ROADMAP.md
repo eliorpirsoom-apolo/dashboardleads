@@ -17,7 +17,7 @@
 | פרודקשן | ✅ חי | https://dashboard-leads-apollo13.vercel.app |
 | אירוח | ✅ | Vercel, פרויקט `dashboard-leads`, צוות APOLLO (`apollo13`) |
 | בסיס נתונים | ✅ | Neon Postgres (אינטגרציית Vercel), מיגרציות הוחלו |
-| פריסה אוטומטית | ✅ | push לענף `claude/busy-ptolemy-6u3vvd` ⟵ פריסה לפרודקשן |
+| פריסה אוטומטית | ✅ | push ל-`main` ⟵ פריסה לפרודקשן (עודכן 10.11.2026; הענף הישן `claude/busy-ptolemy-6u3vvd` כבר לא קיים) |
 | חשבון מנהל | ✅ | נוצר דרך `/setup` (העמוד נעול מעתה) |
 | אחסון קבצים (R2) | ✅ | bucket‏ `crm-files`, נבדק קצה-לקצה, משתנים ב-Vercel |
 | סודות | ✅ | `AUTH_SECRET`, `CRON_SECRET`, `RECEIPTS_UPLOAD_TOKEN` מוגדרים |
@@ -68,12 +68,13 @@ npm run dev         # http://localhost:3000
    ה-DB בפרודקשן כבר קיים. שינוי סכמה חדש = מיגרציה אינקרמנטלית חדשה בתיקיית
    `prisma/migrations` (למשל דרך `prisma migrate dev` מול DB פיתוח פוסטגרסי, או
    כתיבת SQL ידנית + `prisma migrate resolve`). הפריסה מריצה `prisma migrate deploy`.
-3. **ענף הפרודקשן:** `claude/busy-ptolemy-6u3vvd` (כך מוגדר ב-Vercel). כל push אליו
-   עולה לאוויר. עבודה על פיצ'ר = ענף נפרד + מיזוג.
+3. **ענף הפרודקשן: `main`** (כך מוגדר ב-Vercel; אומת 10.11.2026 — ענף הפרודקשן הישן
+   `claude/busy-ptolemy-6u3vvd` נמחק מ-origin). **כל push ל-main עולה לאוויר תוך דקות.**
+   עבודה על פיצ׳ר = ענף נפרד + בדיקות (build/lint/test) + מיזוג ל-main רק כשמוכן לפרודקשן.
 4. **במחשב הפיתוח הנוכחי:** Node מותקן נייד ב-`C:\Users\ASUS\tools\node-v22.13.1-win-x64`
    (מכונה זו חוסמת native addons לא חתומים — WDAC — לכן אין להוסיף תלויות עם
-   בינארים native). ה-CLI של Vercel מאומת במחשב זה (session שמור) — אפשר לנהל
-   משתני סביבה ופריסות ישירות.
+   בינארים native). ה-CLI של Vercel **לא** מותקן במחשב זה (נבדק 10.11.2026), וגם `gh` לא מחובר —
+   משתני סביבה ופריסות מנהלים דרך האתר של Vercel; PR פותחים ידנית ב-GitHub.
 5. **הסקרייפר הישן** (ליד מנג'ר) הוסר מהקוד ושמור בהיסטוריית גיט. הדאטה שלו:
    `prisma/legacy-leadmanager.db` + סקריפט `npm run import:legacy`.
 
