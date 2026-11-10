@@ -30,6 +30,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/organic", label: "קידום אורגני", icon: "chart", adminModule: "organic" },
   { href: "/admin/assets", label: "נכסים דיגיטליים", icon: "building", adminModule: "assets" },
   { href: "/admin/messages", label: "הודעות", icon: "megaphone", adminModule: "messages" },
+  { href: "/admin/social", label: "תיבת מענה", icon: "mail", adminModule: "social" },
   { href: "/admin/feedback", label: "משוב", icon: "note", managerOnly: true },
   { href: "/admin/health", label: "בריאות מערכת", icon: "check", managerOnly: true },
   { href: "/admin/settings", label: "הגדרות", icon: "settings", adminModule: "settings" },
