@@ -3,7 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { handle, requireAdmin, ApiError } from "@/lib/api";
 import { requireManager } from "@/lib/permissions";
 import { metaEnabled, metaVerifyToken, syncPageSubscription } from "@/lib/integrations/metaLeads";
-import { SOCIAL_ACCOUNT_PUBLIC, disconnectSocialAccount } from "@/lib/social/accounts";
+import {
+  SOCIAL_ACCOUNT_PUBLIC,
+  disconnectSocialAccount,
+  refreshInstagramLink,
+} from "@/lib/social/accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +61,20 @@ export const GET = handle(async (req) => {
         }
       : {}),
   });
+});
+
+// POST /api/integrations/meta/pages?purpose=social&id=&action=refresh-ig —
+// רענון הקישור לאינסטגרם של דף מחובר לתיבה (קריאה בלבד ל-Graph, בלי חיבור מחדש).
+export const POST = handle(async (req) => {
+  await requireAdmin();
+  const sp = new URL(req.url).searchParams;
+  const id = sp.get("id");
+  if (!id) throw new ApiError(400, "חסר id");
+  if (sp.get("purpose") !== "social" || sp.get("action") !== "refresh-ig") {
+    throw new ApiError(400, "פעולה לא מוכרת");
+  }
+  const r = await refreshInstagramLink(id);
+  return NextResponse.json({ ok: true, ...r });
 });
 
 // DELETE /api/integrations/meta/pages?id= — ניתוק עמוד (מנהל בלבד).

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api";
 import { sealSecret, openSecret } from "@/lib/secretBox";
-import { getPageToken, syncPageSubscription } from "@/lib/integrations/metaLeads";
+import { GRAPH, getPageToken, syncPageSubscription } from "@/lib/integrations/metaLeads";
 
 // ---------------------------------------------------------------------------
 // תיבת מענה חברתי — חיבור/ניתוק דף (SocialAccount). משתמש באותה זרימת OAuth
@@ -9,8 +9,6 @@ import { getPageToken, syncPageSubscription } from "@/lib/integrations/metaLeads
 // נפרדת מ-MetaPage: טוקן מוצפן, חשבון IG מקושר, ורישום לשדות feed/messages
 // באיחוד עם leadgen (ראו syncPageSubscription).
 // ---------------------------------------------------------------------------
-
-const GRAPH = "https://graph.facebook.com/v21.0";
 
 /** השדות שמותר להחזיר ל-UI — לעולם לא pageTokenEnc. */
 export const SOCIAL_ACCOUNT_PUBLIC = {
@@ -95,6 +93,31 @@ export async function connectSocialAccount(opts: {
     : await prisma.socialAccount.create({ data: { ...data, pageId: opts.pageId } });
 
   return { accountId: account.id, pageName, igLinked: Boolean(ig), fields };
+}
+
+/**
+ * רענון הקישור לאינסטגרם בלי לחבר מחדש — לדף שחשבון ה-IG קושר אליו אחרי
+ * החיבור (או שהרשאת instagram_basic חסרה בזמנו). קריאה בלבד ל-Graph עם טוקן
+ * הדף השמור. אם לא נמצא חשבון, הערך הקיים לא נמחק (אירועים פשוט לא יגיעו).
+ */
+export async function refreshInstagramLink(
+  id: string
+): Promise<{ igLinked: boolean; igUsername: string | null }> {
+  const account = await prisma.socialAccount.findUnique({ where: { id } });
+  if (!account || !account.active) throw new ApiError(404, "החיבור לא נמצא");
+  let token: string;
+  try {
+    token = openSecret(account.pageTokenEnc, "social-page-token");
+  } catch {
+    throw new ApiError(409, "הטוקן השמור של הדף לא ניתן לפענוח — יש לנתק ולחבר מחדש");
+  }
+  const ig = await fetchLinkedInstagram(account.pageId, token);
+  if (!ig) return { igLinked: false, igUsername: null };
+  await prisma.socialAccount.update({
+    where: { id },
+    data: { igUserId: ig.id, igUsername: ig.username },
+  });
+  return { igLinked: true, igUsername: ig.username };
 }
 
 /**

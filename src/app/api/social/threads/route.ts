@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { handle } from "@/lib/api";
-import { requireSocialAccess, THREAD_STATUSES, PLATFORMS, THREAD_KINDS } from "@/lib/social/access";
+import { handle, ApiError } from "@/lib/api";
+import { requireSocialAccess } from "@/lib/social/access";
+import { THREAD_STATUSES, PLATFORMS, THREAD_KINDS } from "@/lib/social/constants";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
 
 // GET /api/social/threads?clientId&platform&kind&status&page — רשימת הפניות
-// (חדש למעלה) לתיבת המענה. קריאה בלבד (שלב 1a).
+// (חדש למעלה) לתיבת המענה. קריאה בלבד (שלב 1a). ערך סינון לא מוכר → 400,
+// כדי שבאג ב-UI לא יציג "הכול" כאילו הסינון הופעל.
 export const GET = handle(async (req) => {
   await requireSocialAccess();
   const sp = new URL(req.url).searchParams;
   const pick = <T extends string>(key: string, allowed: readonly T[]): T | undefined => {
     const v = sp.get(key) ?? "";
-    return (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
+    if (!v) return undefined;
+    if (!(allowed as readonly string[]).includes(v)) throw new ApiError(400, `ערך לא תקין ל-${key}`);
+    return v as T;
   };
   const clientId = sp.get("clientId") || undefined;
   const platform = pick("platform", PLATFORMS);

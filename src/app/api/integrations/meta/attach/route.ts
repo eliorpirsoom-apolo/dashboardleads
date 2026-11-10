@@ -40,15 +40,25 @@ export const POST = handle(async (req) => {
 
   // --- תיבת מענה חברתי --------------------------------------------------------
   if (purpose === "social") {
-    const r = await connectSocialAccount({
-      clientId,
-      pageId,
-      pageNameHint: pageNameRaw,
-      userToken,
-      userId: user.id,
-    });
-    const q = new URLSearchParams({ social: "connected", ig: r.igLinked ? "linked" : "none" });
-    return NextResponse.redirect(`${base}/admin/clients/${clientId}/settings?${q}`, { status: 303 });
+    const settings = `${base}/admin/clients/${clientId}/settings`;
+    try {
+      const r = await connectSocialAccount({
+        clientId,
+        pageId,
+        pageNameHint: pageNameRaw,
+        userToken,
+        userId: user.id,
+      });
+      const q = new URLSearchParams({ social: "connected", ig: r.igLinked ? "linked" : "none" });
+      return NextResponse.redirect(`${settings}?${q}`, { status: 303 });
+    } catch (err) {
+      // הגענו לכאן מטופס HTML (מסך בחירת הדף) — שגיאה חוזרת למסך ההגדרות עם
+      // הודעה, לא כ-JSON עירום בדפדפן.
+      const msg = err instanceof ApiError ? err.message : "החיבור נכשל — נסו שוב";
+      if (!(err instanceof ApiError)) console.error("[social attach]", err);
+      const q = new URLSearchParams({ social_error: msg });
+      return NextResponse.redirect(`${settings}?${q}`, { status: 303 });
+    }
   }
 
   // --- לידים (Lead Ads) ---------------------------------------------------------

@@ -66,6 +66,8 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
   const [collapsed, toggleCollapse] = useCollapse("client-connections");
   const [pages, setPages] = useState<MetaPageRow[]>([]);
   const [social, setSocial] = useState<SocialAccountRow[]>([]);
+  const [notice, setNotice] = useState("");
+  const [refreshingIg, setRefreshingIg] = useState("");
   const [metaEnabled, setMetaEnabled] = useState(true);
   const [sources, setSources] = useState<Source[]>([]);
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
@@ -103,6 +105,48 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
       await load();
     } catch (e: any) {
       setError(e.message);
+    }
+  }
+
+  // חזרה מזרימת החיבור של התיבה (attach מפנה לכאן עם social=connected / social_error).
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const connected = sp.get("social");
+    const err = sp.get("social_error");
+    if (!connected && !err) return;
+    if (err) setError(err);
+    else if (connected === "connected") {
+      setNotice(
+        sp.get("ig") === "none"
+          ? "הדף חובר לתיבת המענה ✓ — לא נמצא חשבון אינסטגרם מקושר לדף. אם תקשרו אחד, לחצו ↻ אינסטגרם."
+          : "הדף חובר לתיבת המענה ✓ — כולל האינסטגרם המקושר."
+      );
+    }
+    // מנקים את הפרמטרים כדי שרענון לא יציג את ההודעה שוב.
+    ["social", "social_error", "ig"].forEach((k) => sp.delete(k));
+    const qs = sp.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  }, []);
+
+  async function refreshIg(a: SocialAccountRow) {
+    setRefreshingIg(a.id);
+    setError("");
+    setNotice("");
+    try {
+      const r = await api<{ igLinked: boolean; igUsername: string | null }>(
+        `/api/integrations/meta/pages?purpose=social&id=${a.id}&action=refresh-ig`,
+        { method: "POST" }
+      );
+      setNotice(
+        r.igLinked
+          ? `אינסטגרם מקושר ✓${r.igUsername ? ` — @${r.igUsername}` : ""}`
+          : "לא נמצא חשבון אינסטגרם עסקי מקושר לדף הזה (בודקים בהגדרות הדף בפייסבוק ← אינסטגרם)."
+      );
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setRefreshingIg("");
     }
   }
 
@@ -178,6 +222,7 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
           </p>
 
           {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+          {notice ? <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</p> : null}
 
           {/* פייסבוק — עמודים מחוברים */}
           <div className="mb-4">
@@ -264,6 +309,15 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
                           {a.lastEventAt ? ` · אירוע אחרון ${formatDateTime(a.lastEventAt)}` : " · טרם התקבלו אירועים"}
                         </span>
                         <div className="mr-auto flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={refreshingIg === a.id}
+                            onClick={() => refreshIg(a)}
+                            title="בדיקה מחדש אם לדף מקושר חשבון אינסטגרם עסקי (בלי לחבר מחדש)"
+                          >
+                            {refreshingIg === a.id ? "בודק…" : "↻ אינסטגרם"}
+                          </Button>
                           <Button variant="ghost" size="sm" onClick={() => disconnectSocial(a)}>ניתוק</Button>
                         </div>
                       </div>

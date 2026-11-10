@@ -4,6 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Chip, EmptyState, Field, Select } from "@/components/ui";
+import {
+  STATUS_META as SHARED_STATUS_META,
+  PLATFORM_META as SHARED_PLATFORM_META,
+  KIND_META as SHARED_KIND_META,
+} from "@/lib/social/constants";
 
 // ---------------------------------------------------------------------------
 // תיבת המענה החברתי — רשימת פניות + תצוגת שרשור. שלב 1a: קריאה בלבד (אין
@@ -50,19 +55,10 @@ interface ThreadDetail extends Omit<ThreadRow, "_count" | "snippet"> {
   messages: MessageRow[];
 }
 
-export const STATUS_META: Record<string, { label: string; color: string }> = {
-  open: { label: "פתוח", color: "#38bdf8" },
-  drafted: { label: "טיוטה ממתינה", color: "#a78bfa" },
-  answered: { label: "נענה", color: "#34d399" },
-  needs_human: { label: "דורש אדם", color: "#f59e0b" },
-  lead: { label: "ליד", color: "#f472b6" },
-  ignored: { label: "התעלמות", color: "#94a3b8" },
-};
-const PLATFORM_META: Record<string, { label: string; icon: string }> = {
-  facebook: { label: "פייסבוק", icon: "📘" },
-  instagram: { label: "אינסטגרם", icon: "📷" },
-};
-const KIND_META: Record<string, string> = { comment: "תגובה", dm: "הודעה פרטית" };
+// הסטטוסים/פלטפורמות/סוגים — מקור יחיד משותף ל-API ול-UI (lib/social/constants).
+const STATUS_META: Record<string, { label: string; color: string }> = SHARED_STATUS_META;
+const PLATFORM_META: Record<string, { label: string; icon: string }> = SHARED_PLATFORM_META;
+const KIND_META: Record<string, string> = SHARED_KIND_META;
 
 function authorLabel(t: { authorName: string | null; authorExtId: string | null }): string {
   if (t.authorName) return t.authorName;

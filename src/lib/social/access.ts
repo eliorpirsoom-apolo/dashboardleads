@@ -11,7 +11,3 @@ export async function requireSocialAccess(): Promise<SessionUser> {
   }
   return user;
 }
-
-export const THREAD_STATUSES = ["open", "drafted", "answered", "needs_human", "lead", "ignored"] as const;
-export const PLATFORMS = ["facebook", "instagram"] as const;
-export const THREAD_KINDS = ["comment", "dm"] as const;

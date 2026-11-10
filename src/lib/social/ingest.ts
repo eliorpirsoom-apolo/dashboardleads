@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { openSecret } from "@/lib/secretBox";
+import { GRAPH } from "@/lib/integrations/metaLeads";
 
 // ---------------------------------------------------------------------------
 // תיבת מענה חברתי — קליטת אירועי webhook של Meta (שלב 1a: קריאה בלבד).
@@ -13,14 +14,14 @@ import { openSecret } from "@/lib/secretBox";
 //     שרשור חדש.
 //   • דדופ לפי externalId (comment_id / mid): @@unique בטבלה + תפיסת P2002 —
 //     שליחה חוזרת של Meta היא no-op.
-//   • אין כאן כתיבה ל-Graph. השליפה היחידה: שם השולח ב-DM (best-effort,
-//     timeout קצר, כשל שקט). SOCIAL_NAME_LOOKUP=off מכבה אותה (בדיקות).
+//   • אין כאן כתיבה ל-Graph. שתי שליפות קריאה-בלבד, best-effort עם timeout
+//     קצר וכשל שקט: שם השולח (DM), ו-`from` של תגובת פייסבוק כש-Meta
+//     השמיטה אותו. SOCIAL_NAME_LOOKUP=off מכבה את שתיהן (בדיקות).
 // ---------------------------------------------------------------------------
 
-const GRAPH = "https://graph.facebook.com/v21.0";
 const NO_TEXT = "[תוכן ללא טקסט]";
 const SNIPPET_LEN = 140;
-const NAME_LOOKUP_TIMEOUT_MS = 4000;
+const GRAPH_LOOKUP_TIMEOUT_MS = 4000;
 
 type Platform = "facebook" | "instagram";
 type Kind = "comment" | "dm";
@@ -99,6 +100,34 @@ function attachmentLabel(type: unknown): string {
   }
 }
 
+function lookupsEnabled(): boolean {
+  return process.env.SOCIAL_NAME_LOOKUP !== "off";
+}
+
+function pageToken(account: Account): string | null {
+  try {
+    return openSecret(account.pageTokenEnc, "social-page-token");
+  } catch {
+    return null;
+  }
+}
+
+/** GET קצר ל-Graph עם טוקן הדף; null על כל כשל (timeout/שגיאה/טוקן). */
+async function graphGet(account: Account, path: string, fields: string): Promise<any | null> {
+  const token = pageToken(account);
+  if (!token) return null;
+  try {
+    const res = await fetch(
+      `${GRAPH}/${encodeURIComponent(path)}?fields=${fields}&access_token=${encodeURIComponent(token)}`,
+      { cache: "no-store", signal: AbortSignal.timeout(GRAPH_LOOKUP_TIMEOUT_MS) }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** חיפוש חשבון מחובר, עם קאש לבקשה אחת (webhook יכול לאגד כמה entries). */
 function makeLookup() {
   const cache = new Map<string, Promise<Account | null>>();
@@ -125,13 +154,22 @@ function makeLookup() {
 // --- פענוח אירועים ל-Inbound ---------------------------------------------------
 
 /** תגובת פייסבוק (feed, item=comment, verb=add). */
-function fromFeedComment(account: Account, v: any): Inbound | null {
+async function fromFeedComment(account: Account, v: any): Promise<Inbound | null> {
   if (!v || v.item !== "comment" || v.verb !== "add") return null;
   const commentId = str(v.comment_id);
   if (!commentId) return null;
   const postId = str(v.post_id);
   const parentId = str(v.parent_id);
-  const fromId = str(v.from?.id);
+  let fromId = str(v.from?.id);
+  let fromName = str(v.from?.name);
+  // Meta משמיטה לפעמים את `from` (הרשאה חסרה / הגבלות פרטיות). בלעדיו אי אפשר
+  // להבדיל בין תשובה של הדף עצמו לפנייה של אדם — משלימים בקריאה אחת ל-Graph.
+  // אם גם זה נכשל, התגובה נקלטת כפנייה (עדיף לראות עודף מאשר לפספס).
+  if (!fromId && lookupsEnabled()) {
+    const d = await graphGet(account, commentId, "from");
+    fromId = str(d?.from?.id);
+    fromName = fromName || str(d?.from?.name);
+  }
   const isEcho = Boolean(fromId) && fromId === account.pageId;
   // שרשור = תגובת השורש. parent_id של תגובה עליונה שווה ל-post_id.
   const threadExtId = parentId && parentId !== postId ? parentId : commentId;
@@ -146,7 +184,7 @@ function fromFeedComment(account: Account, v: any): Inbound | null {
     direction: isEcho ? "out" : "in",
     text: str(v.message) || NO_TEXT,
     authorExtId: fromId || null,
-    authorName: str(v.from?.name) || null,
+    authorName: fromName || null,
     sentAt: toDate(v.created_time),
     postId: postId || null,
     permalink: str(v.post?.permalink_url) || null,
@@ -210,35 +248,29 @@ function fromMessaging(account: Account, platform: Platform, selfId: string, ev:
 
 // --- שם השולח (best-effort) -----------------------------------------------------
 
+/** השדות שכל סוג מזהה תומך בהם: PSID של מסנג׳ר חושף רק first/last name,
+ *  IGSID חושף name/username, ומזהה מגיב בפייסבוק — name. שדה לא נתמך מפיל
+ *  את כל הבקשה, לכן אין "לבקש הכול". */
+function profileFields(platform: Platform, kind: Kind): string {
+  if (platform === "instagram") return "name,username";
+  return kind === "dm" ? "first_name,last_name" : "name";
+}
+
 async function lookupAuthorName(
   account: Account,
   platform: Platform,
+  kind: Kind,
   extId: string | null
 ): Promise<string | null> {
-  if (!extId || process.env.SOCIAL_NAME_LOOKUP === "off") return null;
-  let token: string;
-  try {
-    token = openSecret(account.pageTokenEnc, "social-page-token");
-  } catch {
-    return null;
-  }
-  const fields = platform === "facebook" ? "name,first_name,last_name" : "name,username";
-  try {
-    const res = await fetch(
-      `${GRAPH}/${encodeURIComponent(extId)}?fields=${fields}&access_token=${encodeURIComponent(token)}`,
-      { cache: "no-store", signal: AbortSignal.timeout(NAME_LOOKUP_TIMEOUT_MS) }
-    );
-    if (!res.ok) return null;
-    const d: any = await res.json();
-    return (
-      str(d.name) ||
-      [str(d.first_name), str(d.last_name)].filter(Boolean).join(" ") ||
-      str(d.username) ||
-      null
-    );
-  } catch {
-    return null;
-  }
+  if (!extId || !lookupsEnabled()) return null;
+  const d = await graphGet(account, extId, profileFields(platform, kind));
+  if (!d) return null;
+  return (
+    str(d.name) ||
+    [str(d.first_name), str(d.last_name)].filter(Boolean).join(" ") ||
+    str(d.username) ||
+    null
+  );
 }
 
 // --- שמירה ----------------------------------------------------------------------
@@ -258,7 +290,8 @@ async function store(ib: Inbound): Promise<"stored" | "duplicates" | "ignored"> 
   if (!thread) {
     // הד בלי שרשור (הדף כתב ראשון / שיחה ישנה מלפני החיבור) — לא פותחים פנייה.
     if (ib.direction === "out") return "ignored";
-    const authorName = ib.authorName ?? (await lookupAuthorName(account, ib.platform, ib.authorExtId));
+    const authorName =
+      ib.authorName ?? (await lookupAuthorName(account, ib.platform, ib.kind, ib.authorExtId));
     try {
       await prisma.socialThread.create({
         data: {
@@ -366,32 +399,36 @@ export async function ingestSocialEvents(body: any): Promise<IngestSummary> {
   for (const entry of Array.isArray(body?.entry) ? body.entry : []) {
     const entryId = str(entry?.id);
     if (!entryId) continue;
-    const account = object === "page" ? await lookup.byPage(entryId) : await lookup.byIg(entryId);
-    const items: Inbound[] = [];
 
-    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
-      const field = str(change?.field);
-      const relevant =
-        (object === "page" && field === "feed") || (object === "instagram" && field === "comments");
-      if (!relevant) continue; // leadgen ודומיו מטופלים במקום אחר
-      sum.received++;
-      if (!account) {
-        sum.ignored++;
-        continue;
-      }
+    // קודם מסננים מה רלוונטי, ורק אם יש משהו — שאילתת חשבון. כך webhook של
+    // leadgen בלבד (דפי לידים) לא משלם שאילתה מיותרת.
+    const changes: any[] = (Array.isArray(entry?.changes) ? entry.changes : []).filter((c: any) => {
+      const field = str(c?.field);
+      return (object === "page" && field === "feed") || (object === "instagram" && field === "comments");
+    });
+    const messaging: any[] = (Array.isArray(entry?.messaging) ? entry.messaging : []).filter(
+      (ev: any) => Boolean(ev?.message) // read / delivery / postback / reaction — לא בשלב זה
+    );
+    const count = changes.length + messaging.length;
+    if (count === 0) continue;
+    sum.received += count;
+
+    const account = object === "page" ? await lookup.byPage(entryId) : await lookup.byIg(entryId);
+    if (!account) {
+      sum.ignored += count;
+      continue;
+    }
+
+    const items: Inbound[] = [];
+    for (const change of changes) {
       const ib =
-        object === "page" ? fromFeedComment(account, change.value) : fromIgComment(account, change.value);
+        object === "page"
+          ? await fromFeedComment(account, change.value)
+          : fromIgComment(account, change.value);
       if (ib) items.push(ib);
       else sum.ignored++;
     }
-
-    for (const ev of Array.isArray(entry?.messaging) ? entry.messaging : []) {
-      if (!ev?.message) continue; // read / delivery / postback / reaction — לא בשלב זה
-      sum.received++;
-      if (!account) {
-        sum.ignored++;
-        continue;
-      }
+    for (const ev of messaging) {
       const ib = fromMessaging(account, platform, entryId, ev);
       if (ib) items.push(ib);
       else sum.ignored++;

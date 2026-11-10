@@ -181,6 +181,12 @@ async function main() {
   r = await post(feed(PAGE, comment("c_page_top", { id: PAGE, name: "Apollo" }, "פוסט חדש!")));
   check("תגובה עליונה של הדף → לא נפתח שרשור", (await T()).length === 1, r.json.social);
 
+  // 7b. תגובה בלי `from` (Meta השמיטה; השלמה מ-Graph כבויה בבדיקה) → נקלטת כפנייה
+  r = await post(feed(PAGE, { ...comment("c_nofrom", { id: "x" }, "בלי מזהה שולח"), from: undefined }));
+  t = await T();
+  const nf = t.find((x) => x.externalId === "c_nofrom");
+  check("תגובה ללא from → נקלטת כ-in עם authorName ריק", Boolean(nf) && nf!.messages[0]?.direction === "in" && nf!.authorName === null, nf);
+
   // 8. מסנג'ר נכנס
   r = await post(messaging("page", PAGE, { sender: "psid_1", recipient: PAGE, mid: "m1", text: "שלום, יש פגישה?" }));
   t = await T();
@@ -231,7 +237,7 @@ async function main() {
   const acc = await prisma.socialAccount.findUnique({ where: { id: account.id } });
   check("SocialAccount.lastEventAt עודכן, lastError ריק", Boolean(acc?.lastEventAt) && acc?.lastError === null, acc);
   const all = await T();
-  check("סה\"כ שרשורים: 5 (FB comment, FB dm×2, IG comment, IG dm)", all.length === 5, all.map((x) => `${x.platform}/${x.kind}/${x.externalId}`));
+  check("סה\"כ שרשורים: 6 (FB comment×2, FB dm×2, IG comment, IG dm)", all.length === 6, all.map((x) => `${x.platform}/${x.kind}/${x.externalId}`));
 
   console.log(failures ? `\n${failures} בדיקות נכשלו` : "\nכל הבדיקות עברו");
   if (!KEEP) {
