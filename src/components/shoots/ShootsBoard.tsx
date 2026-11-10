@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
 import { Button, Card, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import Modal from "@/components/Modal";
 import {
   SHOOT_STATUSES,
   SHOOT_TYPES,
@@ -38,6 +39,19 @@ interface Shoot {
   cost: number | null;
   notes: string | null;
   crew: CrewMember[];
+  assetCount: number;
+}
+
+interface ShootAsset {
+  id: string;
+  fileKey: string | null;
+  url: string | null;
+  fileName: string;
+  mimeType: string | null;
+  size: number | null;
+  note: string | null;
+  uploadedBy: string | null;
+  createdAt: string;
 }
 
 type Draft = {
@@ -96,6 +110,7 @@ export default function ShootsBoard({
   const [view, setView] = useState<"board" | "calendar" | "availability">("board");
   const [filterClient, setFilterClient] = useState("");
   const [editing, setEditing] = useState<Shoot | "new" | null>(null);
+  const [deliverablesFor, setDeliverablesFor] = useState<Shoot | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -192,12 +207,21 @@ export default function ShootsBoard({
           onStatus={changeStatus}
           onEdit={(s) => setEditing(s)}
           onDelete={remove}
+          onDeliverables={(s) => setDeliverablesFor(s)}
         />
       ) : view === "calendar" ? (
         <CalendarView shoots={shoots} onEdit={(s) => setEditing(s)} />
       ) : (
         <AvailabilityView shoots={shoots} />
       )}
+
+      {deliverablesFor ? (
+        <DeliverablesModal
+          shoot={deliverablesFor}
+          onClose={() => setDeliverablesFor(null)}
+          onChanged={load}
+        />
+      ) : null}
     </div>
   );
 }
@@ -216,12 +240,14 @@ function BoardView({
   onStatus,
   onEdit,
   onDelete,
+  onDeliverables,
 }: {
   shoots: Shoot[];
   isManager: boolean;
   onStatus: (s: Shoot, status: string) => void;
   onEdit: (s: Shoot) => void;
   onDelete: (s: Shoot) => void;
+  onDeliverables: (s: Shoot) => void;
 }) {
   // ה-API מחזיר חדש-למעלה (date desc) → החודשים מופיעים מהחדש לישן בסדר השמור.
   const map = new Map<string, Shoot[]>();
@@ -255,7 +281,7 @@ function BoardView({
           </div>
           <div className="flex flex-col gap-1.5">
             {g.items.map((s) => (
-              <ShootRow key={s.id} s={s} isManager={isManager} onStatus={onStatus} onEdit={onEdit} onDelete={onDelete} />
+              <ShootRow key={s.id} s={s} isManager={isManager} onStatus={onStatus} onEdit={onEdit} onDelete={onDelete} onDeliverables={onDeliverables} />
             ))}
           </div>
         </div>
@@ -271,12 +297,14 @@ function ShootRow({
   onStatus,
   onEdit,
   onDelete,
+  onDeliverables,
 }: {
   s: Shoot;
   isManager: boolean;
   onStatus: (s: Shoot, status: string) => void;
   onEdit: (s: Shoot) => void;
   onDelete: (s: Shoot) => void;
+  onDeliverables: (s: Shoot) => void;
 }) {
   const meta = shootStatusMeta(s.status);
   return (
@@ -294,6 +322,13 @@ function ShootRow({
         <span className="text-xs font-medium text-emerald-700">💰 ₪{s.cost.toLocaleString()}</span>
       ) : null}
       <div className="mr-auto flex items-center gap-1">
+        <button
+          onClick={() => onDeliverables(s)}
+          className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition ${s.assetCount > 0 ? "border-[#3a5bd9]/40 bg-[#3a5bd9]/10 text-[#3a5bd9]" : "border-slate-200 text-slate-500 hover:border-[#3a5bd9] hover:text-[#3a5bd9]"}`}
+          title="תוצרים סופיים"
+        >
+          📦 תוצרים{s.assetCount > 0 ? ` · ${s.assetCount}` : ""}
+        </button>
         <Select value={s.status} onChange={(e) => onStatus(s, e.target.value)} className="!w-28 !py-1 text-xs">
           {SHOOT_STATUSES.map((st) => (
             <option key={st.key} value={st.key}>{st.label}</option>
@@ -664,5 +699,208 @@ function ShootForm({
         </div>
       </form>
     </Card>
+  );
+}
+
+// --- תוצרים סופיים (קבצים + קישורים) ----------------------------------------
+function formatBytes(n: number | null): string {
+  if (!n || n <= 0) return "";
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
+}
+
+function DeliverablesModal({
+  shoot,
+  onClose,
+  onChanged,
+}: {
+  shoot: Shoot;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [assets, setAssets] = useState<ShootAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkName, setLinkName] = useState("");
+
+  const reload = useCallback(async () => {
+    try {
+      const d = await api<{ assets: ShootAsset[] }>(`/api/shoots/${shoot.id}/assets`);
+      setAssets(d.assets);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [shoot.id]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  async function register(body: Record<string, unknown>) {
+    await api(`/api/shoots/${shoot.id}/assets`, { method: "POST", json: body });
+    await reload();
+    onChanged();
+  }
+
+  async function uploadFile(file: File | null) {
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      let key: string;
+      let name = file.name;
+      const mimeType = file.type || "application/octet-stream";
+      if (file.size > 3_500_000) {
+        // ישירות ל-R2 (עד 100MB) — עוקף את תקרת 4.5MB של Vercel.
+        const pres = await api<{ target: { url: string; headers: Record<string, string> }; key: string }>(
+          "/api/uploads/presign",
+          { method: "POST", json: { clientId: shoot.clientId, category: "shoot", fileName: file.name, mimeType, size: file.size } }
+        );
+        const put = await fetch(pres.target.url, { method: "PUT", headers: pres.target.headers, body: file });
+        if (!put.ok) throw new Error("העלאה נכשלה");
+        key = pres.key;
+      } else {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("category", "shoot");
+        fd.append("clientId", shoot.clientId);
+        const up = await fetch("/api/uploads/direct", { method: "POST", body: fd });
+        const uj = await up.json();
+        if (!up.ok) throw new Error(uj.error || "העלאה נכשלה");
+        key = uj.key;
+        name = uj.fileName || name;
+      }
+      await register({ fileKey: key, fileName: name, mimeType, size: file.size });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addLink(e: React.FormEvent) {
+    e.preventDefault();
+    const url = linkUrl.trim();
+    if (!url) return;
+    setBusy(true);
+    setError("");
+    try {
+      await register({ url, fileName: linkName.trim() || url });
+      setLinkUrl("");
+      setLinkName("");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(a: ShootAsset) {
+    if (!confirm(`להסיר את "${a.fileName}"? פעולה בלתי הפיכה.`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/shoot-assets/${a.id}`, { method: "DELETE" });
+      await reload();
+      onChanged();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const title = `📦 תוצרים סופיים — ${shoot.title || shoot.client?.name || "יום צילום"}`;
+
+  return (
+    <Modal title={title} onClose={onClose} wide>
+      <div className="flex flex-col gap-4">
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+        {loading ? (
+          <p className="py-4 text-center text-sm text-slate-500">טוען…</p>
+        ) : assets.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-500">
+            אין תוצרים עדיין — העלו קבצים או הוסיפו קישור 👇
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {assets.map((a) => {
+              const isImage = (a.mimeType || "").startsWith("image/");
+              const href = `/api/shoot-assets/${a.id}`;
+              return (
+                <div key={a.id} className="group relative flex gap-3 rounded-xl border border-slate-200 bg-white p-2.5">
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-xl"
+                    title={a.fileName}
+                  >
+                    {a.url ? (
+                      "🔗"
+                    ) : isImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={href} alt={a.fileName} className="h-full w-full object-cover" />
+                    ) : (a.mimeType || "").startsWith("video/") ? (
+                      "🎬"
+                    ) : (
+                      "📄"
+                    )}
+                  </a>
+                  <div className="min-w-0 flex-1">
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-medium text-slate-800 hover:text-[#3a5bd9]" title={a.fileName}>
+                      {a.fileName}
+                    </a>
+                    <p className="mt-0.5 truncate text-xs text-slate-400">
+                      {a.url ? "קישור חיצוני" : formatBytes(a.size)}
+                      {a.uploadedBy ? ` · ${a.uploadedBy}` : ""}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2 text-xs">
+                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#3a5bd9] hover:underline">
+                        {a.url ? "פתיחה" : "צפייה"}
+                      </a>
+                      {!a.url ? (
+                        <a href={`${href}?download=1`} className="text-slate-500 hover:underline">הורדה</a>
+                      ) : null}
+                      <button onClick={() => remove(a)} disabled={busy} className="mr-auto text-rose-500 hover:underline">
+                        הסרה
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 px-3 py-3 text-sm text-slate-600 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9]">
+          <input type="file" className="hidden" disabled={busy} onChange={(e) => { uploadFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+          {busy ? "מעלה…" : "📎 העלאת קובץ (תמונה / וידאו / PDF — עד 100MB)"}
+        </label>
+
+        <form onSubmit={addLink} className="flex flex-col gap-2 rounded-xl border border-slate-200 p-3">
+          <p className="text-xs font-medium text-slate-500">או הוספת קישור חיצוני (Drive / WeTransfer — מומלץ לווידאו כבד)</p>
+          <div className="flex flex-wrap gap-2">
+            <Input className="min-w-[220px] flex-1" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://drive.google.com/…" />
+            <Input className="w-40" value={linkName} onChange={(e) => setLinkName(e.target.value)} placeholder="שם (אופציונלי)" />
+            <Button type="submit" variant="ghost" disabled={busy || !linkUrl.trim()}>הוספה</Button>
+          </div>
+        </form>
+
+        <div className="flex justify-end">
+          <Button type="button" variant="ghost" onClick={onClose}>סגירה</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

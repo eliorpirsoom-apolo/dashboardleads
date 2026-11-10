@@ -77,6 +77,7 @@ model User {
   notifications   Notification[]
   seoActions      SeoAction[]      @relation("SeoActionAssignee")
   shootCrew       ShootCrew[]
+  shootAssets     ShootAsset[]
 
   @@index([clientId])
   @@index([role])
@@ -1005,7 +1006,8 @@ model ShootDay {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  crew ShootCrew[]
+  crew   ShootCrew[]
+  assets ShootAsset[]
 
   @@index([clientId])
   @@index([date])
@@ -1023,6 +1025,25 @@ model ShootCrew {
 
   @@unique([shootId, userId])
   @@index([userId])
+}
+
+// תוצר סופי של יום צילום — קובץ שהועלה (R2) או קישור חיצוני (Drive/WeTransfer
+// לווידאו כבד). נשמר כארכיון התוצרים של היום, גם אחרי מסירה.
+model ShootAsset {
+  id           String   @id @default(cuid())
+  shoot        ShootDay @relation(fields: [shootId], references: [id], onDelete: Cascade)
+  shootId      String
+  fileKey      String? // מפתח R2 — כשהועלה קובץ
+  url          String? // קישור חיצוני — כשלא הועלה קובץ (וידאו כבד ב-Drive וכו')
+  fileName     String
+  mimeType     String?
+  size         Int? // גודל בבייטים (אם ידוע)
+  note         String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([shootId])
 }
 
 // ---------------------------------------------------------------------------

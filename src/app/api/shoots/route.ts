@@ -47,6 +47,7 @@ function shape(s: any, isManager: boolean) {
     cost: isManager ? s.cost : null,
     notes: s.notes,
     crew: (s.crew ?? []).map((c: any) => ({ userId: c.userId, name: c.user?.name ?? "", role: c.role })),
+    assetCount: s._count?.assets ?? 0,
     createdAt: s.createdAt,
   };
 }
@@ -71,6 +72,7 @@ export const GET = handle(async (req) => {
       client: { select: { id: true, name: true } },
       project: { select: { id: true, name: true } },
       crew: { include: { user: { select: { id: true, name: true } } } },
+      _count: { select: { assets: true } },
     },
   });
   const isManager = user.adminRole !== "staff";
@@ -136,6 +138,7 @@ export const POST = handle(async (req) => {
       client: { select: { id: true, name: true } },
       project: { select: { id: true, name: true } },
       crew: { include: { user: { select: { id: true, name: true } } } },
+      _count: { select: { assets: true } },
     },
   });
   await createShootEvent(shoot.id).catch(() => {}); // סנכרון Google Calendar (best-effort)
