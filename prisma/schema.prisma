@@ -281,6 +281,9 @@ model Client {
   signedQuotes      SignedQuote[]
   leadWebhooks      LeadWebhook[]
   shootDays         ShootDay[]
+  socialAccounts    SocialAccount[]
+  socialThreads     SocialThread[]
+  socialKnowledge   SocialKnowledge?
 
   @@index([name])
   @@index([type])
@@ -1673,4 +1676,102 @@ model SignedQuote {
   createdAt    DateTime @default(now())
 
   @@index([clientId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// תיבת מענה חברתי (Social Inbox) — תגובות והודעות מדפי פייסבוק/אינסטגרם של
+// הלקוחות. מפרט מחייב: SOCIAL_INBOX_PLAN.md. שלב 1a: קליטה ותצוגה בלבד
+// (אין שליחה החוצה). מיגרציה: 0072_social_inbox.
+// ---------------------------------------------------------------------------
+
+// דף עסקי שמחובר לתיבת המענה — נפרד מ-MetaPage (לידים). רשומה אחת לכל דף
+// פייסבוק; חשבון ה-IG העסקי המקושר לדף נשמר באותה רשומה (igUserId) ומשמש
+// למיפוי אירועי אינסטגרם. הפלטפורמה בפועל נקבעת על השרשור.
+model SocialAccount {
+  id            String    @id @default(cuid())
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId      String
+  platform      String    @default("facebook") // "facebook" | "instagram"
+  pageId        String    @unique // מזהה הדף ב-Meta
+  pageName      String
+  igUserId      String? // חשבון IG עסקי מקושר (תגובות/DM באינסטגרם)
+  igUsername    String?
+  pageTokenEnc  String // Page Access Token מוצפן (secretBox.ts) — לעולם לא יוצא ל-UI
+  tokenValid    Boolean   @default(true)
+  active        Boolean   @default(true)
+  lastError     String?
+  lastEventAt   DateTime? // האירוע האחרון שנקלט מהדף (בקרת חיות)
+  connectedById String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  threads SocialThread[]
+
+  @@index([clientId])
+  @@index([igUserId])
+}
+
+// פנייה אחת: שרשור תגובה (תגובת שורש + התשובות לה) או שיחת DM עם אדם אחד.
+model SocialThread {
+  id            String        @id @default(cuid())
+  account       SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId     String
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId      String
+  platform      String // "facebook" | "instagram"
+  kind          String // "comment" | "dm"
+  externalId    String // מזהה יציב: comment_id של תגובת השורש / PSID|IGSID של השולח
+  postId        String?
+  permalink     String?
+  authorName    String?
+  authorExtId   String?
+  status        String        @default("open") // open|drafted|answered|needs_human|lead|ignored
+  draftText     String? // טיוטת ה-AI הממתינה לאישור (שלב 1b)
+  draftAt       DateTime?
+  needsHuman    Boolean       @default(false)
+  reason        String? // סיבת "דורש אדם" (תלונה/מו"מ/משפטי/...)
+  lastInboundAt DateTime?
+  lastMessageAt DateTime      @default(now())
+  snippet       String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  messages SocialMessage[]
+
+  @@unique([accountId, kind, externalId])
+  @@index([clientId, lastMessageAt])
+  @@index([status])
+}
+
+// הודעה בודדת בשרשור. externalId (comment_id / message mid) ייחודי בשרשור —
+// שליחה חוזרת של אותו אירוע מ-Meta לא יוצרת כפילות.
+model SocialMessage {
+  id          String       @id @default(cuid())
+  thread      SocialThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId    String
+  direction   String // "in" | "out"
+  externalId  String?
+  text        String
+  authorName  String?
+  authorExtId String?
+  sentAt      DateTime? // זמן ההודעה לפי Meta (אם דווח)
+  createdAt   DateTime     @default(now())
+
+  @@unique([threadId, externalId])
+  @@index([threadId, createdAt])
+}
+
+// מאגר ידע פר-לקוח להנחיית ה-AI (שלב 1b). הטבלה נוצרת כבר עכשיו.
+model SocialKnowledge {
+  id          String   @id @default(cuid())
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String   @unique
+  faq         String? // שאלות/תשובות נפוצות
+  pricing     String? // מחירון / מה מותר למסור
+  tone        String? // טון ושפה
+  doNotAnswer String? // מה אסור לענות
+  escalate    String? // מילות-הסלמה → "דורש אדם"
+  aiEnabled   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
