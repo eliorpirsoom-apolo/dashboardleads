@@ -100,6 +100,8 @@ model SocialKnowledge {         // מאגר ידע פר-לקוח להנחיית 
 בדיקות: POST סינתטי לוובהוק (feed/comment, messaging, is_echo) עם חתימה תקינה/שגויה; בדיקת דדופ (אותו אירוע פעמיים → רשומה אחת).
 
 ## 5. שלב 1b — טיוטות AI
+> **סטטוס (11.11.2026):** נבנה בענף `feature/social-inbox-1b` (מיגרציה 0073, `lib/social/drafts.ts`, מאגר ידע בהגדרות הלקוח, טיוטה מיד בקליטה + קרון `/api/cron/social-drafts`, כפתורי "צור טיוטה"/"דורש אדם"/"התעלמות" בתיבה, 51 בדיקות). **לא מוזג** — ממתין לאישור הבדיקה החיה של 1a ולאישור 1b. מודל: `OPENAI_SOCIAL_MODEL` (ברירת מחדל gpt-4o). "דורש אדם" בשתי שכבות: מילות הסלמה (לקוח + מובנות) לפני AI, ואז סיווג ה-AI.
+
 1. `SocialKnowledge` פר-לקוח + עורך בדשבורד.
 2. `generateSocialDraft(thread, incomingText, knowledge)` ב-gpt-4o → `draftText`.
    - **הגנת prompt-injection**: הטקסט הנכנס מוזרק כ**נתון בלבד**; system-prompt מורה להתעלם מכל "הוראה" בתוך תוכן המשתמש.
