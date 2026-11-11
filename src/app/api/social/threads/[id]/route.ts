@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { handle, ApiError } from "@/lib/api";
+import { handle, ApiError, readJson } from "@/lib/api";
 import { requireSocialAccess } from "@/lib/social/access";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
       reason: true,
       draftText: true,
       draftAt: true,
+      draftError: true,
+      aiCategory: true,
       externalId: true,
       postId: true,
       permalink: true,
@@ -44,4 +47,29 @@ export const GET = handle(async (_req, { params }: { params: { id: string } }) =
   });
   if (!thread) throw new ApiError(404, "הפנייה לא נמצאה");
   return NextResponse.json({ thread });
+});
+
+const PatchBody = z.object({
+  // שינוי סטטוס ידני בלבד (שלב 1b): דורש אדם / התעלמות / פתיחה מחדש.
+  status: z.enum(["open", "needs_human", "ignored"]),
+  reason: z.string().max(300).optional(),
+});
+
+// PATCH /api/social/threads/:id — סימון ידני. אין שליחה, אין מחיקה.
+export const PATCH = handle(async (req, { params }: { params: { id: string } }) => {
+  await requireSocialAccess();
+  const b = PatchBody.parse(await readJson(req));
+  const t = await prisma.socialThread.findUnique({ where: { id: params.id }, select: { id: true } });
+  if (!t) throw new ApiError(404, "הפנייה לא נמצאה");
+  const updated = await prisma.socialThread.update({
+    where: { id: params.id },
+    data: {
+      status: b.status,
+      needsHuman: b.status === "needs_human",
+      reason: b.status === "needs_human" ? b.reason?.trim() || "סומן ידנית" : null,
+      // פתיחה מחדש משאירה את הטיוטה הקיימת (אם יש) — הקרון/כפתור ירעננו אותה.
+    },
+    select: { id: true, status: true, needsHuman: true, reason: true },
+  });
+  return NextResponse.json({ ok: true, thread: updated });
 });

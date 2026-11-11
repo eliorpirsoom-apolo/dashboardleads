@@ -1728,6 +1728,8 @@ model SocialThread {
   status        String        @default("open") // open|drafted|answered|needs_human|lead|ignored
   draftText     String? // טיוטת ה-AI הממתינה לאישור (שלב 1b)
   draftAt       DateTime?
+  draftError    String? // למה לא נוצרה טיוטה (AI כבוי / שגיאה / תשובה לא תקינה)
+  aiCategory    String? // סיווג ה-AI: question|lead|complaint|negotiation|legal|spam|thanks|other
   needsHuman    Boolean       @default(false)
   reason        String? // סיבת "דורש אדם" (תלונה/מו"מ/משפטי/...)
   lastInboundAt DateTime?
@@ -1766,6 +1768,7 @@ model SocialKnowledge {
   id          String   @id @default(cuid())
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientId    String   @unique
+  about       String? // על העסק — מה הוא עושה, שעות, מיקום, מה מציעים (הבסיס לכל תשובה)
   faq         String? // שאלות/תשובות נפוצות
   pricing     String? // מחירון / מה מותר למסור
   tone        String? // טון ושפה

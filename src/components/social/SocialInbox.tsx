@@ -8,6 +8,7 @@ import {
   STATUS_META as SHARED_STATUS_META,
   PLATFORM_META as SHARED_PLATFORM_META,
   KIND_META as SHARED_KIND_META,
+  CATEGORY_META,
 } from "@/lib/social/constants";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,8 @@ interface ThreadRow {
   status: string;
   needsHuman: boolean;
   reason: string | null;
+  aiCategory: string | null;
+  draftAt: string | null;
   authorName: string | null;
   authorExtId: string | null;
   snippet: string | null;
@@ -50,7 +53,7 @@ interface ThreadDetail extends Omit<ThreadRow, "_count" | "snippet"> {
   externalId: string;
   postId: string | null;
   draftText: string | null;
-  draftAt: string | null;
+  draftError: string | null;
   account: { id: string; pageName: string; igUsername: string | null; pageId: string };
   messages: MessageRow[];
 }
@@ -219,6 +222,9 @@ export default function SocialInbox({ clients }: { clients: { id: string; name: 
                     <span className="text-[11px] text-slate-500">{KIND_META[t.kind] ?? t.kind}</span>
                     <Chip color={sm.color}>{sm.label}</Chip>
                     {t.needsHuman ? <Chip color="#f59e0b">⚠ דורש אדם</Chip> : null}
+                    {t.aiCategory && CATEGORY_META[t.aiCategory] ? (
+                      <Chip color={CATEGORY_META[t.aiCategory].color}>{CATEGORY_META[t.aiCategory].label}</Chip>
+                    ) : null}
                     <span className="mr-auto text-[11px] text-slate-500">{formatDateTime(t.lastMessageAt)}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -246,7 +252,13 @@ export default function SocialInbox({ clients }: { clients: { id: string; name: 
           ) : !detail ? (
             <p className="text-sm text-slate-500">טוען…</p>
           ) : (
-            <ThreadView thread={detail} />
+            <ThreadView
+              thread={detail}
+              onChanged={() => {
+                loadDetail(detail.id);
+                loadList();
+              }}
+            />
           )}
         </div>
       </div>
@@ -254,9 +266,31 @@ export default function SocialInbox({ clients }: { clients: { id: string; name: 
   );
 }
 
-function ThreadView({ thread }: { thread: ThreadDetail }) {
+function ThreadView({ thread, onChanged }: { thread: ThreadDetail; onChanged: () => void }) {
   const sm = STATUS_META[thread.status] ?? { label: thread.status, color: "#64748b" };
   const pm = PLATFORM_META[thread.platform] ?? { label: thread.platform, icon: "💬" };
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+
+  async function act(label: string, run: () => Promise<unknown>) {
+    setBusy(label);
+    setErr("");
+    try {
+      await run();
+      onChanged();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy("");
+    }
+  }
+  const setStatus = (status: "open" | "needs_human" | "ignored") =>
+    act(status, () => api(`/api/social/threads/${thread.id}`, { method: "PATCH", json: { status } }));
+  const regenerate = () =>
+    act("draft", async () => {
+      const r = await api<{ ok: boolean; status: string; reason?: string }>(`/api/social/threads/${thread.id}/draft`, { method: "POST" });
+      if (!r.ok) throw new Error(r.reason ?? "יצירת הטיוטה נכשלה");
+    });
   const pageLabel =
     thread.platform === "instagram" && thread.account.igUsername
       ? `@${thread.account.igUsername}`
@@ -312,16 +346,62 @@ function ThreadView({ thread }: { thread: ThreadDetail }) {
         })}
       </div>
 
-      {thread.draftText ? (
+      {/* טיוטת AI / דורש אדם / כשל — שלב 1b. אין שליחה מכאן עדיין. */}
+      {thread.status === "needs_human" ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700">
+          <p className="mb-1 text-xs font-bold text-amber-700">⚠ דורש מענה אנושי — לא נוצרה טיוטה</p>
+          <p className="text-xs text-slate-600">{thread.reason ?? "סומן כדורש אדם"}</p>
+        </div>
+      ) : thread.draftText ? (
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm text-slate-700">
-          <p className="mb-1 text-xs font-bold text-violet-700">טיוטת AI (ממתינה לאישור)</p>
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-violet-700">✨ טיוטת AI — ממתינה לאישור</span>
+            {thread.aiCategory && CATEGORY_META[thread.aiCategory] ? (
+              <Chip color={CATEGORY_META[thread.aiCategory].color}>{CATEGORY_META[thread.aiCategory].label}</Chip>
+            ) : null}
+            {thread.draftAt ? <span className="text-[11px] text-slate-400">{formatDateTime(thread.draftAt)}</span> : null}
+          </div>
           <p className="whitespace-pre-line">{thread.draftText}</p>
+        </div>
+      ) : thread.draftError ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          <span className="font-bold">אין טיוטה:</span> {thread.draftError}
+        </div>
+      ) : thread.aiCategory === "spam" ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          ה-AI סיווג את הפנייה כספאם/ללא תוכן — לא נוצרה טיוטה. אפשר להתעלם או לבקש טיוטה בכל זאת.
+        </div>
+      ) : thread.status === "open" ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+          הטיוטה נכתבת… (אם לא תופיע תוך דקות, לחצו &quot;צור טיוטה&quot;)
         </div>
       ) : null}
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={regenerate} title="יצירת טיוטה חדשה מהמאגר (לא שולח)">
+          {busy === "draft" ? "כותב…" : thread.draftText ? "✨ צור טיוטה מחדש" : "✨ צור טיוטה"}
+        </Button>
+        {thread.status !== "needs_human" ? (
+          <Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setStatus("needs_human")}>
+            ⚠ סמן דורש אדם
+          </Button>
+        ) : null}
+        {thread.status !== "ignored" ? (
+          <Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setStatus("ignored")}>
+            התעלמות
+          </Button>
+        ) : null}
+        {thread.status === "needs_human" || thread.status === "ignored" ? (
+          <Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setStatus("open")}>
+            פתיחה מחדש
+          </Button>
+        ) : null}
+        {err ? <span className="text-[11px] text-red-600">{err}</span> : null}
+      </div>
+
       <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-        שלב 1a — תצוגה בלבד. טיוטות ומענה (אחרי אישור אדם) יתווספו בשלבים הבאים; בינתיים עונים
-        מהממשק של פייסבוק/אינסטגרם, והתשובה תופיע כאן אוטומטית.
+        שלב 1b — טיוטות בלבד, בלי שליחה. עונים בינתיים מהממשק של פייסבוק/אינסטגרם (אפשר להעתיק את
+        הטיוטה), והתשובה תופיע כאן אוטומטית. אישור ושליחה מהתיבה — בשלב 1c.
       </p>
     </div>
   );

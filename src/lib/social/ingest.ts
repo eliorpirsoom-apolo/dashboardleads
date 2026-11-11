@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { openSecret } from "@/lib/secretBox";
 import { GRAPH } from "@/lib/integrations/metaLeads";
+import { generateSocialDraft } from "@/lib/social/drafts";
 
 // ---------------------------------------------------------------------------
 // תיבת מענה חברתי — קליטת אירועי webhook של Meta (שלב 1a: קריאה בלבד).
@@ -22,6 +23,9 @@ import { GRAPH } from "@/lib/integrations/metaLeads";
 const NO_TEXT = "[תוכן ללא טקסט]";
 const SNIPPET_LEN = 140;
 const GRAPH_LOOKUP_TIMEOUT_MS = 4000;
+// טיוטות AI מיד בקליטה (שלב 1b): תקציב זמן לבקשת webhook אחת. מה שלא הספיק
+// משלים הקרון /api/cron/social-drafts. SOCIAL_DRAFTS=off מכבה את היצירה בקליטה.
+const INLINE_DRAFT_BUDGET_MS = 25_000;
 
 type Platform = "facebook" | "instagram";
 type Kind = "comment" | "dm";
@@ -49,6 +53,7 @@ export interface IngestSummary {
   duplicates: number; // אירוע שכבר נקלט (retry של Meta)
   ignored: number; // דף לא מחובר / סוג אירוע לא נתמך / הד ללא שרשור
   errors: number;
+  drafts?: Record<string, string>; // threadId → תוצאת טיוטה (שלב 1b)
 }
 
 interface Inbound {
@@ -277,7 +282,9 @@ async function lookupAuthorName(
 
 const THREAD_SELECT = { id: true, status: true, authorName: true, lastMessageAt: true } as const;
 
-async function store(ib: Inbound): Promise<"stored" | "duplicates" | "ignored"> {
+type StoreResult = { outcome: "stored" | "duplicates" | "ignored"; threadId?: string };
+
+async function store(ib: Inbound): Promise<StoreResult> {
   const { account } = ib;
   const where = {
     accountId_kind_externalId: { accountId: account.id, kind: ib.kind, externalId: ib.threadExtId },
@@ -289,11 +296,11 @@ async function store(ib: Inbound): Promise<"stored" | "duplicates" | "ignored"> 
 
   if (!thread) {
     // הד בלי שרשור (הדף כתב ראשון / שיחה ישנה מלפני החיבור) — לא פותחים פנייה.
-    if (ib.direction === "out") return "ignored";
+    if (ib.direction === "out") return { outcome: "ignored" };
     const authorName =
       ib.authorName ?? (await lookupAuthorName(account, ib.platform, ib.kind, ib.authorExtId));
     try {
-      await prisma.socialThread.create({
+      const created = await prisma.socialThread.create({
         data: {
           accountId: account.id,
           clientId: account.clientId,
@@ -319,9 +326,10 @@ async function store(ib: Inbound): Promise<"stored" | "duplicates" | "ignored"> 
             },
           },
         },
+        select: { id: true },
       });
       await touchAccount(account);
-      return "stored";
+      return { outcome: "stored", threadId: created.id };
     } catch (err) {
       // מרוץ: שתי מסירות של אותו אירוע במקביל — השנייה ממשיכה כשרשור קיים.
       if (!isUniqueViolation(err)) throw err;
@@ -343,7 +351,7 @@ async function store(ib: Inbound): Promise<"stored" | "duplicates" | "ignored"> 
       },
     });
   } catch (err) {
-    if (isUniqueViolation(err)) return "duplicates";
+    if (isUniqueViolation(err)) return { outcome: "duplicates" };
     throw err;
   }
 
@@ -353,6 +361,8 @@ async function store(ib: Inbound): Promise<"stored" | "duplicates" | "ignored"> 
     lastInboundAt?: Date;
     status?: string;
     authorName?: string;
+    draftText?: null;
+    draftAt?: null;
   } = {};
   // אירועים יכולים להגיע שלא לפי הסדר — לא מזיזים את "האחרון" אחורה.
   if (when >= thread.lastMessageAt) {
@@ -364,13 +374,15 @@ async function store(ib: Inbound): Promise<"stored" | "duplicates" | "ignored"> 
     // פנייה שטופלה/נדחתה והאדם כתב שוב — חוזרת לתור.
     if (thread.status === "answered" || thread.status === "ignored") data.status = "open";
     if (!thread.authorName && ib.authorName) data.authorName = ib.authorName;
-  } else if (thread.status === "open" || thread.status === "drafted") {
-    // הדף ענה (מהממשק של פייסבוק/אינסטגרם) — הפנייה נענתה.
-    data.status = "answered";
+  } else {
+    // הדף ענה (מהממשק של פייסבוק/אינסטגרם) — הפנייה נענתה, והטיוטה (אם הייתה) כבר לא רלוונטית.
+    if (thread.status === "open" || thread.status === "drafted") data.status = "answered";
+    data.draftText = null;
+    data.draftAt = null;
   }
   await prisma.socialThread.update({ where: { id: thread.id }, data });
   await touchAccount(account);
-  return "stored";
+  return { outcome: "stored", threadId: thread.id };
 }
 
 async function touchAccount(account: Account): Promise<void> {
@@ -395,6 +407,7 @@ export async function ingestSocialEvents(body: any): Promise<IngestSummary> {
   if (object !== "page" && object !== "instagram") return sum;
   const platform: Platform = object === "page" ? "facebook" : "instagram";
   const lookup = makeLookup();
+  const draftQueue = new Set<string>();
 
   for (const entry of Array.isArray(body?.entry) ? body.entry : []) {
     const entryId = str(entry?.id);
@@ -436,12 +449,34 @@ export async function ingestSocialEvents(body: any): Promise<IngestSummary> {
 
     for (const ib of items) {
       try {
-        sum[await store(ib)]++;
+        const r = await store(ib);
+        sum[r.outcome]++;
+        if (r.outcome === "stored" && ib.direction === "in" && r.threadId) draftQueue.add(r.threadId);
       } catch (err) {
         sum.errors++;
         const msg = str((err as Error)?.message ?? err);
         console.error("[social ingest]", ib.platform, ib.kind, ib.messageExtId, msg.slice(0, 300));
         await markError(ib.account, msg);
+      }
+    }
+  }
+
+  // שלב 1b: טיוטת AI לכל פנייה נכנסת שנשמרה — מיד, בתוך תקציב הזמן של הבקשה.
+  // (הקליטה עצמה כבר נשמרה; כשל כאן לא מאבד כלום — הקרון ישלים.)
+  if (draftQueue.size > 0 && process.env.SOCIAL_DRAFTS !== "off") {
+    sum.drafts = {};
+    const deadline = Date.now() + INLINE_DRAFT_BUDGET_MS;
+    for (const threadId of draftQueue) {
+      if (Date.now() > deadline) {
+        sum.drafts[threadId] = "deferred";
+        continue;
+      }
+      try {
+        const r = await generateSocialDraft(threadId);
+        sum.drafts[threadId] = r.status;
+      } catch (err) {
+        sum.drafts[threadId] = "error";
+        console.error("[social draft]", threadId, str((err as Error)?.message ?? err).slice(0, 200));
       }
     }
   }
