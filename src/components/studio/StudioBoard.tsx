@@ -899,6 +899,7 @@ export default function StudioBoard({
           onReload={load}
           onStatus={(id, status) => patch(id, { status })}
           onReassign={(id, designerId) => patch(id, { designerId })}
+          onDelete={del}
         />
       ) : view === "qc" ? (
         <QcView clientId={clientFilter} onOpen={setOpenId} />
@@ -1037,6 +1038,7 @@ function LaneCard({
   onOpen,
   onStatus,
   onReassign,
+  onDelete,
   onDragStartCard,
   onDragEndCard,
   dragging,
@@ -1046,6 +1048,7 @@ function LaneCard({
   onOpen: (id: string) => void;
   onStatus: (id: string, status: string) => void;
   onReassign: (id: string, designerId: string | null) => void;
+  onDelete: (id: string) => void;
   onDragStartCard: (id: string) => void;
   onDragEndCard: () => void;
   dragging: boolean;
@@ -1081,6 +1084,13 @@ function LaneCard({
           {t.title}
         </button>
         {t.round > 1 ? <Chip color="#f97316">סבב {t.round}</Chip> : null}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
+          title="מחיקת הבריף"
+          className="shrink-0 text-slate-300 transition hover:text-rose-500"
+        >
+          <Icon name="trash" className="h-3.5 w-3.5" />
+        </button>
       </div>
       {t.client ? (
         <div className="mt-0.5 truncate text-[11px] font-medium" style={{ color: t.client.color ?? "#64748b" }} title={t.client.name}>
@@ -1137,6 +1147,7 @@ function LanesView({
   onReload,
   onStatus,
   onReassign,
+  onDelete,
 }: {
   tasks: DTask[];
   designers: Opt[];
@@ -1144,6 +1155,7 @@ function LanesView({
   onReload: () => void;
   onStatus: (id: string, status: string) => void;
   onReassign: (id: string, designerId: string | null) => void;
+  onDelete: (id: string) => void;
 }) {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [rolling, setRolling] = useState(false);
@@ -1255,6 +1267,7 @@ function LanesView({
               onOpen,
               onStatus,
               onReassign,
+              onDelete,
               onDragStartCard: setDragId,
               onDragEndCard: () => { setDragId(null); setOverLane(null); },
               dragging: dragId === t.id,

@@ -800,6 +800,22 @@ export default function StudioTaskDrawer({
           </p>
         </div>
         <button
+          onClick={async () => {
+            if (!confirm("למחוק את הבריף? הפעולה בלתי הפיכה — התוצרים, המשוב וההודעות יימחקו יחד איתו.")) return;
+            try {
+              await api(`/api/design-tasks/${taskId}`, { method: "DELETE" });
+              onChanged();
+              onClose();
+            } catch (err: any) {
+              setError(err.message);
+            }
+          }}
+          className="rounded-lg border border-rose-200 px-3 py-2 text-sm text-rose-500 transition hover:bg-rose-50 hover:text-rose-600"
+          title="מחיקת הבריף לצמיתות"
+        >
+          🗑️ מחיקה
+        </button>
+        <button
           onClick={onClose}
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
         >
