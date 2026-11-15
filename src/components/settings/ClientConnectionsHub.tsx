@@ -67,6 +67,9 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
   const [pages, setPages] = useState<MetaPageRow[]>([]);
   const [social, setSocial] = useState<SocialAccountRow[]>([]);
   const [notice, setNotice] = useState("");
+  // שגיאה שחזרה מזרימת החיבור (social_error) — נשמרת בנפרד כדי ש-load() המוצלח
+  // שרץ מיד אחרי הטעינה לא ימחק אותה (הבאג שהסתיר את כשל החיבור של אפולו).
+  const [flashError, setFlashError] = useState("");
   const [refreshingIg, setRefreshingIg] = useState("");
   const [metaEnabled, setMetaEnabled] = useState(true);
   const [sources, setSources] = useState<Source[]>([]);
@@ -114,7 +117,7 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
     const connected = sp.get("social");
     const err = sp.get("social_error");
     if (!connected && !err) return;
-    if (err) setError(err);
+    if (err) setFlashError(err);
     else if (connected === "connected") {
       setNotice(
         sp.get("ig") === "none"
@@ -221,6 +224,11 @@ export default function ClientConnectionsHub({ clientId }: { clientId: string })
             אחד. יצירת חיבור חדש וכתובות ה-Webhook — מתוך עמוד הפרויקט.
           </p>
 
+          {flashError ? (
+            <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              החיבור לתיבת המענה נכשל: {flashError}
+            </p>
+          ) : null}
           {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
           {notice ? <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</p> : null}
 

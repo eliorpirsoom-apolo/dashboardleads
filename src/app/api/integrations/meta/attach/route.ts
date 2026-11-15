@@ -54,7 +54,14 @@ export const POST = handle(async (req) => {
     } catch (err) {
       // הגענו לכאן מטופס HTML (מסך בחירת הדף) — שגיאה חוזרת למסך ההגדרות עם
       // הודעה, לא כ-JSON עירום בדפדפן.
-      const msg = err instanceof ApiError ? err.message : "החיבור נכשל — נסו שוב";
+      // גם שגיאת Graph (טוקן דף / רישום וובהוק) חוזרת למסך בטקסט המלא — בלעדיו
+      // המשתמש רואה "נכשל" בלי לדעת שחסרה לו גישת ניהול לדף.
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error && err.message
+            ? err.message.slice(0, 300)
+            : "החיבור נכשל — נסו שוב";
       if (!(err instanceof ApiError)) console.error("[social attach]", err);
       const q = new URLSearchParams({ social_error: msg });
       return NextResponse.redirect(`${settings}?${q}`, { status: 303 });
