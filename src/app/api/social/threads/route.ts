@@ -40,6 +40,8 @@ export const GET = handle(async (req) => {
         status: true,
         needsHuman: true,
         reason: true,
+        aiCategory: true,
+        draftAt: true,
         authorName: true,
         authorExtId: true,
         snippet: true,

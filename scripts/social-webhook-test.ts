@@ -116,6 +116,12 @@ async function setup() {
     update: {},
   });
   await prisma.socialAccount.deleteMany({ where: { pageId: PAGE } });
+  // מאגר ידע — כדי שטיוטות (שלב 1b, סטאב) ייווצרו בקליטה.
+  await prisma.socialKnowledge.upsert({
+    where: { clientId: client.id },
+    create: { clientId: client.id, about: "אפולו — סוכנות פרסום", faq: "שעות: 9-18", escalate: "מחיר מיוחד", aiEnabled: true },
+    update: { aiEnabled: true, escalate: "מחיר מיוחד" },
+  });
   const account = await prisma.socialAccount.create({
     data: {
       clientId: client.id,
@@ -151,7 +157,11 @@ async function main() {
   r = await post(feed(PAGE, comment("c1", { id: "u1", name: "דנה כהן" }, "כמה עולה?")));
   let t = await T();
   check("תגובת FB → 200", r.status === 200, r);
-  check("תגובת FB → שרשור אחד (comment/facebook/open)", t.length === 1 && t[0].kind === "comment" && t[0].platform === "facebook" && t[0].status === "open", t.map((x) => [x.kind, x.platform, x.status]));
+  // שלב 1b: עם סטאב AI (SOCIAL_AI_STUB=1 ב-.env של השרת) הפנייה מקבלת טיוטה מיד בקליטה.
+  const STUB = process.env.SOCIAL_AI_STUB === "1";
+  const afterInbound = STUB ? "drafted" : "open";
+  check(`תגובת FB → שרשור אחד (comment/facebook/${afterInbound})`, t.length === 1 && t[0].kind === "comment" && t[0].platform === "facebook" && t[0].status === afterInbound, t.map((x) => [x.kind, x.platform, x.status]));
+  check("תגובת FB → טיוטת AI נוצרה בקליטה (סטאב)", !STUB || (Boolean(t[0]?.draftText) && t[0]?.aiCategory === "lead" && r.json?.social?.drafts && Object.values(r.json.social.drafts)[0] === "drafted"), { draft: t[0]?.draftText, drafts: r.json?.social?.drafts });
   check("תגובת FB → externalId = comment_id, postId, permalink, authorName", t[0]?.externalId === "c1" && t[0]?.postId === POST && Boolean(t[0]?.permalink) && t[0]?.authorName === "דנה כהן", t[0]);
   check("תגובת FB → הודעה אחת (in)", t[0]?.messages.length === 1 && t[0]?.messages[0].direction === "in" && t[0]?.messages[0].externalId === "c1");
 
@@ -165,21 +175,32 @@ async function main() {
   r = await post(feed(PAGE, comment("c1_r1", { id: PAGE, name: "Apollo" }, "ההצעה בפרטי", "c1")));
   t = await T();
   check("תשובת הדף → נשמרת כ-out באותו שרשור", t.length === 1 && t[0].messages.length === 2 && t[0].messages[1].direction === "out");
-  check("תשובת הדף → סטטוס answered", t[0]?.status === "answered", t[0]?.status);
+  check("תשובת הדף → סטטוס answered + הטיוטה נמחקה", t[0]?.status === "answered" && t[0]?.draftText === null, [t[0]?.status, t[0]?.draftText]);
 
   // 5. המשתמש עונה שוב → in, חוזר ל-open
   r = await post(feed(PAGE, comment("c1_r2", { id: "u1", name: "דנה כהן" }, "תודה, ומתי?", "c1")));
   t = await T();
-  check("תשובת משתמש → 3 הודעות, סטטוס חוזר ל-open", t[0]?.messages.length === 3 && t[0]?.status === "open", [t[0]?.messages.length, t[0]?.status]);
+  check(`תשובת משתמש → 3 הודעות, סטטוס חוזר ל-${afterInbound}`, t[0]?.messages.length === 3 && t[0]?.status === afterInbound, [t[0]?.messages.length, t[0]?.status]);
+
+  // 5b. תלונה → דורש אדם בלי טיוטה (מילת הסלמה מובנית "תלונה", עוד לפני AI)
+  r = await post(feed(PAGE, comment("c_complaint", { id: "u3", name: "רון" }, "יש לי תלונה על השירות")));
+  t = await T();
+  const comp = t.find((x) => x.externalId === "c_complaint");
+  check("תלונה → needs_human עם סיבה, בלי טיוטה", comp?.status === "needs_human" && comp?.needsHuman === true && Boolean(comp?.reason) && comp?.draftText === null, comp);
+  // 5c. מילת הסלמה של הלקוח
+  r = await post(feed(PAGE, comment("c_esc", { id: "u4", name: "גל" }, "יש מחיר מיוחד?")));
+  t = await T();
+  check("מילת הסלמה של הלקוח → needs_human", t.find((x) => x.externalId === "c_esc")?.status === "needs_human");
   check("snippet = ההודעה האחרונה", t[0]?.snippet === "תודה, ומתי?", t[0]?.snippet);
 
   // 6. verb שאינו add (עריכה) → מתעלמים
+  const before6 = (await T()).length;
   r = await post(feed(PAGE, comment("c9", { id: "u1" }, "edited", POST, "edited")));
-  check("verb=edited → ignored, בלי רשומה", (await T()).length === 1 && r.json?.social?.ignored === 1, r.json.social);
+  check("verb=edited → ignored, בלי רשומה", (await T()).length === before6 && r.json?.social?.ignored === 1, r.json.social);
 
   // 7. תגובה עליונה של הדף על הפוסט שלו → לא פנייה
   r = await post(feed(PAGE, comment("c_page_top", { id: PAGE, name: "Apollo" }, "פוסט חדש!")));
-  check("תגובה עליונה של הדף → לא נפתח שרשור", (await T()).length === 1, r.json.social);
+  check("תגובה עליונה של הדף → לא נפתח שרשור", (await T()).length === before6, r.json.social);
 
   // 7b. תגובה בלי `from` (Meta השמיטה; השלמה מ-Graph כבויה בבדיקה) → נקלטת כפנייה
   r = await post(feed(PAGE, { ...comment("c_nofrom", { id: "x" }, "בלי מזהה שולח"), from: undefined }));
@@ -237,7 +258,7 @@ async function main() {
   const acc = await prisma.socialAccount.findUnique({ where: { id: account.id } });
   check("SocialAccount.lastEventAt עודכן, lastError ריק", Boolean(acc?.lastEventAt) && acc?.lastError === null, acc);
   const all = await T();
-  check("סה\"כ שרשורים: 6 (FB comment×2, FB dm×2, IG comment, IG dm)", all.length === 6, all.map((x) => `${x.platform}/${x.kind}/${x.externalId}`));
+  check("סה\"כ שרשורים: 8 (FB comment×4, FB dm×2, IG comment, IG dm)", all.length === 8, all.map((x) => `${x.platform}/${x.kind}/${x.externalId}`));
 
   console.log(failures ? `\n${failures} בדיקות נכשלו` : "\nכל הבדיקות עברו");
   if (!KEEP) {

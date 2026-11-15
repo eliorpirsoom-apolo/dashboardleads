@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import UsersManager from "@/components/settings/UsersManager";
 import ClientConnectionsHub from "@/components/settings/ClientConnectionsHub";
+import SocialKnowledgeCard from "@/components/settings/SocialKnowledgeCard";
 import LeadWebhooksCard from "@/components/settings/LeadWebhooksCard";
 import StatusEditor from "@/components/settings/StatusEditor";
 import CustomFieldsEditor from "@/components/settings/CustomFieldsEditor";
@@ -56,6 +57,7 @@ export default async function ClientSettingsPage({
       />
       <UsersManager clientId={client.id} users={client.users} />
       <ClientConnectionsHub clientId={client.id} />
+      <SocialKnowledgeCard clientId={client.id} />
       <LeadWebhooksCard clientId={client.id} />
       <StatusEditor clientId={client.id} />
       <CustomFieldsEditor clientId={client.id} />
