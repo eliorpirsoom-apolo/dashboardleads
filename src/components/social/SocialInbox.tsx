@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/format";
-import { Button, Chip, EmptyState, Field, Select } from "@/components/ui";
+import { Button, Chip, EmptyState, Field, Select, Textarea } from "@/components/ui";
 import {
   STATUS_META as SHARED_STATUS_META,
   PLATFORM_META as SHARED_PLATFORM_META,
@@ -12,9 +12,9 @@ import {
 } from "@/lib/social/constants";
 
 // ---------------------------------------------------------------------------
-// תיבת המענה החברתי — רשימת פניות + תצוגת שרשור. שלב 1a: קריאה בלבד (אין
-// שליחה, אין טיוטות). מתרענן אוטומטית כל 15 שניות כדי שפנייה חדשה תופיע
-// "תוך שניות" בלי לרענן את הדף.
+// תיבת המענה החברתי — רשימת פניות + תצוגת שרשור. 1a: קליטה; 1b: טיוטת AI;
+// 1c (ידני): אדם עורך/מאשר את הטיוטה ולוחץ "שלח" — רק אז נשלחת תשובה ל-Meta.
+// אין שליחה אוטומטית. מתרענן כל 15 שניות כדי שפנייה חדשה תופיע "תוך שניות".
 // ---------------------------------------------------------------------------
 
 const REFRESH_MS = 15_000;
@@ -271,6 +271,17 @@ function ThreadView({ thread, onChanged }: { thread: ThreadDetail; onChanged: ()
   const pm = PLATFORM_META[thread.platform] ?? { label: thread.platform, icon: "💬" };
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // טקסט התשובה שיישלח — מתחיל מהטיוטה; המשתמש עורך חופשי. שינוי טיוטה (חדשה
+  // מהשרת) מחליף את הטקסט רק אם המשתמש לא התחיל לערוך.
+  const [reply, setReply] = useState(thread.draftText ?? "");
+  const [edited, setEdited] = useState(false);
+  useEffect(() => {
+    if (!edited) setReply(thread.draftText ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread.id, thread.draftText]);
+  const dmWindowOpen =
+    thread.kind !== "dm" ||
+    (thread.lastInboundAt ? Date.now() - new Date(thread.lastInboundAt).getTime() < 24 * 60 * 60 * 1000 : false);
 
   async function act(label: string, run: () => Promise<unknown>) {
     setBusy(label);
@@ -295,6 +306,23 @@ function ThreadView({ thread, onChanged }: { thread: ThreadDetail; onChanged: ()
     thread.platform === "instagram" && thread.account.igUsername
       ? `@${thread.account.igUsername}`
       : thread.account.pageName;
+  const send = () => {
+    const text = reply.trim();
+    if (!text) return;
+    const where = thread.kind === "dm" ? `הודעה פרטית ל-${authorLabel(thread)}` : `תגובה ציבורית לתגובה של ${authorLabel(thread)}`;
+    // "dry-run" לפני שליחה אמיתית (SOCIAL_INBOX_PLAN.md §9): מציגים בדיוק מה
+    // יישלח ולאן, והמשתמש מאשר.
+    if (!window.confirm(`לשלוח עכשיו מהדף ${pageLabel}?
+
+${where}:
+
+${text}`)) return;
+    act("send", async () => {
+      await api(`/api/social/threads/${thread.id}/send`, { method: "POST", json: { text } });
+      setEdited(false);
+      setReply("");
+    });
+  };
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
@@ -355,13 +383,12 @@ function ThreadView({ thread, onChanged }: { thread: ThreadDetail; onChanged: ()
       ) : thread.draftText ? (
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm text-slate-700">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-violet-700">✨ טיוטת AI — ממתינה לאישור</span>
+            <span className="text-xs font-bold text-violet-700">✨ טיוטת AI — ערכו במידת הצורך ואשרו</span>
             {thread.aiCategory && CATEGORY_META[thread.aiCategory] ? (
               <Chip color={CATEGORY_META[thread.aiCategory].color}>{CATEGORY_META[thread.aiCategory].label}</Chip>
             ) : null}
             {thread.draftAt ? <span className="text-[11px] text-slate-400">{formatDateTime(thread.draftAt)}</span> : null}
           </div>
-          <p className="whitespace-pre-line">{thread.draftText}</p>
         </div>
       ) : thread.draftError ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
@@ -376,6 +403,33 @@ function ThreadView({ thread, onChanged }: { thread: ThreadDetail; onChanged: ()
           הטיוטה נכתבת… (אם לא תופיע תוך דקות, לחצו &quot;צור טיוטה&quot;)
         </div>
       ) : null}
+
+      {/* תיבת התשובה — שלב 1c ידני: נשלח רק מה שכתוב כאן, אחרי אישור. */}
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <Textarea
+          value={reply}
+          onChange={(e) => {
+            setReply(e.target.value);
+            setEdited(true);
+          }}
+          rows={4}
+          placeholder={thread.draftText ? "" : "כתבו תשובה (או צרו טיוטת AI למטה)…"}
+          disabled={busy === "send"}
+        />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={Boolean(busy) || !reply.trim() || !dmWindowOpen} onClick={send}>
+            {busy === "send" ? "שולח…" : thread.kind === "dm" ? "📨 שלח הודעה" : "💬 פרסם תגובה"}
+          </Button>
+          <span className="text-[11px] text-slate-500">
+            {reply.trim().length} תווים · נשלח מהדף {pageLabel} רק אחרי אישור בחלון
+          </span>
+          {!dmWindowOpen ? (
+            <span className="text-[11px] text-amber-700">
+              עברו 24 שעות מההודעה האחרונה של הגולש — Meta לא מאפשרת לענות מכאן; ענו מהממשק של פייסבוק/אינסטגרם.
+            </span>
+          ) : null}
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="ghost" disabled={Boolean(busy)} onClick={regenerate} title="יצירת טיוטה חדשה מהמאגר (לא שולח)">
@@ -400,8 +454,8 @@ function ThreadView({ thread, onChanged }: { thread: ThreadDetail; onChanged: ()
       </div>
 
       <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-        שלב 1b — טיוטות בלבד, בלי שליחה. עונים בינתיים מהממשק של פייסבוק/אינסטגרם (אפשר להעתיק את
-        הטיוטה), והתשובה תופיע כאן אוטומטית. אישור ושליחה מהתיבה — בשלב 1c.
+        שום דבר לא נשלח אוטומטית: הטיוטה היא הצעה בלבד, ורק לחיצה על שלח (אחרי אישור) מפרסמת תשובה
+        בשם הדף. תשובה שנכתבה ישירות בפייסבוק/אינסטגרם תופיע כאן מעצמה.
       </p>
     </div>
   );
