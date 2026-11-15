@@ -38,6 +38,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   merge: "מיזוג כפילות",
   import: "יובא מקובץ",
   repeat: "🔁 פנייה חוזרת",
+  duplicate: "🔁 זוהה כליד כפול",
   call_attempt: "☎️ ניסיון חיוג",
 };
 
@@ -72,6 +73,8 @@ interface FullLead {
   consent: boolean;
   archived: boolean;
   receivedAt: string;
+  isDuplicate: boolean;
+  duplicateOfNumber: number | null;
   data: string | null;
   statusId: string | null;
   unitTypeId: string | null;
@@ -488,6 +491,18 @@ export default function LeadDrawer({
                 >
                   שחזור
                 </Button>
+              </div>
+            ) : null}
+
+            {/* סימון "ליד כפול" — פנימי בלבד; הסטטוס עצמו נשאר "ליד חדש" */}
+            {lead.isDuplicate ? (
+              <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+                <span className="text-sm font-bold text-indigo-700">🔁 ליד כפול</span>
+                <span className="text-sm text-indigo-600">
+                  {lead.duplicateOfNumber
+                    ? `זוהה אוטומטית כפנייה חוזרת של ליד #${lead.duplicateOfNumber} — יש לטפל כליד רגיל`
+                    : "זוהה אוטומטית כפנייה חוזרת — יש לטפל כליד רגיל"}
+                </span>
               </div>
             ) : null}
 

@@ -415,6 +415,11 @@ model Lead {
   receivedAt DateTime @default(now())
   archived   Boolean  @default(false)
 
+  // זיהוי כפילות פנימי בלבד — הסטטוס נשאר "ליד חדש"; הסימון כאן ומוצג רק בתוך
+  // כרטיס הליד (לא עמודה בבורד). duplicateOfNumber = מספר הליד המוקדם שזוהה כמקור.
+  isDuplicate       Boolean @default(false)
+  duplicateOfNumber Int?
+
   // Speed-to-Lead: מתי הליד טופל לראשונה (סטטוס/הערה) + חותמות תזכורות SLA.
   firstHandledAt        DateTime?
   slaMarketerRemindedAt DateTime?

@@ -163,14 +163,10 @@ export const POST = handle(async (req) => {
   // --- scan-duplicates -------------------------------------------------------
   const client = await prisma.client.findUnique({ where: { id: b.clientId }, select: { id: true } });
   if (!client) throw new ApiError(404, "לקוח לא נמצא");
-  const dupStatus = await prisma.leadStatus.findFirst({
-    where: { clientId: b.clientId, OR: [{ systemKind: "duplicate" }, { name: "כפול" }] },
-    select: { id: true },
-  });
   const leads = await prisma.lead.findMany({
     where: { clientId: b.clientId, archived: false, kind: { not: "call" } },
     orderBy: { receivedAt: "asc" },
-    select: { id: true, number: true, phone: true, email: true, statusId: true },
+    select: { id: true, number: true, phone: true, email: true, isDuplicate: true },
   });
   const seenPhone = new Map<string, number>();
   const seenEmail = new Map<string, number>();
@@ -180,7 +176,7 @@ export const POST = handle(async (req) => {
     const emailHit = l.email ? seenEmail.get(l.email) : undefined;
     const hit = phoneHit ?? emailHit;
     if (hit !== undefined) {
-      if (!dupStatus || l.statusId !== dupStatus.id) {
+      if (!l.isDuplicate) {
         candidates.push({ id: l.id, number: l.number, of: hit });
       }
     } else {

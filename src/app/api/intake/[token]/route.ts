@@ -527,15 +527,10 @@ export async function POST(
         note: "שיוך אוטומטי (סבב)",
       });
     }
-    // ליד שסומן "כפול" בזיהוי האוטומטי — בלי התראות "ליד חדש" (המטפל במקורי
-    // כבר קיבל התראת "ליד חם"); ליד רגיל — המסלול המלא.
-    const fresh = await prisma.lead.findUnique({
-      where: { id: lead.id },
-      select: { status: { select: { systemKind: true } } },
-    });
-    if (fresh?.status?.systemKind !== "duplicate") {
-      await onLeadCreated(lead.id);
-    }
+    // כל ליד — כולל ליד שסומן כפול פנימית — עובר את המסלול המלא: התראת "ליד
+    // חדש" למשווק, פורוורד החוצה ואוטומציה למתקשר. הכפילות היא סימון פנימי בלבד
+    // (isDuplicate) ואינה חוסמת טיפול; המטפל בליד המקורי מקבל בנוסף "פנייה חוזרת".
+    await onLeadCreated(lead.id);
 
     return NextResponse.json({ ok: true, leadId: lead.id, number: lead.number });
   } catch (err) {

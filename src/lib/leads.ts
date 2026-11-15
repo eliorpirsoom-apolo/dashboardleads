@@ -99,34 +99,11 @@ export async function createLeadNumbered(
   throw new Error("createLeadNumbered: exhausted retries");
 }
 
-/** סטטוס "כפול" של הלקוח — נוצר אוטומטית בזיהוי הראשון (systemKind: duplicate). */
-export async function ensureDuplicateStatus(clientId: string): Promise<string> {
-  const existing = await prisma.leadStatus.findFirst({
-    where: { clientId, OR: [{ systemKind: "duplicate" }, { name: "כפול" }] },
-  });
-  if (existing) return existing.id;
-  const last = await prisma.leadStatus.findFirst({
-    where: { clientId },
-    orderBy: { order: "desc" },
-    select: { order: true },
-  });
-  const st = await prisma.leadStatus.create({
-    data: {
-      clientId,
-      name: "כפול",
-      color: "#94a3b8",
-      order: (last?.order ?? 0) + 1,
-      systemKind: "duplicate",
-      isDefault: false,
-    },
-  });
-  return st.id;
-}
-
 /**
  * זיהוי ליד כפול אוטומטי: ליד חדש (לא שיחה — לשיחות יש את מנגנון "פנייה
- * חוזרת") שהטלפון/אימייל שלו זהה לליד מוקדם יותר של אותו לקוח → מקבל סטטוס
- * "כפול" + רישום בציר הפעילות. הליד המקורי לא נגע. מחזיר true אם סומן.
+ * חוזרת") שהטלפון/אימייל שלו זהה לליד מוקדם יותר של אותו לקוח → מסומן דגל
+ * פנימי isDuplicate + רישום בציר הפעילות. הסטטוס נשאר "ליד חדש" והסימון מוצג
+ * רק בתוך כרטיס הליד (לא כעמודה בבורד). הליד המקורי לא נגע. מחזיר true אם סומן.
  */
 export async function markLeadIfDuplicate(leadId: string, notify = true): Promise<boolean> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -148,13 +125,15 @@ export async function markLeadIfDuplicate(leadId: string, notify = true): Promis
     select: { id: true, number: true, phone: true },
   });
   if (!original) return false;
-  const dupStatusId = await ensureDuplicateStatus(lead.clientId);
-  if (lead.statusId === dupStatusId) return true;
-  await prisma.lead.update({ where: { id: lead.id }, data: { statusId: dupStatusId } });
+  if (lead.isDuplicate) return true;
+  // סימון פנימי בלבד — הסטטוס לא נוגעים בו, הליד נשאר "ליד חדש" לכל דבר.
+  await prisma.lead.update({
+    where: { id: lead.id },
+    data: { isDuplicate: true, duplicateOfNumber: original.number },
+  });
   const how = lead.phone && original.phone === lead.phone ? "טלפון" : "אימייל";
   const { recordActivity } = await import("./leadActivity");
-  await recordActivity(lead.id, "מערכת", "status", {
-    toValue: "כפול",
+  await recordActivity(lead.id, "מערכת", "duplicate", {
     note: `זוהה אוטומטית כליד כפול — אותו ${how} כמו ליד #${original.number}`,
   }, { markHandled: false }).catch(() => {});
   // צד המקור: "פנייה חוזרת" + וואטסאפ ליד-חם למטפל (שער שעה נגד הצפה).
