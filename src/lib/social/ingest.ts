@@ -267,15 +267,30 @@ async function lookupAuthorName(
   kind: Kind,
   extId: string | null
 ): Promise<string | null> {
-  if (!extId || !lookupsEnabled()) return null;
-  const d = await graphGet(account, extId, profileFields(platform, kind));
-  if (!d) return null;
-  return (
-    str(d.name) ||
-    [str(d.first_name), str(d.last_name)].filter(Boolean).join(" ") ||
-    str(d.username) ||
-    null
-  );
+  if (!extId) return null;
+  if (lookupsEnabled()) {
+    const d = await graphGet(account, extId, profileFields(platform, kind));
+    const name =
+      d &&
+      (str(d.name) ||
+        [str(d.first_name), str(d.last_name)].filter(Boolean).join(" ") ||
+        str(d.username) ||
+        null);
+    if (name) return name;
+  }
+  return knownAuthorName(account, extId);
+}
+
+/** מטא דוחה לפעמים שליפת פרופיל (למשל PSID של מסנג׳ר) — אבל מזהי המשתמש
+ *  בתגובות ובהודעות של אותו דף הם אותו מזהה (page-scoped), אז אם אותו אדם כבר
+ *  הגיב פעם עם שם, משתמשים בו במקום "משתמש #123". */
+async function knownAuthorName(account: Account, extId: string): Promise<string | null> {
+  const prev = await prisma.socialThread.findFirst({
+    where: { accountId: account.id, authorExtId: extId, authorName: { not: null } },
+    orderBy: { lastMessageAt: "desc" },
+    select: { authorName: true },
+  });
+  return prev?.authorName ?? null;
 }
 
 // --- שמירה ----------------------------------------------------------------------
