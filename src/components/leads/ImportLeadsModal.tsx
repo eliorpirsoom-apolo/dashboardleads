@@ -21,6 +21,18 @@ const TARGETS = [
   { value: "notes", label: "הערה" },
 ];
 
+// מגבלות אורך בשרת לכל שדה — לבדיקה מקומית לפני שליחה, כדי להציג הודעה ברורה
+// (איזו עמודה, כמה שורות) במקום שגיאת ולידציה גולמית. שדה שלא כאן — ללא מגבלה.
+const FIELD_LIMITS: Record<string, number> = {
+  fullName: 120,
+  phone: 40,
+  email: 160,
+  city: 80,
+  channel: 40,
+  campaignLabel: 160,
+  notes: 1000,
+};
+
 /** Minimal CSV parser: handles quoted cells, commas/semicolons, CRLF. */
 function parseCsv(text: string): string[][] {
   const delimiter = text.split("\n")[0].includes(";") ? ";" : ",";
@@ -87,6 +99,8 @@ export default function ImportLeadsModal({
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [warn, setWarn] = useState("");
+  const [confirmLong, setConfirmLong] = useState(false);
   const [result, setResult] = useState<{ created: number; duplicates: number; failed: number } | null>(null);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -94,6 +108,8 @@ export default function ImportLeadsModal({
     if (!file) return;
     setFileName(file.name);
     setError("");
+    setWarn("");
+    setConfirmLong(false);
     setResult(null);
     let rows: string[][];
     if (/\.xlsx?$/i.test(file.name)) {
@@ -131,8 +147,36 @@ export default function ImportLeadsModal({
       setError("חובה למפות לפחות עמודה אחת: שם / טלפון / אימייל");
       return;
     }
+
+    // בדיקה מקומית: ערכים ארוכים מהמותר → הודעה ברורה (איזו עמודה, כמה שורות)
+    // ואפשרות להמשיך ביודעין. בדרך כלל מסמן מיפוי שגוי (עמודה שאינה באמת "עיר").
+    const issues: { header: string; label: string; count: number; limit: number }[] = [];
+    mapping.forEach((target, i) => {
+      const limit = FIELD_LIMITS[target];
+      if (!limit) return;
+      let count = 0;
+      for (const r of dataRows) if ((r[i] ?? "").trim().length > limit) count++;
+      if (count > 0) {
+        const label = TARGETS.find((t) => t.value === target)?.label ?? target;
+        issues.push({ header: headers[i] || `עמודה ${i + 1}`, label, count, limit });
+      }
+    });
+    if (issues.length && !confirmLong) {
+      setError("");
+      setWarn(
+        "נמצאו ערכים ארוכים מהמותר:\n" +
+          issues
+            .map((s) => `• ״${s.header}״ ← ממופה ל״${s.label}״ (מקס׳ ${s.limit} תווים): ${s.count} שורות ארוכות מדי`)
+            .join("\n") +
+          "\n\nאפשר לשנות את המיפוי (למשל ל״הערה״ או ״דלג״), או ללחוץ שוב להמשך — והערכים הארוכים יקוצרו אוטומטית."
+      );
+      setConfirmLong(true);
+      return;
+    }
+
     setBusy(true);
     setError("");
+    setWarn("");
     try {
       const rows = dataRows.map((r) => {
         const obj: Record<string, any> = {};
@@ -164,6 +208,11 @@ export default function ImportLeadsModal({
     <Modal title="ייבוא לידים מקובץ (Excel / CSV)" onClose={onClose} wide>
       <div className="flex flex-col gap-3">
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {warn ? (
+          <p className="whitespace-pre-line rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {warn}
+          </p>
+        ) : null}
 
         {result ? (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center">
@@ -205,9 +254,11 @@ export default function ImportLeadsModal({
                       <td className="px-3 py-2">
                         <Select
                           value={mapping[i] ?? ""}
-                          onChange={(e) =>
-                            setMapping(mapping.map((m, idx) => (idx === i ? e.target.value : m)))
-                          }
+                          onChange={(e) => {
+                            setMapping(mapping.map((m, idx) => (idx === i ? e.target.value : m)));
+                            setWarn("");
+                            setConfirmLong(false);
+                          }}
                           className="!py-1 !text-xs"
                         >
                           {TARGETS.map((t) => (
@@ -226,7 +277,11 @@ export default function ImportLeadsModal({
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={onClose}>ביטול</Button>
               <Button onClick={runImport} disabled={busy}>
-                {busy ? "מייבא…" : `ייבוא ${dataRows.length} שורות`}
+                {busy
+                  ? "מייבא…"
+                  : confirmLong
+                    ? `ייבוא בכל זאת (${dataRows.length} שורות) — ערכים ארוכים יקוצרו`
+                    : `ייבוא ${dataRows.length} שורות`}
               </Button>
             </div>
           </>

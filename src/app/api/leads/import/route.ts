@@ -43,20 +43,30 @@ function parseIlDate(s: string): Date | null {
 }
 
 // CSV import — agency managers only (approved decision 3: המשרד כשומר סף).
+// ערך חורג מהמגבלה מקוצר אוטומטית (transform) במקום להפיל את כל הקובץ בשגיאת
+// Zod — באותה רוח סלחנית של דילוג-כפילויות והצמדת תאריכי-עתיד. כך תא בודד לא
+// חוסם 145 שורות. הצד-לקוח מזהיר מראש איזו עמודה חורגת (וכנראה ממופה לא נכון).
+const clampedStr = (max: number) =>
+  z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (typeof v === "string" ? v.slice(0, max) : v));
+
 const ImportReq = z.object({
   clientId: z.string().min(1),
   rows: z
     .array(
       z.object({
-        fullName: z.string().max(120).optional().nullable(),
-        phone: z.string().max(40).optional().nullable(),
-        email: z.string().max(160).optional().nullable(),
-        city: z.string().max(80).optional().nullable(),
-        channel: z.string().max(40).optional().nullable(),
-        campaignLabel: z.string().max(160).optional().nullable(),
+        fullName: clampedStr(120),
+        phone: clampedStr(40),
+        email: clampedStr(160),
+        city: clampedStr(80),
+        channel: clampedStr(40),
+        campaignLabel: clampedStr(160),
         consent: z.boolean().optional(),
         receivedAt: z.string().optional().nullable(),
-        notes: z.string().max(1000).optional().nullable(),
+        notes: clampedStr(1000),
       })
     )
     .min(1, "אין שורות לייבוא")
