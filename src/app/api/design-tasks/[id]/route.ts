@@ -32,6 +32,33 @@ async function notifyStudioQcApprovers(task: { id: string; title: string; client
   }
 }
 
+// התראת וואטסאפ למעצב/ת כשתוצר הוחזר מבקרת איכות לתיקונים (סבב חדש). יוצאת
+// מהמופע של הסוכנות אל ה-whatsappPhone הייעודי של המעצב/ת (נופל ל-phone).
+// אם אין מספר/המעצב/ת לא פעיל/ה — מדלגים בשקט.
+async function notifyDesignerCorrection(task: {
+  id: string;
+  title: string;
+  clientId: string;
+  designerId: string | null;
+  round: number;
+}): Promise<void> {
+  if (!task.designerId) return;
+  const designer = await prisma.user.findUnique({
+    where: { id: task.designerId },
+    select: { whatsappPhone: true, phone: true, active: true },
+  });
+  if (!designer || designer.active === false) return;
+  const to = designer.whatsappPhone || designer.phone;
+  if (!to) return;
+  const client = await prisma.client.findUnique({ where: { id: task.clientId }, select: { name: true } });
+  const link = `${STUDIO_APP_URL}/admin/studio?task=${task.id}`;
+  const body =
+    `↩️ תוצר הוחזר לתיקונים (סבב ${task.round}):\n` +
+    `"${task.title}"${client?.name ? ` — ${client.name}` : ""}\n\n` +
+    `לצפייה בהערות ולתיקון: ${link}`;
+  await sendMessage({ channel: "whatsapp", to, body, kind: "automation", clientId: task.clientId }).catch(() => {});
+}
+
 // התראה ללקוח שיש עיצוב הממתין לאישור (מייל תמיד; וואטסאפ אם הופעל אצל הלקוח).
 async function notifyClientForApproval(task: any): Promise<void> {
   const client = await prisma.client.findUnique({
@@ -188,6 +215,10 @@ export const PATCH = handle(async (req, { params }: { params: { id: string } }) 
   // נכנס לבקרת איכות → התראת וואטסאפ למאשרי הסטודיו (אליאור + בר).
   if (b.status === "qc" && cur.status !== "qc") {
     await notifyStudioQcApprovers(task).catch((e) => console.error("[studio:qc-notify]", e));
+  }
+  // הוחזר מבקרת איכות לתיקונים → וואטסאפ למעצב/ת (סבב חדש).
+  if (b.status === "in_progress" && cur.status === "qc") {
+    await notifyDesignerCorrection(task).catch((e) => console.error("[studio:designer-notify]", e));
   }
 
   return NextResponse.json({ task });
