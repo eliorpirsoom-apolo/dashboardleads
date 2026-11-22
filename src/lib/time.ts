@@ -54,3 +54,26 @@ export function ilDateKey(now = new Date()): string {
   const { y, m, day } = ilParts(now);
   return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
+
+/**
+ * Start of the Israeli work-week (Sunday 00:00 IL) containing `now`, as a UTC
+ * instant. The studio board treats Sunday→Saturday as one week.
+ */
+export function ilWeekStart(now = new Date()): Date {
+  const { y, m, day } = ilParts(now);
+  const dow = new Date(Date.UTC(y, m - 1, day)).getUTCDay(); // 0 = ראשון
+  const sundayUtcMidnight = Date.UTC(y, m - 1, day - dow);
+  return new Date(sundayUtcMidnight - ilOffsetMs(now));
+}
+
+/**
+ * Label of the Israeli work-week containing `now`, e.g. "22.11 – 28.11"
+ * (Sunday – Saturday). Matches the format shown on the studio board.
+ */
+export function ilWeekLabel(now = new Date()): string {
+  const start = ilWeekStart(now);
+  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat("he-IL", { timeZone: IL_TZ, day: "2-digit", month: "2-digit" }).format(d);
+  return `${fmt(start)} – ${fmt(end)}`;
+}
