@@ -18,7 +18,7 @@ export const GET = handle(async (req) => {
   const year = Number(p.get("year")) || new Date().getFullYear();
 
   const [clients, statuses, payments] = await Promise.all([
-    prisma.client.findMany({ where: { active: true }, select: { id: true, name: true, color: true }, orderBy: { name: "asc" } }),
+    prisma.client.findMany({ where: { active: true }, select: { id: true, name: true, color: true, paymentsArchivedAt: true }, orderBy: { name: "asc" } }),
     prisma.paymentStatus.findMany({ orderBy: { order: "asc" } }),
     prisma.clientPayment.findMany({
       where: { year },

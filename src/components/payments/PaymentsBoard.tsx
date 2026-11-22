@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/format";
 import { Button, Card } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 
-interface Client { id: string; name: string; color: string | null }
+interface Client { id: string; name: string; color: string | null; paymentsArchivedAt: string | null }
 interface Status { id: string; name: string; color: string; order: number; isPaid: boolean }
 interface Keyword { id: string; keyword: string; kind: Kind }
 interface Cell { amount: number | null; sumitAmount: number | null; statusId: string | null; note: string | null }
@@ -43,6 +43,11 @@ export default function PaymentsBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [panel, setPanel] = useState<"" | "status" | "keywords">("");
+  // קטע "ארכיון" מתקפל — זוכר מצב מקומית (כמו שאר הכרטיסים בלוח).
+  const [archiveOpen, setArchiveOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("payments-archive-open") === "1";
+    return false;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +83,10 @@ export default function PaymentsBoard() {
 
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
   const paidIds = useMemo(() => new Set(statuses.filter((s) => s.isPaid).map((s) => s.id)), [statuses]);
+
+  // פעילים למעלה (א״ב), לקוחות שסיימו יורדים לקטע "ארכיון" בתחתית.
+  const activeClients = useMemo(() => clients.filter((c) => !c.paymentsArchivedAt), [clients]);
+  const archivedClients = useMemo(() => clients.filter((c) => c.paymentsArchivedAt), [clients]);
 
   // חישוב מקומי (אופטימיסטי). הגרף תמיד 12 חודשים; שאר הסטטיסטיקות ממוקדות לחודש הנבחר (0 = כל השנה).
   const stats = useMemo(() => {
@@ -141,6 +150,27 @@ export default function PaymentsBoard() {
     }
   }
 
+  function toggleArchiveOpen() {
+    setArchiveOpen((v) => {
+      try { localStorage.setItem("payments-archive-open", v ? "0" : "1"); } catch { /* לא קריטי */ }
+      return !v;
+    });
+  }
+
+  // העברה לארכיון / החזרה ללוח — אופטימיסטי; בכישלון טוענים מחדש מהשרת.
+  // ההיסטוריה של הלקוח נשמרת במלואה; רק מיקומו בלוח משתנה.
+  async function toggleArchive(cl: Client, archived: boolean) {
+    if (archived && !confirm(`להעביר את "${cl.name}" לארכיון? כל הנתונים יישמרו, ותמיד אפשר להחזיר ללוח.`)) return;
+    const stamp = new Date().toISOString();
+    setClients((prev) => prev.map((c) => (c.id === cl.id ? { ...c, paymentsArchivedAt: archived ? stamp : null } : c)));
+    try {
+      await api("/api/payments/archive", { method: "POST", json: { clientId: cl.id, archived } });
+    } catch (e: any) {
+      setError(e.message);
+      load();
+    }
+  }
+
   const rowTotal = (clientId: string, kind: Kind) =>
     Object.values(cells[clientId] || {}).reduce((s, mc) => s + (eff(mc[kind]) || 0), 0);
   const monthTotal = (mNum: number) =>
@@ -148,6 +178,85 @@ export default function PaymentsBoard() {
       const mc = cells[cid]?.[mNum];
       return s + (eff(mc?.retainer) || 0) + (eff(mc?.oneoff) || 0);
     }, 0);
+
+  // שתי תת-השורות (ריטיינר/חד-פעמי) של לקוח. isArchived מעמעם ומחליף את כפתור
+  // הפעולה (לארכיון ↔ החזרה). אותו רינדור משמש לפעילים ולארכיון.
+  function clientRows(cl: Client, isArchived: boolean) {
+    return (
+      <Fragment key={cl.id}>
+        {KINDS.map((k, ki) => (
+          <tr key={k.key} className={`hover:bg-slate-50/50 ${ki === KINDS.length - 1 ? "border-b border-slate-200" : ""}`}>
+            {ki === 0 ? (
+              <td rowSpan={KINDS.length} className={`sticky right-0 z-10 border-l border-slate-100 px-3 py-1.5 align-top font-medium ${isArchived ? "bg-slate-50 text-slate-400" : "bg-white text-slate-800"}`}>
+                <div className="flex items-start justify-between gap-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cl.color ?? "#94a3b8", opacity: isArchived ? 0.5 : 1 }} />
+                    <span className="truncate">{cl.name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleArchive(cl, !isArchived)}
+                    title={isArchived ? "החזרה ללוח הפעיל" : "העברה לארכיון"}
+                    className="shrink-0 rounded p-0.5 text-slate-300 transition hover:bg-slate-100 hover:text-[#3a5bd9]"
+                  >
+                    <Icon name={isArchived ? "upload" : "download"} className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </td>
+            ) : null}
+            <td className="whitespace-nowrap px-2 py-1 text-[11px] font-medium text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: k.key === "retainer" ? "#3a5bd9" : "#f59e0b" }} />
+                {k.label}
+              </span>
+            </td>
+            {MONTHS.map((_, i) => {
+              const mNum = i + 1;
+              const c = cells[cl.id]?.[mNum]?.[k.key];
+              const st = c?.statusId ? statusById.get(c.statusId) : null;
+              const selected = month === mNum;
+              const isAuto = c?.amount == null && c?.sumitAmount != null;
+              return (
+                <td
+                  key={mNum}
+                  className={`px-1 py-1 align-top ${selected ? "ring-1 ring-inset ring-[#3a5bd9]/30" : ""}`}
+                  style={{ background: st ? hexTint(st.color) : selected ? "#3a5bd90d" : undefined }}
+                >
+                  <input
+                    type="number"
+                    value={c?.amount ?? c?.sumitAmount ?? ""}
+                    onChange={(e) => setCell(cl.id, mNum, k.key, { amount: e.target.value === "" ? null : Number(e.target.value) })}
+                    onBlur={() => saveCell(cl.id, mNum, k.key)}
+                    placeholder="—"
+                    title={isAuto ? "סכום אוטומטי מ-SUMIT — הקלדה תדרוס ידנית" : undefined}
+                    className={`w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-center text-[11px] hover:border-slate-300 focus:border-[#3a5bd9] focus:bg-white focus:outline-none ${isAuto ? "italic text-slate-500" : "text-slate-800"}`}
+                  />
+                  <select
+                    value={c?.statusId ?? ""}
+                    onChange={(e) => {
+                      const statusId = e.target.value || null;
+                      setCell(cl.id, mNum, k.key, { statusId });
+                      saveCell(cl.id, mNum, k.key, { statusId });
+                    }}
+                    className="mt-0.5 w-full rounded border-0 bg-transparent text-center text-[10px] text-slate-600 focus:outline-none"
+                    style={{ color: st?.color }}
+                  >
+                    <option value="">—</option>
+                    {statuses.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </td>
+              );
+            })}
+            <td className="px-2 py-1.5 text-center font-mono font-bold text-slate-800">
+              {rowTotal(cl.id, k.key) ? formatCurrency(rowTotal(cl.id, k.key)) : "—"}
+            </td>
+          </tr>
+        ))}
+      </Fragment>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -258,70 +367,24 @@ export default function PaymentsBoard() {
                 </tr>
               </thead>
               <tbody>
-                {clients.map((cl) => (
-                  <Fragment key={cl.id}>
-                    {KINDS.map((k, ki) => (
-                      <tr key={k.key} className={`hover:bg-slate-50/50 ${ki === KINDS.length - 1 ? "border-b border-slate-200" : ""}`}>
-                        {ki === 0 ? (
-                          <td rowSpan={KINDS.length} className="sticky right-0 z-10 border-l border-slate-100 bg-white px-3 py-1.5 align-top font-medium text-slate-800">
-                            <span className="flex items-center gap-1.5">
-                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cl.color ?? "#94a3b8" }} />
-                              <span className="truncate">{cl.name}</span>
-                            </span>
-                          </td>
-                        ) : null}
-                        <td className="whitespace-nowrap px-2 py-1 text-[11px] font-medium text-slate-500">
-                          <span className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: k.key === "retainer" ? "#3a5bd9" : "#f59e0b" }} />
-                            {k.label}
-                          </span>
-                        </td>
-                        {MONTHS.map((_, i) => {
-                          const mNum = i + 1;
-                          const c = cells[cl.id]?.[mNum]?.[k.key];
-                          const st = c?.statusId ? statusById.get(c.statusId) : null;
-                          const selected = month === mNum;
-                          const isAuto = c?.amount == null && c?.sumitAmount != null;
-                          return (
-                            <td
-                              key={mNum}
-                              className={`px-1 py-1 align-top ${selected ? "ring-1 ring-inset ring-[#3a5bd9]/30" : ""}`}
-                              style={{ background: st ? hexTint(st.color) : selected ? "#3a5bd90d" : undefined }}
-                            >
-                              <input
-                                type="number"
-                                value={c?.amount ?? c?.sumitAmount ?? ""}
-                                onChange={(e) => setCell(cl.id, mNum, k.key, { amount: e.target.value === "" ? null : Number(e.target.value) })}
-                                onBlur={() => saveCell(cl.id, mNum, k.key)}
-                                placeholder="—"
-                                title={isAuto ? "סכום אוטומטי מ-SUMIT — הקלדה תדרוס ידנית" : undefined}
-                                className={`w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-center text-[11px] hover:border-slate-300 focus:border-[#3a5bd9] focus:bg-white focus:outline-none ${isAuto ? "italic text-slate-500" : "text-slate-800"}`}
-                              />
-                              <select
-                                value={c?.statusId ?? ""}
-                                onChange={(e) => {
-                                  const statusId = e.target.value || null;
-                                  setCell(cl.id, mNum, k.key, { statusId });
-                                  saveCell(cl.id, mNum, k.key, { statusId });
-                                }}
-                                className="mt-0.5 w-full rounded border-0 bg-transparent text-center text-[10px] text-slate-600 focus:outline-none"
-                                style={{ color: st?.color }}
-                              >
-                                <option value="">—</option>
-                                {statuses.map((s) => (
-                                  <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                              </select>
-                            </td>
-                          );
-                        })}
-                        <td className="px-2 py-1.5 text-center font-mono font-bold text-slate-800">
-                          {rowTotal(cl.id, k.key) ? formatCurrency(rowTotal(cl.id, k.key)) : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                ))}
+                {activeClients.map((cl) => clientRows(cl, false))}
+                {archivedClients.length > 0 ? (
+                  <>
+                    <tr className="border-t-2 border-slate-200 bg-slate-50/70">
+                      <td colSpan={MONTHS.length + 3} className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={toggleArchiveOpen}
+                          className="flex items-center gap-2 text-xs font-bold text-slate-500 transition hover:text-slate-700"
+                        >
+                          <span className="text-slate-400">{archiveOpen ? "▾" : "▸"}</span>
+                          🗄️ ארכיון — לקוחות שסיימו ({archivedClients.length})
+                        </button>
+                      </td>
+                    </tr>
+                    {archiveOpen ? archivedClients.map((cl) => clientRows(cl, true)) : null}
+                  </>
+                ) : null}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">

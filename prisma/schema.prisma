@@ -241,6 +241,10 @@ model Client {
   // Round-robin new leads between the client's sales agents on intake.
   autoAssignLeads Boolean @default(false)
   active       Boolean  @default(true)
+  // Payments-board archive: when set, the client is moved to the collapsible
+  // "archive" section at the bottom of the payments board (former clients).
+  // Scoped to the payments board ONLY — does NOT touch `active`/login/other modules.
+  paymentsArchivedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
