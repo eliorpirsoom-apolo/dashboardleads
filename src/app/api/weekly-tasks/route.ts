@@ -34,7 +34,7 @@ export const GET = handle(async (req) => {
   const [tasks, nextWeekCount] = await Promise.all([
     prisma.weeklyTask.findMany({
       where: { weekStart },
-      orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+      orderBy: [{ orderIndex: "asc" }, { createdAt: "desc" }], // חדש-למעלה
       include: INCLUDE,
     }),
     // ספירת "ממתין לשבוע הבא" — רק כשצופים בשבוע הנוכחי.
@@ -68,9 +68,11 @@ export const POST = handle(async (req) => {
   const b = Create.parse(await readJson(req));
   const weekStart = weekStartForOffset(b.week === "next" ? 1 : 0);
 
-  const last = await prisma.weeklyTask.findFirst({
+  // חדש-למעלה: המשימה מקבלת את ה-orderIndex הקטן ביותר בקטגוריה (מינימום פחות 1),
+  // כך שהיא מופיעה ראשונה בסדר העולה — בדיוק כמו קבוצות הסטודיו.
+  const top = await prisma.weeklyTask.findFirst({
     where: { weekStart, category: b.category },
-    orderBy: { orderIndex: "desc" },
+    orderBy: { orderIndex: "asc" },
     select: { orderIndex: true },
   });
 
@@ -83,7 +85,7 @@ export const POST = handle(async (req) => {
       clientId: b.clientId || null,
       projectId: b.projectId || null,
       at: b.at ? new Date(b.at) : null,
-      orderIndex: (last?.orderIndex ?? -1) + 1,
+      orderIndex: (top?.orderIndex ?? 0) - 1,
       createdById: user.id,
       createdByName: user.name,
     },
