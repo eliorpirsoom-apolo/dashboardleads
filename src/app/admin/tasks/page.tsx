@@ -23,7 +23,7 @@ export default async function AdminTasksPage() {
     <>
       <PageHeader
         title="משימות"
-        subtitle="לוח צוות — בורד אישי לכל עובד/ת, כמו במאנדיי"
+        subtitle="רשימת השבוע של המשרד · לוח צוות · מאגר מהיר"
       />
       <TasksView isAdmin clients={clients} users={admins} meId={me.id} />
     </>

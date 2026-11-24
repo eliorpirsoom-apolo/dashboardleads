@@ -77,3 +77,23 @@ export function ilWeekLabel(now = new Date()): string {
     new Intl.DateTimeFormat("he-IL", { timeZone: IL_TZ, day: "2-digit", month: "2-digit" }).format(d);
   return `${fmt(start)} – ${fmt(end)}`;
 }
+
+/**
+ * Canonical week bucket key: the Sunday of the Israeli work-week as UTC
+ * midnight of that calendar date. DST-independent (no offset applied), so
+ * equality comparisons and `+7 days` stay exact — use this to tag records
+ * with a week, not `ilWeekStart`.
+ */
+export function ilWeekStartUTC(now = new Date()): Date {
+  const { y, m, day } = ilParts(now);
+  const dow = new Date(Date.UTC(y, m - 1, day)).getUTCDay(); // 0 = ראשון
+  return new Date(Date.UTC(y, m - 1, day - dow));
+}
+
+/** "23.11 – 29.11" for a canonical weekStart (from `ilWeekStartUTC`). */
+export function weekRangeLabel(weekStartUtc: Date): string {
+  const end = new Date(weekStartUtc.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat("he-IL", { timeZone: "UTC", day: "2-digit", month: "2-digit" }).format(d);
+  return `${fmt(weekStartUtc)} – ${fmt(end)}`;
+}

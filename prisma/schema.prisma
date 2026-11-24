@@ -282,6 +282,7 @@ model Client {
   seoActions        SeoAction[]
   seoQuota          SeoQuota?
   meetingSummaries  MeetingSummary[]
+  weeklyTasks       WeeklyTask[]
   signedQuotes      SignedQuote[]
   leadWebhooks      LeadWebhook[]
   shootDays         ShootDay[]
@@ -614,6 +615,35 @@ model TaskInbox {
   updatedAt       DateTime @updatedAt
 
   @@index([status, createdAt])
+}
+
+// רשימת השבוע — דף משימות שבועי משותף לכל המשרד (שלב א׳). נפרד ממודל Task:
+// כאן אין תאריך חובה; המבנה הוא קטגוריה → לקוח → פרויקט → שורות, והדף מתגלגל
+// אוטומטית כל יום ראשון (שעון ישראל) — מה שלא בוצע עובר לשבוע הבא.
+model WeeklyTask {
+  id            String    @id @default(cuid())
+  weekStart     DateTime // ראשון 00:00 (שעון ישראל) של השבוע שאליו שייכת המשימה
+  category      String    @default("misc") // collect|meetings|office|campaigns|shoots|misc
+  client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId      String?
+  project       Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId     String?
+  title         String
+  note          String? // פירוט חופשי (אופציונלי)
+  at            DateTime? // יום+שעה — לפגישות / ימי צילום
+  done          Boolean   @default(false)
+  doneAt        DateTime?
+  orderIndex    Int       @default(0) // סדר ידני בתוך הקטגוריה
+  createdById   String? // סקלרי — ללא FK (כמו TaskInbox)
+  createdByName String?
+  source        String    @default("manual") // manual|whatsapp|email — לשלב ב׳
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([weekStart, category, orderIndex])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([done])
 }
 
 // סוכן AI ללכידת משימות מהוואטסאפ אל המאגר. סינגלטון (key="task-capture").
@@ -988,6 +1018,7 @@ model Project {
   designTasks      DesignTask[]
   leadWebhooks     LeadWebhook[]
   shootDays        ShootDay[]
+  weeklyTasks      WeeklyTask[]
 
   @@unique([clientId, name])
   @@index([clientId])

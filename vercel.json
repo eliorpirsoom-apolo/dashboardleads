@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/studio-week",
       "schedule": "0 3 * * 0"
+    },
+    {
+      "path": "/api/cron/weekly-tasks",
+      "schedule": "0 3 * * 0"
     }
   ]
 }

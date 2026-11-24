@@ -9,6 +9,7 @@ import { Icon } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import TaskInboxPanel from "@/components/tasks/TaskInboxPanel";
 import TasksBoards from "@/components/tasks/TasksBoards";
+import WeeklySheet from "@/components/tasks/WeeklySheet";
 
 export interface TaskRow {
   id: string;
@@ -57,7 +58,7 @@ export default function TasksView({
   const [showCreate, setShowCreate] = useState(false);
   // מאגר לכידה מהיר + לוח צוות (רק בעמוד המשימות הראשי של המשרד).
   const showInboxTab = isAdmin && !clientId;
-  const [view, setView] = useState<"board" | "tasks" | "inbox">(showInboxTab ? "board" : "tasks");
+  const [view, setView] = useState<"weekly" | "board" | "tasks" | "inbox">(showInboxTab ? "weekly" : "tasks");
   const [inboxOpenCount, setInboxOpenCount] = useState(0);
   const [inboxReload, setInboxReload] = useState(0);
   const [convertingId, setConvertingId] = useState<string | null>(null);
@@ -123,6 +124,14 @@ export default function TasksView({
       {showInboxTab ? (
         <div className="flex items-center gap-1.5">
           <button
+            onClick={() => setView("weekly")}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              view === "weekly" ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            רשימת השבוע
+          </button>
+          <button
             onClick={() => setView("board")}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
               view === "board" ? "bg-[#3a5bd9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -149,7 +158,9 @@ export default function TasksView({
         </div>
       ) : null}
 
-      {showInboxTab && view === "board" ? (
+      {showInboxTab && view === "weekly" ? (
+        <WeeklySheet clients={clients} />
+      ) : showInboxTab && view === "board" ? (
         <TasksBoards users={users} clients={clients} meId={meId} onChanged={load} />
       ) : showInboxTab && view === "inbox" ? (
         <TaskInboxPanel onConvert={startConvert} reloadSignal={inboxReload} onOpenCount={setInboxOpenCount} />
