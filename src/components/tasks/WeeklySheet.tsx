@@ -221,7 +221,7 @@ export default function WeeklySheet({ clients }: { clients: Ref[] }) {
           <button
             onClick={() => setShowImport(true)}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9]"
-            title="ייבוא משימות מקובץ Excel/CSV"
+            title="ייבוא משימות מקובץ Excel / CSV / PDF"
           >
             ⬆️ ייבוא
           </button>

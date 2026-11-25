@@ -24,6 +24,10 @@ const CATEGORY_ALIASES: Record<string, Cat> = {
 
 const norm = (s?: string | null) => (s ?? "").trim();
 
+// נירמול שם להתאמה: מתעלם ממרכאות/גרש/נקודות/מקפים ורווחים כפולים (נדל"ן≈נדל׳ן).
+const normName = (s: string) =>
+  s.replace(/["'׳״.\-]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
 function resolveCategory(raw?: string | null): { cat: Cat; matched: boolean } {
   const key = norm(raw).toLowerCase(); // עברית אינה מושפעת מ-toLowerCase
   if (!key) return { cat: "misc", matched: true }; // ריק = ברירת מחדל לגיטימית, לא "לא זוהה"
@@ -65,8 +69,8 @@ export const POST = handle(async (req) => {
     prisma.client.findMany({ where: { active: true }, select: { id: true, name: true } }),
     prisma.project.findMany({ where: { status: "active" }, select: { id: true, name: true, clientId: true } }),
   ]);
-  const clientByName = new Map(clients.map((c) => [c.name.trim().toLowerCase(), c.id]));
-  const projectByKey = new Map(projects.map((p) => [`${p.clientId}::${p.name.trim().toLowerCase()}`, p.id]));
+  const clientByName = new Map(clients.map((c) => [normName(c.name), c.id]));
+  const projectByKey = new Map(projects.map((p) => [`${p.clientId}::${normName(p.name)}`, p.id]));
 
   // ה-orderIndex הקטן ביותר שקיים בכל קטגוריה בשבוע — כדי להכניס את הייבוא מעליו.
   const mins = await prisma.weeklyTask.groupBy({
@@ -103,12 +107,12 @@ export const POST = handle(async (req) => {
     let projectId: string | null = null;
     const cname = norm(r.client);
     if (cname) {
-      clientId = clientByName.get(cname.toLowerCase()) ?? null;
+      clientId = clientByName.get(normName(cname)) ?? null;
       if (!clientId) unmatchedClients.add(cname);
     }
     const pname = norm(r.project);
     if (pname) {
-      projectId = clientId ? projectByKey.get(`${clientId}::${pname.toLowerCase()}`) ?? null : null;
+      projectId = clientId ? projectByKey.get(`${clientId}::${normName(pname)}`) ?? null : null;
       if (!projectId) unmatchedProjects.add(pname);
     }
 

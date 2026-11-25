@@ -19,6 +19,16 @@ const TARGETS = [
   { value: "at", label: "מתי (תאריך/שעה)" },
 ];
 
+const CATEGORY_LABELS = ["גבייה", "פגישות", "משימות משרד", "קמפיינים", "ימי צילום", "משימות שונות"];
+
+interface ParsedRow {
+  category: string;
+  client: string;
+  project: string;
+  title: string;
+  note: string;
+}
+
 interface ImportResult {
   created: number;
   skipped: number;
@@ -113,6 +123,9 @@ export default function WeeklyImportModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ImportResult | null>(null);
+  // נתיב PDF — חילוץ ב-GPT לשורות מוכנות לסקירה.
+  const [parsedRows, setParsedRows] = useState<ParsedRow[] | null>(null);
+  const [parsing, setParsing] = useState(false);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -120,6 +133,39 @@ export default function WeeklyImportModal({
     setFileName(file.name);
     setError("");
     setResult(null);
+    setParsedRows(null);
+
+    // --- PDF (או תמונה): חילוץ המשימות באמצעות GPT-4o ---
+    if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+      if (file.size > 4_000_000) {
+        setError("קובץ ה-PDF גדול מדי (עד ~4MB). פצלו אותו, או ייצאו ל-Excel/CSV.");
+        return;
+      }
+      setParsing(true);
+      try {
+        const dataUrl = await new Promise<string>((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result));
+          fr.onerror = () => rej(new Error("קריאת הקובץ נכשלה"));
+          fr.readAsDataURL(file);
+        });
+        const d = await api<{ rows: ParsedRow[] }>("/api/weekly-tasks/parse-pdf", {
+          method: "POST",
+          json: { dataUrl, fileName: file.name },
+        });
+        if (!d.rows.length) {
+          setError("לא נמצאו משימות במסמך. נסו קובץ ברור יותר, או ייבוא Excel/CSV.");
+          return;
+        }
+        setParsedRows(d.rows);
+      } catch (err: any) {
+        setError(err.message || "קריאת ה-PDF נכשלה");
+      } finally {
+        setParsing(false);
+      }
+      return;
+    }
+
     let rows: string[][];
     if (/\.xlsx?$/i.test(file.name)) {
       const XLSX = await import("xlsx");
@@ -150,22 +196,28 @@ export default function WeeklyImportModal({
   }
 
   async function runImport() {
-    if (!mapping.includes("title")) {
+    // נתיב PDF — השורות כבר מחולצות ומסודרות.
+    const rows = parsedRows
+      ? parsedRows
+      : (() => {
+          if (!mapping.includes("title")) return null;
+          return dataRows.map((r) => {
+            const obj: Record<string, string> = {};
+            mapping.forEach((target, i) => {
+              if (!target) return;
+              const raw = (r[i] ?? "").trim();
+              if (raw) obj[target] = raw;
+            });
+            return obj;
+          });
+        })();
+    if (!rows) {
       setError("חובה למפות עמודה אחת ל״משימה״");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const rows = dataRows.map((r) => {
-        const obj: Record<string, string> = {};
-        mapping.forEach((target, i) => {
-          if (!target) return;
-          const raw = (r[i] ?? "").trim();
-          if (raw) obj[target] = raw;
-        });
-        return obj;
-      });
       const res = await api<ImportResult>("/api/weekly-tasks/import", { method: "POST", json: { week, rows } });
       setResult(res);
     } catch (e: any) {
@@ -175,8 +227,12 @@ export default function WeeklyImportModal({
     }
   }
 
+  function setParsedCategory(i: number, category: string) {
+    setParsedRows((prev) => (prev ? prev.map((r, idx) => (idx === i ? { ...r, category } : r)) : prev));
+  }
+
   return (
-    <Modal title="ייבוא משימות מקובץ (Excel / CSV)" onClose={onClose} wide>
+    <Modal title="ייבוא משימות מקובץ (Excel / CSV / PDF)" onClose={onClose} wide>
       <div className="flex flex-col gap-3">
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
@@ -206,15 +262,91 @@ export default function WeeklyImportModal({
               <Button onClick={onImported}>סגירה ורענון</Button>
             </div>
           </div>
+        ) : parsing ? (
+          <div className="flex flex-col items-center gap-2 py-10">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[#3a5bd9]" />
+            <p className="text-sm text-slate-600">קורא את המסמך ומחלץ משימות… (עד כ-30 שניות)</p>
+            <p className="text-xs text-slate-400">{fileName}</p>
+          </div>
+        ) : parsedRows ? (
+          <>
+            <p className="text-xs text-slate-400">
+              <b className="text-slate-700">{fileName}</b> · זוהו {parsedRows.length} משימות — בדקו ותקנו קטגוריה לפני
+              ייבוא:
+            </p>
+            <div className="thin-scroll max-h-72 overflow-auto rounded-xl border border-slate-200">
+              <table className="w-full min-w-[540px] text-right text-xs">
+                <thead className="sticky top-0 bg-white">
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-slate-400">קטגוריה</th>
+                    <th className="px-3 py-2 font-medium text-slate-400">לקוח</th>
+                    <th className="px-3 py-2 font-medium text-slate-400">פרויקט</th>
+                    <th className="px-3 py-2 font-medium text-slate-400">משימה</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {parsedRows.map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-2 py-1.5">
+                        <Select
+                          value={CATEGORY_LABELS.includes(r.category) ? r.category : ""}
+                          onChange={(e) => setParsedCategory(i, e.target.value)}
+                          className="!py-1 !text-xs"
+                        >
+                          <option value="">משימות שונות</option>
+                          {CATEGORY_LABELS.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </Select>
+                      </td>
+                      <td className="max-w-[110px] truncate px-3 py-2 text-slate-500" dir="auto">{r.client || "—"}</td>
+                      <td className="max-w-[110px] truncate px-3 py-2 text-slate-500" dir="auto">{r.project || "—"}</td>
+                      <td className="px-3 py-2 text-slate-700" dir="auto">{r.title}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span>מייבא אל:</span>
+                <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+                  {(["this", "next"] as const).map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => setWeek(w)}
+                      className={`rounded-lg px-3 py-1 text-xs font-medium transition ${
+                        week === w ? "bg-[#3a5bd9] text-white" : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      {w === "this" ? "השבוע" : "השבוע הבא"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={onClose}>ביטול</Button>
+                <Button onClick={runImport} disabled={busy}>
+                  {busy ? "מייבא…" : `ייבוא ${parsedRows.length} משימות`}
+                </Button>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              לקוח ופרויקט משויכים אוטומטית לפי שם. חילוץ ה-AI אינו מושלם — ודאו שהמשימות נכונות לפני ייבוא.
+            </p>
+          </>
         ) : headers.length === 0 ? (
           <>
             <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-400 py-10 transition hover:border-[#3a5bd9]">
               <Icon name="upload" className="h-7 w-7 text-slate-500" />
-              <span className="text-sm text-slate-600">בחרו קובץ Excel (xlsx) או CSV — עד 1000 שורות</span>
-              <span className="text-xs text-slate-500">שורה ראשונה = כותרות · עמודות: קטגוריה, לקוח, פרויקט, משימה</span>
+              <span className="text-sm text-slate-600">בחרו קובץ Excel (xlsx), CSV או PDF</span>
+              <span className="text-xs text-slate-500">
+                Excel/CSV — שורה ראשונה כותרות · PDF — המשימות מחולצות אוטומטית ב-AI (עד ~4MB)
+              </span>
               <input
                 type="file"
-                accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.pdf,application/pdf"
                 className="hidden"
                 onChange={onFile}
               />
