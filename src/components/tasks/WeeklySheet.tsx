@@ -5,6 +5,7 @@ import { api } from "@/lib/fetcher";
 import { Button, Field, Input, Select } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { useCollapse, CollapseBtn } from "@/components/settings/Collapse";
+import WeeklyImportModal from "@/components/tasks/WeeklyImportModal";
 
 // --- קטגוריות הדף (סדר קבוע, כמו על הדף הפיזי) -------------------------------
 const CATEGORIES = [
@@ -66,6 +67,7 @@ export default function WeeklySheet({ clients }: { clients: Ref[] }) {
   const [title, setTitle] = useState("");
   const [addWeek, setAddWeek] = useState<"this" | "next">("this");
   const [adding, setAdding] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -215,13 +217,22 @@ export default function WeeklySheet({ clients }: { clients: Ref[] }) {
           </button>
         ) : null}
 
-        <button
-          onClick={() => window.print()}
-          className="mr-auto flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9]"
-          title="הדפסת רשימת השבוע"
-        >
-          🖨️ הדפסה
-        </button>
+        <div className="mr-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9]"
+            title="ייבוא משימות מקובץ Excel/CSV"
+          >
+            ⬆️ ייבוא
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-[#3a5bd9] hover:text-[#3a5bd9]"
+            title="הדפסת רשימת השבוע"
+          >
+            🖨️ הדפסה
+          </button>
+        </div>
       </div>
 
       {/* --- הוספה מהירה ------------------------------------------------------ */}
@@ -311,6 +322,17 @@ export default function WeeklySheet({ clients }: { clients: Ref[] }) {
           ))}
         </div>
       )}
+
+      {showImport ? (
+        <WeeklyImportModal
+          defaultWeek={offset === 1 ? "next" : "this"}
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
