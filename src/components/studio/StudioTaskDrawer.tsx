@@ -909,6 +909,17 @@ export default function StudioTaskDrawer({
                 <span className="mr-2 text-[10px] font-normal text-slate-400">אפשר לגרור קבצים לכאן ⤵</span>
               </p>
               <div className="flex items-center gap-1.5">
+                {deliverables.length > 0 && !deliverables.every((a) => selAssets.has(a.id)) ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelAssets(new Set(deliverables.map((a) => a.id)))}
+                    title="סימון כל התוצרים"
+                  >
+                    <Icon name="check" className="h-4 w-4" />
+                    בחר הכל
+                  </Button>
+                ) : null}
                 {selAssets.size > 0 ? (
                   <>
                     <span className="text-xs text-slate-500">{selAssets.size} מסומנים</span>
