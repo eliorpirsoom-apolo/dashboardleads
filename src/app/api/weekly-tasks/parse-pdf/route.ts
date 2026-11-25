@@ -15,6 +15,37 @@ const Req = z.object({
   fileName: z.string().optional().nullable(),
 });
 
+// אוסף כל אובייקט JSON מאוזן (בכל עומק) מתוך טקסט, תוך התעלמות ממרכאות.
+// עמיד לתשובה שנקטעה: אובייקט שלא נסגר פשוט לא נאסף.
+function balancedJsonObjects(text: string): any[] {
+  const out: any[] = [];
+  const stack: number[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") stack.push(i);
+    else if (ch === "}") {
+      const start = stack.pop();
+      if (start !== undefined) {
+        try {
+          out.push(JSON.parse(text.slice(start, i + 1)));
+        } catch {
+          /* skip incomplete/invalid */
+        }
+      }
+    }
+  }
+  return out;
+}
+
 const SYSTEM =
   "אתה מחלץ רשימת משימות שבועית של משרד פרסום ממסמך (PDF/תמונה, מודפס או בכתב יד) " +
   "ומחזיר JSON בלבד. גם אם המסמך מבולגן או בכתב יד — עשה כמיטב יכולתך ואל תסרב.";
@@ -50,7 +81,7 @@ export const POST = handle(async (req) => {
     body: JSON.stringify({
       model: process.env.OPENAI_VISION_MODEL || "gpt-4o",
       temperature: 0.1,
-      max_tokens: 4000,
+      max_tokens: 12000, // רשימה ארוכה לא תיחתך באמצע ה-JSON
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: [{ type: "text", text: PROMPT }, part] },
@@ -75,22 +106,21 @@ export const POST = handle(async (req) => {
   }
   console.error("[weekly-parse-pdf] finish=%s len=%d head=%s", finish, content.length, content.slice(0, 200));
 
-  // חילוץ ה-JSON: אובייקט {tasks:[...]}, או מערך [...] גולמי, גם מתוך טקסט עוטף.
-  let arr: unknown = null;
+  // חילוץ ה-JSON: קודם ניסיון נקי ({tasks:[...]} או מערך). אם נכשל (כולל תשובה
+  // שנקטעה באמצע) — אוספים כל אובייקט-משימה שלם בנפרד, כך שאובייקט אחרון חסר
+  // פשוט מדולג במקום להפיל את כל הקובץ.
   const stripped = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  let arr: any[] | null = null;
   try {
     const parsed = JSON.parse(stripped);
-    arr = Array.isArray(parsed) ? parsed : Array.isArray((parsed as any)?.tasks) ? (parsed as any).tasks : null;
+    if (Array.isArray(parsed)) arr = parsed;
+    else if (Array.isArray(parsed?.tasks)) arr = parsed.tasks;
   } catch {
-    const a = stripped.indexOf("[");
-    const z2 = stripped.lastIndexOf("]");
-    if (a >= 0 && z2 > a) {
-      try {
-        arr = JSON.parse(stripped.slice(a, z2 + 1));
-      } catch {
-        /* ignore */
-      }
-    }
+    /* fall through to salvage */
+  }
+  if (!arr) {
+    const objs = balancedJsonObjects(stripped).filter((o) => o && typeof o.title === "string");
+    if (objs.length) arr = objs;
   }
 
   if (!Array.isArray(arr)) {
